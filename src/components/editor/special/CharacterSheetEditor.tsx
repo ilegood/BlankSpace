@@ -1,24 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  Image as ImageIcon,
-  Type,
-  FileText,
-  List,
-  Shield,
-  Square,
-  Minus,
   Undo2,
   Redo2,
   ZoomIn,
   ZoomOut,
   Maximize2,
-  Copy,
-  Trash2,
-  ArrowUp,
-  ArrowDown,
-  Palette,
-  Sparkles,
   Download,
+  RotateCcw,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
@@ -33,9 +21,13 @@ import {
   convertOldDataToCanvas,
 } from '../canvas/defaultPresets';
 import { CanvasElementRenderer } from '../canvas/CanvasElementRenderer';
+import { CanvasLibrary } from '../canvas/CanvasLibrary';
+import { CanvasInspector } from '../canvas/CanvasInspector';
+import { useToast } from '../../toast/ToastContext';
 
 export const CharacterSheetEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { toast } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -114,7 +106,6 @@ export const CharacterSheetEditor: React.FC = () => {
   // Keyboard Shortcuts: Delete, Duplicate, Undo
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Ignore if user is typing inside input or textarea
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
 
@@ -168,8 +159,8 @@ export const CharacterSheetEditor: React.FC = () => {
     const newEl: CanvasElement = {
       ...JSON.parse(JSON.stringify(target)),
       id: `el-${Date.now()}`,
-      x: target.x + 24,
-      y: target.y + 24,
+      x: Math.min(target.x + 24, canvasData.canvasWidth - 100),
+      y: Math.min(target.y + 24, canvasData.canvasHeight - 100),
       zIndex: canvasData.elements.length + 1,
     };
     setSelectedId(newEl.id);
@@ -179,7 +170,7 @@ export const CharacterSheetEditor: React.FC = () => {
     });
   };
 
-  // Bring Forward / Send Backward
+  // Bring to Front / Send to Back
   const handleBringToFront = (id: string) => {
     const maxZ = Math.max(...canvasData.elements.map((e) => e.zIndex), 1);
     handleUpdateElement(id, { zIndex: maxZ + 1 });
@@ -190,146 +181,301 @@ export const CharacterSheetEditor: React.FC = () => {
     handleUpdateElement(id, { zIndex: Math.max(0, minZ - 1) });
   };
 
-  // Add new element from library
+  // Update canvas global properties
+  const handleUpdateCanvas = (updates: Partial<CanvasDocumentData>) => {
+    pushState({ ...canvasData, ...updates });
+  };
+
+  // Add meaningful element from library
   const handleAddElement = (type: CanvasElementType) => {
     const newId = `el-${Date.now()}`;
     const baseZ = canvasData.elements.length + 1;
     let newEl: CanvasElement;
 
-    const centerX = 340;
-    const centerY = 180;
+    // Center of canvas view
+    const spawnX = Math.round(canvasData.canvasWidth / 2 - 170);
+    const spawnY = Math.round(180 + (canvasData.elements.length % 5) * 20);
 
     switch (type) {
+      // 1. Character Image
+      case 'character-image':
       case 'image':
         newEl = {
           id: newId,
-          type: 'image',
-          x: centerX,
-          y: centerY,
-          width: 240,
-          height: 320,
+          type: 'character-image',
+          x: spawnX,
+          y: spawnY,
+          width: 320,
+          height: 420,
           zIndex: baseZ,
-          style: { borderRadius: 16, borderWidth: 1, borderColor: '#ECEEF3' },
+          style: {
+            borderRadius: 24,
+            borderWidth: 1,
+            borderColor: '#E2E8F0',
+            backgroundColor: '#F8FAFC',
+            objectFit: 'cover',
+          },
           content: {
             imageUrl:
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
-            alt: '새 이미지',
-            aspectRatio: true,
+            alt: '캐릭터 이미지',
           },
         };
         break;
 
+      // 2. Name Badge
+      case 'name-badge':
       case 'heading':
         newEl = {
           id: newId,
-          type: 'heading',
-          x: centerX,
-          y: centerY,
-          width: 320,
-          height: 40,
+          type: 'name-badge',
+          x: spawnX,
+          y: spawnY,
+          width: 360,
+          height: 100,
           zIndex: baseZ,
-          style: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
-          content: { text: '새 제목을 입력하세요' },
+          style: {
+            backgroundColor: '#FFFFFF',
+            borderWidth: 1,
+            borderColor: '#E2E8F0',
+            borderRadius: 16,
+            padding: 16,
+          },
+          content: {
+            nameFields: [
+              {
+                id: 'nf-1',
+                label: '이름',
+                value: '새 캐릭터',
+                fontSize: 22,
+                fontWeight: 'bold',
+                color: '#1E293B',
+                isPrimary: true,
+              },
+              {
+                id: 'nf-2',
+                label: '칭호',
+                value: '방랑하는 모험가',
+                fontSize: 13,
+                fontWeight: 'medium',
+                color: '#8B5CF6',
+              },
+            ],
+          },
         };
         break;
 
-      case 'text':
-        newEl = {
-          id: newId,
-          type: 'text',
-          x: centerX,
-          y: centerY,
-          width: 340,
-          height: 80,
-          zIndex: baseZ,
-          style: { fontSize: 13, color: '#475569' },
-          content: { text: '이곳에 내용을 자유롭게 작성하세요.' },
-        };
-        break;
-
+      // 3. Info Card
+      case 'info-card':
       case 'info-field':
         newEl = {
           id: newId,
-          type: 'info-field',
-          x: centerX,
-          y: centerY,
+          type: 'info-card',
+          x: spawnX,
+          y: spawnY,
+          width: 380,
+          height: 180,
+          zIndex: baseZ,
+          style: {
+            backgroundColor: '#FFFFFF',
+            borderWidth: 1,
+            borderColor: '#E2E8F0',
+            borderRadius: 16,
+            padding: 16,
+          },
+          content: {
+            title: '기본 정보',
+            infoDisplayMode: 'grid-2col',
+            infoCardItems: [
+              { id: 'it-1', label: '나이', value: '20세' },
+              { id: 'it-2', label: '소속', value: '자유 기사단' },
+              { id: 'it-3', label: '신장', value: '175cm' },
+              { id: 'it-4', label: '주무기', value: '롱소드' },
+            ],
+          },
+        };
+        break;
+
+      // 4. Narrative Card
+      case 'narrative-card':
+      case 'text':
+        newEl = {
+          id: newId,
+          type: 'narrative-card',
+          x: spawnX,
+          y: spawnY,
+          width: 380,
+          height: 160,
+          zIndex: baseZ,
+          style: {
+            backgroundColor: '#FFFFFF',
+            borderWidth: 1,
+            borderColor: '#E2E8F0',
+            borderRadius: 16,
+            padding: 16,
+            fontSize: 13,
+            textAlign: 'left',
+          },
+          content: {
+            title: '성격 및 배경',
+            narrativeText:
+              '캐릭터의 성격, 과거의 사건, 가치관 등 자유로운 서술을 작성하세요.',
+          },
+        };
+        break;
+
+      // 5. Keyword Card
+      case 'keyword-card':
+        newEl = {
+          id: newId,
+          type: 'keyword-card',
+          x: spawnX,
+          y: spawnY,
           width: 360,
           height: 120,
           zIndex: baseZ,
           style: {
             backgroundColor: '#FFFFFF',
-            borderColor: '#ECEEF3',
             borderWidth: 1,
+            borderColor: '#E2E8F0',
             borderRadius: 16,
-            padding: 12,
+            padding: 14,
           },
           content: {
-            infoItems: [
-              { id: '1', label: '항목 1', value: '내용 입력' },
-              { id: '2', label: '항목 2', value: '내용 입력' },
+            title: '주요 키워드',
+            tagDisplayMode: 'chips',
+            tags: [
+              { id: 'tag-1', text: '정의로움' },
+              { id: 'tag-2', text: '과묵함' },
+              { id: 'tag-3', text: '동료애' },
             ],
           },
         };
         break;
 
+      // 6. Radar Chart
+      case 'radar-chart':
       case 'status-chart':
         newEl = {
           id: newId,
-          type: 'status-chart',
-          x: centerX,
-          y: centerY,
-          width: 360,
-          height: 140,
+          type: 'radar-chart',
+          x: spawnX,
+          y: spawnY,
+          width: 340,
+          height: 320,
           zIndex: baseZ,
           style: {
             backgroundColor: '#FFFFFF',
-            borderColor: '#ECEEF3',
             borderWidth: 1,
-            borderRadius: 16,
-            padding: 12,
+            borderColor: '#E2E8F0',
+            borderRadius: 20,
+            padding: 16,
           },
           content: {
-            statDisplayType: 'card',
-            stats: [
-              { id: '1', label: '공격력', value: 'A' },
-              { id: '2', label: '방어력', value: 'B' },
-              { id: '3', label: '스피드', value: 'S' },
+            title: '종합 능력치',
+            radarMaxValue: 100,
+            radarColor: '#8B5CF6',
+            radarFillOpacity: 0.25,
+            radarAxes: [
+              { id: 'ax-1', label: '공격력', value: 85 },
+              { id: 'ax-2', label: '방어력', value: 70 },
+              { id: 'ax-3', label: '민첩성', value: 90 },
+              { id: 'ax-4', label: '지능', value: 65 },
+              { id: 'ax-5', label: '마력', value: 80 },
             ],
           },
         };
         break;
 
-      case 'container':
+      // 7. Relationship Card
+      case 'relationship-card':
         newEl = {
           id: newId,
-          type: 'container',
-          x: centerX,
-          y: centerY,
+          type: 'relationship-card',
+          x: spawnX,
+          y: spawnY,
           width: 380,
           height: 180,
-          zIndex: 1, // send to bottom by default
+          zIndex: baseZ,
           style: {
-            backgroundColor: '#F8FAFC',
-            borderColor: '#E2E8F0',
+            backgroundColor: '#FFFFFF',
             borderWidth: 1,
+            borderColor: '#E2E8F0',
             borderRadius: 16,
+            padding: 16,
           },
-          content: {},
+          content: {
+            title: '주요 관계 요약',
+            relationships: [
+              {
+                id: 'rel-1',
+                name: '루시안',
+                relation: '동료이자 라이벌',
+                description: '어릴 때부터 함께 검을 쥐어온 전우.',
+              },
+              {
+                id: 'rel-2',
+                name: '에레나',
+                relation: '스승',
+                description: '고대 정령검술을 전수해 준 조력자.',
+              },
+            ],
+          },
         };
         break;
 
-      case 'divider':
+      // 8. Quote Card
+      case 'quote-card':
         newEl = {
           id: newId,
-          type: 'divider',
-          x: centerX,
-          y: centerY,
-          width: 300,
-          height: 16,
+          type: 'quote-card',
+          x: spawnX,
+          y: spawnY,
+          width: 380,
+          height: 110,
           zIndex: baseZ,
-          content: { orientation: 'horizontal' },
+          style: {
+            backgroundColor: '#FBFBFE',
+            borderWidth: 1,
+            borderColor: '#E0E7FF',
+            borderRadius: 16,
+            padding: 16,
+          },
+          content: {
+            quoteText: '“검을 뽑았을 때, 이미 망설임은 버렸다.”',
+            quoteSituation: '전투 돌입 대사',
+          },
         };
         break;
+
+      // 9. Memo Card
+      case 'memo-card':
+      case 'container':
+        newEl = {
+          id: newId,
+          type: 'memo-card',
+          x: spawnX,
+          y: spawnY,
+          width: 260,
+          height: 160,
+          zIndex: baseZ,
+          style: {
+            backgroundColor: '#FEF9C3',
+            borderWidth: 1,
+            borderColor: '#FEF08A',
+            borderRadius: 16,
+            padding: 14,
+          },
+          content: {
+            title: '기획 노트',
+            memoContent:
+              '숨겨진 특성이나 차후 에피소드에서 밝혀질 비밀 설정 메모.',
+          },
+        };
+        break;
+
+      default:
+        return;
     }
 
     setSelectedId(newId);
@@ -342,31 +488,58 @@ export const CharacterSheetEditor: React.FC = () => {
   // Export Canvas as PNG
   const handleExportImage = async () => {
     if (!printRef.current || !activeDocument) return;
-    await exportElementAsPng(printRef.current, {
-      fileName: `${activeDocument.title || '캐릭터시트'}-자유배치`,
-    });
+    try {
+      await exportElementAsPng(printRef.current, {
+        fileName: `${activeDocument.title || '캐릭터시트'}-시트`,
+      });
+      toast.success('시트 이미지가 저장되었습니다.');
+    } catch {
+      toast.error('이미지 내보내기에 실패했습니다.');
+    }
   };
 
-  const selectedElement = canvasData.elements.find((el) => el.id === selectedId);
+  const selectedElement = canvasData.elements.find((el) => el.id === selectedId) || null;
+
+  // Background pattern calculation for sheet
+  const getCanvasPatternStyle = () => {
+    const pattern = canvasData.pattern;
+    if (!pattern || pattern.type === 'none') return {};
+
+    if (pattern.type === 'dots') {
+      return {
+        backgroundImage: `radial-gradient(circle, ${pattern.color} ${pattern.size}px, transparent ${pattern.size}px)`,
+        backgroundSize: `${pattern.gap}px ${pattern.gap}px`,
+      };
+    }
+
+    if (pattern.type === 'grid') {
+      return {
+        backgroundImage: `linear-gradient(to right, ${pattern.color} 1px, transparent 1px), linear-gradient(to bottom, ${pattern.color} 1px, transparent 1px)`,
+        backgroundSize: `${pattern.gap}px ${pattern.gap}px`,
+      };
+    }
+
+    return {};
+  };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-dark-bg relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}
         onExportImage={handleExportImage}
       />
 
-      {/* Sub Toolbar: Undo/Redo + Zoom Controls + Quick Export */}
-      <div className="h-11 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 shadow-2xs">
-        {/* Left Undo / Redo */}
-        <div className="flex items-center gap-1">
+      {/* Sub Toolbar */}
+      <div className="h-11 bg-white dark:bg-dark-surface border-b border-slate-200 dark:border-dark-border px-4 flex items-center justify-between shrink-0 shadow-2xs z-10">
+        {/* Left: Undo / Redo + Element Count */}
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             title="실행 취소 (Ctrl+Z)"
             onClick={handleUndo}
             disabled={historyIdx <= 0}
-            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+            className="p-1.5 text-slate-500 hover:text-slate-800 dark:text-dark-textSecondary dark:hover:text-dark-text hover:bg-slate-100 dark:hover:bg-dark-elevated rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <Undo2 className="w-4 h-4" />
           </button>
@@ -375,63 +548,21 @@ export const CharacterSheetEditor: React.FC = () => {
             title="다시 실행 (Ctrl+Y)"
             onClick={handleRedo}
             disabled={historyIdx >= history.length - 1}
-            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+            className="p-1.5 text-slate-500 hover:text-slate-800 dark:text-dark-textSecondary dark:hover:text-dark-text hover:bg-slate-100 dark:hover:bg-dark-elevated rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
           >
             <Redo2 className="w-4 h-4" />
           </button>
 
-          <div className="h-4 w-px bg-slate-200 mx-1.5" />
+          <div className="h-4 w-px bg-slate-200 dark:bg-dark-border mx-1" />
 
-          <span className="text-[11px] font-medium text-slate-400">
-            총 {canvasData.elements.length}개 요소
+          <span className="text-[11px] font-medium text-slate-400 dark:text-dark-textSecondary">
+            총 {canvasData.elements.length}개 카드 요소
           </span>
         </div>
 
-        {/* Selected Element Quick Action Floating Bar (Center) */}
-        {selectedElement && (
-          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-xl shadow-2xs text-xs animate-in fade-in duration-100">
-            <span className="text-[11px] font-bold text-lavender-700 px-1 truncate max-w-[100px]">
-              {selectedElement.type}
-            </span>
-            <div className="h-3 w-px bg-slate-200 mx-0.5" />
-            <button
-              type="button"
-              title="복제 (Ctrl+D)"
-              onClick={() => handleDuplicateElement(selectedElement.id)}
-              className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded"
-            >
-              <Copy className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              title="맨 앞으로 가져오기"
-              onClick={() => handleBringToFront(selectedElement.id)}
-              className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded"
-            >
-              <ArrowUp className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              title="맨 뒤로 보내기"
-              onClick={() => handleSendToBack(selectedElement.id)}
-              className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded"
-            >
-              <ArrowDown className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              title="삭제 (Del)"
-              onClick={() => handleDeleteElement(selectedElement.id)}
-              className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Right Zoom Controls & Image Save */}
+        {/* Right: Zoom Controls & PNG Export */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1 text-xs">
+          <div className="flex items-center gap-1 bg-slate-100 dark:bg-dark-elevated px-1.5 py-0.5 rounded-lg text-xs">
             <button
               type="button"
               title="축소"
@@ -441,13 +572,18 @@ export const CharacterSheetEditor: React.FC = () => {
                   zoom: Math.max(50, canvasData.zoom - 10),
                 })
               }
-              className="p-1 text-slate-400 hover:text-slate-700 rounded"
+              className="p-1 text-slate-500 hover:text-slate-800 dark:text-dark-textSecondary dark:hover:text-dark-text rounded"
             >
               <ZoomOut className="w-3.5 h-3.5" />
             </button>
-            <span className="font-mono text-slate-600 font-medium px-1">
+            <button
+              type="button"
+              title="100% 리셋"
+              onClick={() => pushState({ ...canvasData, zoom: 100 })}
+              className="font-mono text-slate-700 dark:text-dark-text font-semibold px-1 text-[11px] hover:text-lavender-600"
+            >
               {canvasData.zoom}%
-            </span>
+            </button>
             <button
               type="button"
               title="확대"
@@ -457,7 +593,7 @@ export const CharacterSheetEditor: React.FC = () => {
                   zoom: Math.min(150, canvasData.zoom + 10),
                 })
               }
-              className="p-1 text-slate-400 hover:text-slate-700 rounded"
+              className="p-1 text-slate-500 hover:text-slate-800 dark:text-dark-textSecondary dark:hover:text-dark-text rounded"
             >
               <ZoomIn className="w-3.5 h-3.5" />
             </button>
@@ -466,223 +602,27 @@ export const CharacterSheetEditor: React.FC = () => {
           <button
             type="button"
             onClick={handleExportImage}
-            className="flex items-center gap-1.5 px-3 py-1 bg-lavender-500 hover:bg-lavender-600 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-lavender-600 hover:bg-lavender-700 text-white rounded-xl text-xs font-semibold shadow-xs transition-colors"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>이미지로 저장</span>
+            <span>이미지 저장</span>
           </button>
         </div>
       </div>
 
-      {/* Main 2-Column: Left Element Library + Center Freeform Canvas */}
+      {/* Main 3-Column Layout: Left Library + Center Canvas + Right Inspector */}
       <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Element Library & Properties */}
-        <div className="w-56 bg-white border-r border-slate-200 p-4 flex flex-col justify-between shrink-0 overflow-y-auto">
-          <div className="flex flex-col gap-5">
-            {/* 1. Element Library Panel */}
-            <div className="flex flex-col gap-2">
-              <span className="text-[11px] font-bold text-slate-400 tracking-wider">
-                요소 라이브러리
-              </span>
-              <div className="flex flex-col gap-1.5 text-xs">
-                <button
-                  type="button"
-                  onClick={() => handleAddElement('image')}
-                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
-                >
-                  <ImageIcon className="w-4 h-4 text-lavender-600" />
-                  <span>이미지 추가</span>
-                </button>
+        {/* 1. Left Library Panel */}
+        <CanvasLibrary onAddElement={handleAddElement} />
 
-                <button
-                  type="button"
-                  onClick={() => handleAddElement('heading')}
-                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
-                >
-                  <Type className="w-4 h-4 text-lavender-600" />
-                  <span>제목 추가</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleAddElement('text')}
-                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
-                >
-                  <FileText className="w-4 h-4 text-lavender-600" />
-                  <span>본문 텍스트</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleAddElement('info-field')}
-                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
-                >
-                  <List className="w-4 h-4 text-lavender-600" />
-                  <span>기본 정보 카드</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleAddElement('status-chart')}
-                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
-                >
-                  <Shield className="w-4 h-4 text-lavender-600" />
-                  <span>스테이터스 표</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleAddElement('container')}
-                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
-                >
-                  <Square className="w-4 h-4 text-lavender-600" />
-                  <span>배경 박스 / 카드</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => handleAddElement('divider')}
-                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
-                >
-                  <Minus className="w-4 h-4 text-lavender-600" />
-                  <span>구분선</span>
-                </button>
-              </div>
-            </div>
-
-            {/* 2. Inspector Properties for Selected Element */}
-            {selectedElement && (
-              <div className="flex flex-col gap-3 pt-3 border-t border-slate-100 text-xs">
-                <span className="text-[11px] font-bold text-slate-400 tracking-wider">
-                  선택 요소 속성
-                </span>
-
-                {/* Image URL Input if Image */}
-                {selectedElement.type === 'image' && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      이미지 URL
-                    </span>
-                    <input
-                      type="text"
-                      value={selectedElement.content.imageUrl || ''}
-                      onChange={(e) =>
-                        handleUpdateElement(selectedElement.id, {
-                          content: {
-                            ...selectedElement.content,
-                            imageUrl: e.target.value,
-                          },
-                        })
-                      }
-                      className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs !bg-white"
-                      placeholder="https://..."
-                    />
-                  </div>
-                )}
-
-                {/* Font Size for Heading / Text */}
-                {(selectedElement.type === 'heading' ||
-                  selectedElement.type === 'text') && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-slate-500 font-medium">
-                      글꼴 크기
-                    </span>
-                    <input
-                      type="number"
-                      min={10}
-                      max={48}
-                      value={selectedElement.style?.fontSize || 14}
-                      onChange={(e) =>
-                        handleUpdateElement(selectedElement.id, {
-                          style: {
-                            ...selectedElement.style,
-                            fontSize: Number(e.target.value),
-                          },
-                        })
-                      }
-                      className="w-16 px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-xs font-mono !bg-white"
-                    />
-                  </div>
-                )}
-
-                {/* Background Color Quick Chips */}
-                <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    배경색
-                  </span>
-                  <div className="flex items-center gap-1.5">
-                    {[
-                      'transparent',
-                      '#FFFFFF',
-                      '#FAFBFD',
-                      '#F8FAFC',
-                      '#EDE9FE',
-                      '#FCE7F3',
-                    ].map((col) => (
-                      <button
-                        key={col}
-                        type="button"
-                        onClick={() =>
-                          handleUpdateElement(selectedElement.id, {
-                            style: {
-                              ...selectedElement.style,
-                              backgroundColor: col,
-                            },
-                          })
-                        }
-                        title={col}
-                        style={{ backgroundColor: col === 'transparent' ? '#F1F5F9' : col }}
-                        className={`w-6 h-6 rounded-lg border transition-transform ${
-                          selectedElement.style?.backgroundColor === col
-                            ? 'ring-2 ring-lavender-500 scale-110'
-                            : 'border-slate-300'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Border Radius */}
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] text-slate-500 font-medium">
-                    둥근 모서리
-                  </span>
-                  <select
-                    value={selectedElement.style?.borderRadius || 0}
-                    onChange={(e) =>
-                      handleUpdateElement(selectedElement.id, {
-                        style: {
-                          ...selectedElement.style,
-                          borderRadius: Number(e.target.value),
-                        },
-                      })
-                    }
-                    className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs !bg-white"
-                  >
-                    <option value={0}>각지게 (0px)</option>
-                    <option value={8}>약간 둥글게 (8px)</option>
-                    <option value={16}>부드럽게 (16px)</option>
-                    <option value={24}>많이 둥글게 (24px)</option>
-                  </select>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Quick Help Guide */}
-          <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-400 leading-relaxed">
-            💡 요소 드래그로 위치 변경, 8개 핸들로 크기 조절, 텍스트 더블클릭으로 바로 수정할 수 있습니다.
-          </div>
-        </div>
-
-        {/* Center Freeform Canvas Workspace */}
+        {/* 2. Center Freeform Canvas Workspace */}
         <div
           onClick={() => setSelectedId(null)}
-          className="flex-1 bg-[#F5F6FA] overflow-auto p-10 flex items-center justify-center relative select-none"
+          className="flex-1 bg-[#EEF2F6] dark:bg-[#121217] overflow-auto p-12 flex items-center justify-center relative select-none"
           style={{
             backgroundImage:
               'radial-gradient(circle, #CBD5E1 1px, transparent 1px)',
-            backgroundSize: '20px 20px',
+            backgroundSize: '24px 24px',
           }}
         >
           {/* Canvas Sheet Paper (Captured for PNG export) */}
@@ -693,9 +633,11 @@ export const CharacterSheetEditor: React.FC = () => {
               minHeight: `${canvasData.canvasHeight}px`,
               transform: `scale(${canvasData.zoom / 100})`,
               transformOrigin: 'top center',
+              backgroundColor: canvasData.backgroundColor || '#FFFFFF',
+              ...getCanvasPatternStyle(),
             }}
             onClick={(e) => e.stopPropagation()}
-            className="relative bg-white rounded-3xl shadow-sm border border-slate-200/90 transition-transform duration-75 overflow-hidden"
+            className="relative rounded-3xl shadow-lg border border-slate-200/90 dark:border-dark-border transition-transform duration-75 overflow-hidden"
           >
             {/* Render Canvas Elements */}
             {canvasData.elements.map((el) => (
@@ -711,6 +653,22 @@ export const CharacterSheetEditor: React.FC = () => {
             ))}
           </div>
         </div>
+
+        {/* 3. Right Inspector & Template Panel */}
+        <CanvasInspector
+          selectedElement={selectedElement}
+          canvasData={canvasData}
+          onUpdateElement={handleUpdateElement}
+          onDeleteElement={handleDeleteElement}
+          onDuplicateElement={handleDuplicateElement}
+          onBringToFront={handleBringToFront}
+          onSendToBack={handleSendToBack}
+          onUpdateCanvas={handleUpdateCanvas}
+          onLoadCanvasData={(data) => {
+            setSelectedId(null);
+            pushState(data);
+          }}
+        />
       </div>
     </div>
   );
