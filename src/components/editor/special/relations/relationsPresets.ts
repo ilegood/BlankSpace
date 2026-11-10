@@ -275,3 +275,4 @@ export function convertLegacyToRelations(raw: any): CharacterRelationsDocData {
 
   return INITIAL_RELATIONS_DATA;
 }
+

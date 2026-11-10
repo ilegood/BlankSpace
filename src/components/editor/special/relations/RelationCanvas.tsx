@@ -548,3 +548,4 @@ export const RelationCanvas: React.FC<RelationCanvasProps> = ({
     </div>
   );
 };
+

@@ -89,3 +89,4 @@ export const RELATION_TYPE_PRESETS: RelationTypePreset[] = [
     description: '특수한 서사적 관계',
   },
 ];
+
