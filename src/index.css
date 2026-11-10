@@ -1,0 +1,309 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* 모든 텍스트 입력 영역은 흰색 배경 보장 */
+  input,
+  textarea,
+  select {
+    background-color: #ffffff !important;
+  }
+
+  /* 부드러운 스크롤 */
+  html {
+    scroll-behavior: smooth;
+  }
+
+  /* 커스텀 스크롤바 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #E2E8F0;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #CBD5E1;
+  }
+}
+
+/* ==========================================================================
+   Tiptap 문서 편집기 서식 및 레이아웃 스타일링 (Phase 2 안정화)
+   ========================================================================== */
+.ProseMirror {
+  outline: none !important;
+  min-height: 480px;
+}
+
+.ProseMirror p {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.7;
+}
+
+.ProseMirror h1 {
+  font-size: 1.875rem !important; /* 30px */
+  line-height: 1.25 !important;
+  font-weight: 700 !important;
+  color: #1E293B !important;
+  margin-top: 1.75rem !important;
+  margin-bottom: 0.75rem !important;
+  padding-bottom: 0.35rem !important;
+  border-bottom: 1px solid #ECEEF3 !important;
+}
+
+.ProseMirror h2 {
+  font-size: 1.5rem !important; /* 24px */
+  line-height: 1.3 !important;
+  font-weight: 700 !important;
+  color: #1E293B !important;
+  margin-top: 1.5rem !important;
+  margin-bottom: 0.6rem !important;
+}
+
+.ProseMirror h3 {
+  font-size: 1.25rem !important; /* 20px */
+  line-height: 1.35 !important;
+  font-weight: 600 !important;
+  color: #334155 !important;
+  margin-top: 1.25rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.ProseMirror strong,
+.ProseMirror b {
+  font-weight: 700 !important;
+  color: #0F172A !important;
+}
+
+.ProseMirror em,
+.ProseMirror i {
+  font-style: italic !important;
+}
+
+.ProseMirror s,
+.ProseMirror strike,
+.ProseMirror del {
+  text-decoration: line-through !important;
+  color: #94A3B8 !important;
+}
+
+/* 글머리 기호 목록 */
+.ProseMirror ul:not([data-type="taskList"]) {
+  list-style-type: disc !important;
+  padding-left: 1.6rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.ProseMirror ul:not([data-type="taskList"]) li {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* 번호 매기기 목록 */
+.ProseMirror ol {
+  list-style-type: decimal !important;
+  padding-left: 1.6rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.ProseMirror ol li {
+  margin-top: 0.25rem !important;
+  margin-bottom: 0.25rem !important;
+}
+
+/* 할 일 체크리스트 (TaskList & TaskItem) */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none !important;
+  padding: 0 !important;
+  margin: 0.5rem 0 !important;
+}
+
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex !important;
+  align-items: flex-start !important;
+  gap: 0.6rem !important;
+  margin: 0.35rem 0 !important;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label {
+  user-select: none !important;
+  margin-top: 0.2rem !important;
+  flex-shrink: 0 !important;
+}
+
+.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  width: 1rem !important;
+  height: 1rem !important;
+  border-radius: 0.25rem !important;
+  border: 1.5px solid #A5B4FC !important;
+  accent-color: #7E61E7 !important;
+  cursor: pointer !important;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1 !important;
+  min-width: 0 !important;
+}
+
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  text-decoration: line-through !important;
+  color: #94A3B8 !important;
+}
+
+/* 인용문 (Blockquote) */
+.ProseMirror blockquote {
+  border-left: 3.5px solid #937BEF !important;
+  background-color: #F8F8FD !important;
+  padding: 0.6rem 1rem !important;
+  margin: 1rem 0 !important;
+  border-radius: 0 0.75rem 0.75rem 0 !important;
+  color: #475569 !important;
+  font-style: italic !important;
+}
+
+/* 구분선 (HR) */
+.ProseMirror hr {
+  border: none !important;
+  border-top: 1.5px solid #E2E8F0 !important;
+  margin: 1.75rem 0 !important;
+}
+
+/* 표 (Table) */
+.ProseMirror table {
+  border-collapse: collapse !important;
+  table-layout: fixed !important;
+  width: 100% !important;
+  margin: 1.25rem 0 !important;
+  overflow: hidden !important;
+  border-radius: 0.5rem !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
+.ProseMirror table th {
+  background-color: #F2F1FD !important;
+  color: #4338CA !important;
+  font-weight: 600 !important;
+  text-align: left !important;
+  padding: 0.6rem 0.85rem !important;
+  border: 1px solid #CBD5E1 !important;
+}
+
+.ProseMirror table td {
+  padding: 0.55rem 0.85rem !important;
+  border: 1px solid #CBD5E1 !important;
+  vertical-align: top !important;
+  box-sizing: border-box !important;
+  position: relative !important;
+}
+
+.ProseMirror table .selectedCell:after {
+  z-index: 2;
+  position: absolute;
+  content: "";
+  left: 0; right: 0; top: 0; bottom: 0;
+  background: rgba(126, 97, 231, 0.1);
+  pointer-events: none;
+}
+
+/* 하이퍼링크 */
+.ProseMirror a {
+  color: #7E61E7 !important;
+  text-decoration: underline !important;
+  font-weight: 500 !important;
+  cursor: pointer !important;
+}
+
+.ProseMirror a:hover {
+  color: #5638B8 !important;
+}
+
+/* 이미지 */
+.ProseMirror img {
+  max-width: 100% !important;
+  height: auto !important;
+  border-radius: 0.75rem !important;
+  margin: 1rem 0 !important;
+  border: 1px solid #E2E8F0 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* 플레이스홀더 */
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #94A3B8;
+  pointer-events: none;
+  height: 0;
+}
+
+/* Phase 4: 내부 문서 링크 전용 뱃지 스타일 */
+.ProseMirror a[href^="#blankspace-doc:"],
+.ProseMirror a.internal-link {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 0.25rem !important;
+  background-color: #F2F1FD !important;
+  color: #6845DB !important;
+  font-weight: 600 !important;
+  padding: 0.15rem 0.5rem !important;
+  border-radius: 0.375rem !important;
+  border: 1px solid #D5CFFB !important;
+  text-decoration: none !important;
+  margin: 0 0.2rem !important;
+  transition: all 0.15s ease !important;
+  font-size: 0.9em !important;
+}
+
+.ProseMirror a[href^="#blankspace-doc:"]:hover,
+.ProseMirror a.internal-link:hover {
+  background-color: #E6E3FC !important;
+  color: #5638B8 !important;
+  border-color: #B4A6F7 !important;
+  box-shadow: 0 2px 6px rgba(126, 97, 231, 0.15) !important;
+}
+
+/* Phase 6: 미디어 & 외부 임베드 */
+.ProseMirror iframe {
+  width: 100% !important;
+  max-width: 48rem !important;
+  aspect-ratio: 16 / 9 !important;
+  border-radius: 1rem !important;
+  margin: 1.25rem auto !important;
+  border: 1px solid #ECEEF3 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+  display: block !important;
+}
+
+.ProseMirror video {
+  width: 100% !important;
+  max-width: 48rem !important;
+  border-radius: 1rem !important;
+  margin: 1.25rem auto !important;
+  border: 1px solid #ECEEF3 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+  display: block !important;
+}
+
+.ProseMirror audio {
+  width: 100% !important;
+  max-width: 32rem !important;
+  margin: 0.75rem auto !important;
+  display: block !important;
+}
+
+.blankspace-link-card {
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.blankspace-link-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}

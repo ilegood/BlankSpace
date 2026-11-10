@@ -1,0 +1,142 @@
+import React from 'react';
+import { MoreHorizontal, Folder, FileText, Trash2, Edit2, Calendar } from 'lucide-react';
+import { Project } from '../../types';
+import { useWorkspace } from '../../store/WorkspaceContext';
+import { formatRelativeTime } from '../../utils/time';
+
+interface ProjectCardProps {
+  project: Project;
+}
+
+export const ProjectCard: React.FC<ProjectCardProps> = ({ project }) => {
+  const { setActiveProject, folders, documents, deleteProject, renameProject } = useWorkspace();
+  const [showMenu, setShowMenu] = React.useState(false);
+  const [isRenaming, setIsRenaming] = React.useState(false);
+  const [newName, setNewName] = React.useState(project.name);
+
+  // Count items inside this project
+  const projectFolders = folders.filter((f) => f.projectId === project.id);
+  const projectDocs = documents.filter((d) => d.projectId === project.id);
+
+  const handleRenameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newName.trim()) {
+      await renameProject(project.id, newName.trim());
+    }
+    setIsRenaming(false);
+  };
+
+  return (
+    <div
+      onClick={() => setActiveProject(project.id)}
+      className="group relative bg-white border border-[#ECEEF3] rounded-2xl overflow-hidden shadow-soft hover:shadow-soft-hover hover:border-lavender-300 transition-all duration-200 cursor-pointer flex flex-col"
+    >
+      {/* Cover Image Banner */}
+      <div className="h-36 w-full relative overflow-hidden bg-slate-100">
+        <img
+          src={project.coverImage || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop'}
+          alt={project.name}
+          className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/10 to-transparent" />
+
+        {/* Thumbnail Avatar floating on bottom-left of cover */}
+        <div className="absolute bottom-3 left-4 flex items-center gap-2.5">
+          <img
+            src={project.avatarImage || project.coverImage}
+            alt={project.name}
+            className="w-10 h-10 rounded-xl object-cover border-2 border-white shadow-md bg-white"
+          />
+        </div>
+
+        {/* Top-right menu button */}
+        <div className="absolute top-3 right-3" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => setShowMenu((prev) => !prev)}
+            className="p-1.5 rounded-xl bg-white/80 hover:bg-white text-slate-700 shadow-sm transition-all"
+            title="프로젝트 설정"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+
+          {showMenu && (
+            <div className="absolute right-0 top-8 z-30 bg-white border border-[#ECEEF3] rounded-xl shadow-modal p-1 w-32 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100">
+              <button
+                onClick={() => {
+                  setShowMenu(false);
+                  setIsRenaming(true);
+                }}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-slate-700 hover:bg-slate-50 transition-colors text-left"
+              >
+                <Edit2 className="w-3.5 h-3.5 text-slate-400" />
+                <span>이름 변경</span>
+              </button>
+              <button
+                onClick={async () => {
+                  setShowMenu(false);
+                  if (window.confirm(`'${project.name}' 프로젝트를 삭제하시겠습니까? 내부의 모든 폴더와 문서가 함께 삭제됩니다.`)) {
+                    await deleteProject(project.id);
+                  }
+                }}
+                className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-600 hover:bg-rose-50 transition-colors text-left"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                <span>프로젝트 삭제</span>
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Content Area */}
+      <div className="p-5 flex flex-col flex-1 justify-between gap-3">
+        <div>
+          {isRenaming ? (
+            <form
+              onSubmit={handleRenameSubmit}
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 mb-1"
+            >
+              <input
+                type="text"
+                autoFocus
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                onBlur={handleRenameSubmit}
+                className="text-sm font-bold px-2 py-0.5 rounded border border-lavender-400 focus:outline-none !bg-white w-full"
+              />
+            </form>
+          ) : (
+            <h3 className="font-bold text-slate-800 text-[15px] group-hover:text-lavender-700 transition-colors truncate">
+              {project.name}
+            </h3>
+          )}
+
+          <p className="text-xs text-slate-500 mt-1 line-clamp-2 leading-relaxed font-normal">
+            {project.description || '창작 프로젝트 워크스페이스입니다.'}
+          </p>
+        </div>
+
+        {/* Footer Meta */}
+        <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-[11.5px] text-slate-400">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Folder className="w-3.5 h-3.5 text-slate-400" />
+              <span>{projectFolders.length}</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <FileText className="w-3.5 h-3.5 text-slate-400" />
+              <span>{projectDocs.length}</span>
+            </span>
+          </div>
+
+          <div className="flex items-center gap-1">
+            <Calendar className="w-3 h-3 text-slate-400" />
+            <span>{formatRelativeTime(project.updatedAt)}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
