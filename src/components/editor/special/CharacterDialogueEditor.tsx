@@ -1,391 +1,831 @@
-import React, { useState, useEffect, useRef } from 'react';
-import {
-  MessageSquare,
-  Plus,
-  Trash2,
-  GitBranch,
-  Split,
-  Tag,
-  User,
-  X,
-  Sparkles,
-} from 'lucide-react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
-import { generateId } from '../../../utils/id';
 import { exportElementAsPng } from '../../../utils/exportImage';
-
-export interface DialogueLine {
-  id: string;
-  speaker: string;
-  avatarUrl: string;
-  text: string;
-  tags: string[];
-  memo?: string;
-}
-
-const DEFAULT_DIALOGUES: DialogueLine[] = [
-  {
-    id: 'dlg-1',
-    speaker: '아르젠',
-    avatarUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=200&auto=format&fit=crop',
-    text: '....또 늦었네.',
-    tags: ['냉정', '불만', '기본'],
-    memo: '약속을 중요하게 여기는 성격을 드러내는 대사.',
-  },
-  {
-    id: 'dlg-2',
-    speaker: '카일',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
-    text: '하네가 먼저 와 있을 줄은 몰랐지.',
-    tags: ['능청', '일상'],
-    memo: '긴장감 없이 여유로운 태도를 보여주는 대답.',
-  },
-  {
-    id: 'dlg-3',
-    speaker: '아르젠',
-    avatarUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=200&auto=format&fit=crop',
-    text: '약속은 지키라고 했을 텐데.',
-    tags: ['단호', '원칙주의'],
-    memo: '기사단 특유의 엄격한 규율 의식 반영.',
-  },
-  {
-    id: 'dlg-4',
-    speaker: '카일',
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
-    text: '그렇게 딱딱하게 굴지 마. 별일도 아니잖아?',
-    tags: ['장난', '친근'],
-    memo: '아르젠의 굳은 표정을 풀어주려는 의도.',
-  },
-];
+import {
+  CharacterDialogueDocData,
+  DialogueScenario,
+  DialogueLineNode,
+  DialogueSpeaker,
+  DialogueChoice,
+} from '../../../types/dialogue';
+import {
+  INITIAL_DIALOGUE_DATA,
+  DEFAULT_SPEAKERS,
+  convertLegacyToDialogueData,
+} from './dialogue/dialoguePresets';
+import { DialogueSidebar } from './dialogue/DialogueSidebar';
+import { DialogueListView } from './dialogue/DialogueListView';
+import { DialogueGraphView } from './dialogue/DialogueGraphView';
+import { DialogueInspector } from './dialogue/DialogueInspector';
+import { DialoguePreviewModal } from './dialogue/DialoguePreviewModal';
+import {
+  List,
+  GitGraph,
+  Columns,
+  Plus,
+  Split,
+  Undo2,
+  Redo2,
+  Check,
+  Edit3,
+  Play,
+  Download,
+  Maximize,
+  Minimize,
+} from 'lucide-react';
 
 export const CharacterDialogueEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
-  const { success, info } = useToast();
+  const { toast } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
-  const [dialogueCategory, setDialogueCategory] = useState<'daily' | 'conflict' | 'event'>('daily');
-  const [lines, setLines] = useState<DialogueLine[]>(DEFAULT_DIALOGUES);
-  const [selectedLineId, setSelectedLineId] = useState<string | null>('dlg-1');
-  const [newTagInput, setNewTagInput] = useState('');
+  // 1. Core Document State
+  const [docData, setDocData] = useState<CharacterDialogueDocData>(INITIAL_DIALOGUE_DATA);
 
-  // Load from activePage.content
+  // 2. View Mode & Layout State
+  // View mode is default (Requirement: "기본 상태는 보기 모드로 설정해줘")
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [viewTab, setViewTab] = useState<'list' | 'graph' | 'split'>('split');
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // 3. Selection State
+  const [selectedDialogueId, setSelectedDialogueId] = useState<string | null>('dlg-001');
+
+  // 4. Undo / Redo History
+  const [history, setHistory] = useState<CharacterDialogueDocData[]>([]);
+  const [historyIdx, setHistoryIdx] = useState<number>(-1);
+  const isUndoRedoAction = useRef(false);
+
+  // Load from Page Content or Default
   useEffect(() => {
     if (!activePage) return;
     try {
-      if (activePage.content && activePage.content.startsWith('[')) {
+      if (activePage.content && (activePage.content.startsWith('{') || activePage.content.startsWith('['))) {
         const parsed = JSON.parse(activePage.content);
-        if (parsed.length > 0) {
-          setLines(parsed);
-          setSelectedLineId(parsed[0].id);
-          return;
+        const converted = convertLegacyToDialogueData(parsed);
+        setDocData(converted);
+        setHistory([converted]);
+        setHistoryIdx(0);
+
+        const currentScn = converted.scenarios.find((s) => s.id === converted.activeScenarioId) || converted.scenarios[0];
+        if (currentScn && currentScn.dialogues.length > 0) {
+          setSelectedDialogueId(currentScn.dialogues[0].id);
         }
+        return;
       }
-    } catch {}
-    setLines(DEFAULT_DIALOGUES);
-    setSelectedLineId('dlg-1');
+    } catch (e) {
+      console.warn('Failed to parse dialogue data, falling back to initial:', e);
+    }
+
+    setDocData(INITIAL_DIALOGUE_DATA);
+    setHistory([INITIAL_DIALOGUE_DATA]);
+    setHistoryIdx(0);
+    setSelectedDialogueId(INITIAL_DIALOGUE_DATA.scenarios[0]?.dialogues[0]?.id || null);
   }, [activePage?.id]);
 
-  const persistLines = (newLines: DialogueLine[]) => {
-    setLines(newLines);
-    if (!activePage) return;
-    setSaveStatus('saving');
-    updatePageContent(activePage.id, JSON.stringify(newLines));
-    setTimeout(() => setSaveStatus('saved'), 300);
+  // Push State & Autosave
+  const pushState = useCallback(
+    (nextData: CharacterDialogueDocData) => {
+      setDocData(nextData);
+
+      if (!isUndoRedoAction.current) {
+        setHistory((prev) => {
+          const sliced = prev.slice(0, historyIdx + 1);
+          return [...sliced, nextData];
+        });
+        setHistoryIdx((prev) => prev + 1);
+      }
+      isUndoRedoAction.current = false;
+
+      if (!activePage) return;
+      setSaveStatus('saving');
+      updatePageContent(activePage.id, JSON.stringify(nextData));
+      setTimeout(() => setSaveStatus('saved'), 300);
+    },
+    [activePage, historyIdx, updatePageContent]
+  );
+
+  // Undo / Redo
+  const handleUndo = useCallback(() => {
+    if (historyIdx > 0) {
+      isUndoRedoAction.current = true;
+      const prev = history[historyIdx - 1];
+      setHistoryIdx(historyIdx - 1);
+      setDocData(prev);
+      if (activePage) updatePageContent(activePage.id, JSON.stringify(prev));
+    }
+  }, [history, historyIdx, activePage, updatePageContent]);
+
+  const handleRedo = useCallback(() => {
+    if (historyIdx < history.length - 1) {
+      isUndoRedoAction.current = true;
+      const next = history[historyIdx + 1];
+      setHistoryIdx(historyIdx + 1);
+      setDocData(next);
+      if (activePage) updatePageContent(activePage.id, JSON.stringify(next));
+    }
+  }, [history, historyIdx, activePage, updatePageContent]);
+
+  // Keyboard Shortcuts (Undo, Redo)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleUndo, handleRedo]);
+
+  // Active Scenario Helper
+  const activeScenario = useMemo(() => {
+    return (
+      docData.scenarios.find((s) => s.id === docData.activeScenarioId) ||
+      docData.scenarios[0] || {
+        id: 'scn-default',
+        title: '새 대화 시나리오',
+        category: '기본',
+        dialogues: [],
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      }
+    );
+  }, [docData.scenarios, docData.activeScenarioId]);
+
+  const activeDialogues = activeScenario.dialogues;
+  const currentSpeakers = docData.speakers || DEFAULT_SPEAKERS;
+
+  const selectedDialogue = useMemo(() => {
+    return activeDialogues.find((d) => d.id === selectedDialogueId) || null;
+  }, [activeDialogues, selectedDialogueId]);
+
+  // Update active scenario's dialogues helper
+  const updateActiveDialogues = useCallback(
+    (newDialogues: DialogueLineNode[]) => {
+      const nextScenarios = docData.scenarios.map((scn) => {
+        if (scn.id === activeScenario.id) {
+          return {
+            ...scn,
+            dialogues: newDialogues,
+            updatedAt: Date.now(),
+          };
+        }
+        return scn;
+      });
+
+      pushState({
+        ...docData,
+        scenarios: nextScenarios,
+      });
+    },
+    [docData, activeScenario.id, pushState]
+  );
+
+  // ------------------------------------------------------------------
+  // Scenario Handlers
+  // ------------------------------------------------------------------
+  const handleSelectScenario = (id: string) => {
+    pushState({
+      ...docData,
+      activeScenarioId: id,
+    });
+    const target = docData.scenarios.find((s) => s.id === id);
+    if (target && target.dialogues.length > 0) {
+      setSelectedDialogueId(target.dialogues[0].id);
+    } else {
+      setSelectedDialogueId(null);
+    }
   };
 
+  const handleAddScenario = (category: string, title?: string) => {
+    const newId = `scn-${Date.now()}`;
+    const newTitle = title?.trim() || `새 대화 시나리오 ${docData.scenarios.length + 1}`;
+    const initialLine: DialogueLineNode = {
+      id: `dlg-${Date.now()}-1`,
+      order: 1,
+      speakerName: currentSpeakers[0]?.name || '아르젠',
+      speakerRole: currentSpeakers[0]?.role || '',
+      speakerAvatarUrl: currentSpeakers[0]?.avatarUrl || '',
+      text: '새로운 대화가 시작됩니다.',
+      tags: ['기본'],
+      choices: [],
+      position: { x: 100, y: 150 },
+    };
+
+    const newScenario: DialogueScenario = {
+      id: newId,
+      title: newTitle,
+      category: category || '기본',
+      dialogues: [initialLine],
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    pushState({
+      ...docData,
+      scenarios: [...docData.scenarios, newScenario],
+      activeScenarioId: newId,
+    });
+    setSelectedDialogueId(initialLine.id);
+    toast.success(`'${newTitle}' 시나리오가 추가되었습니다.`);
+  };
+
+  const handleDuplicateScenario = (id: string) => {
+    const target = docData.scenarios.find((s) => s.id === id);
+    if (!target) return;
+
+    const newId = `scn-${Date.now()}`;
+    const duplicated: DialogueScenario = {
+      ...target,
+      id: newId,
+      title: `${target.title} (복사본)`,
+      dialogues: target.dialogues.map((d) => ({
+        ...d,
+        choices: d.choices.map((c) => ({ ...c })),
+        position: { ...d.position },
+      })),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+
+    pushState({
+      ...docData,
+      scenarios: [...docData.scenarios, duplicated],
+      activeScenarioId: newId,
+    });
+    setSelectedDialogueId(duplicated.dialogues[0]?.id || null);
+    toast.success('시나리오가 복제되었습니다.');
+  };
+
+  const handleRenameScenario = (id: string, newTitle: string) => {
+    const nextScenarios = docData.scenarios.map((s) => (s.id === id ? { ...s, title: newTitle } : s));
+    pushState({ ...docData, scenarios: nextScenarios });
+  };
+
+  const handleUpdateCategory = (id: string, newCategory: string) => {
+    const nextScenarios = docData.scenarios.map((s) => (s.id === id ? { ...s, category: newCategory } : s));
+    pushState({ ...docData, scenarios: nextScenarios });
+  };
+
+  const handleDeleteScenario = (id: string) => {
+    if (docData.scenarios.length <= 1) {
+      toast.warning('최소 1개의 시나리오는 유지되어야 합니다.');
+      return;
+    }
+
+    const nextScenarios = docData.scenarios.filter((s) => s.id !== id);
+    const nextActiveId = docData.activeScenarioId === id ? nextScenarios[0].id : docData.activeScenarioId;
+
+    pushState({
+      ...docData,
+      scenarios: nextScenarios,
+      activeScenarioId: nextActiveId,
+    });
+
+    const nextTarget = nextScenarios.find((s) => s.id === nextActiveId);
+    setSelectedDialogueId(nextTarget?.dialogues[0]?.id || null);
+    toast.info('시나리오가 삭제되었습니다.');
+  };
+
+  // ------------------------------------------------------------------
+  // Dialogue Line Handlers
+  // ------------------------------------------------------------------
+  const handleAddDialogue = (afterId?: string) => {
+    const lastDlg = activeDialogues[activeDialogues.length - 1];
+    let nextOrder = 1;
+    let nextX = 100;
+    let nextY = 150;
+
+    if (afterId) {
+      const target = activeDialogues.find((d) => d.id === afterId);
+      if (target) {
+        nextOrder = target.order + 1;
+        nextX = target.position.x + 320;
+        nextY = target.position.y;
+      }
+    } else if (lastDlg) {
+      nextOrder = Math.max(...activeDialogues.map((d) => d.order)) + 1;
+      nextX = lastDlg.position.x + 320;
+      nextY = lastDlg.position.y;
+    }
+
+    // Default speaker is the opposite or last speaker
+    const defaultSpeaker =
+      currentSpeakers.find((s) => s.name !== lastDlg?.speakerName) ||
+      currentSpeakers[0] || { name: '화자', role: '', avatarUrl: '' };
+
+    const newDlg: DialogueLineNode = {
+      id: `dlg-${Date.now().toString(36)}`,
+      order: nextOrder,
+      speakerName: defaultSpeaker.name,
+      speakerRole: defaultSpeaker.role,
+      speakerAvatarUrl: defaultSpeaker.avatarUrl,
+      text: '',
+      tags: ['기본'],
+      choices: [],
+      position: { x: nextX, y: nextY },
+    };
+
+    // If afterId was given, increment subsequent orders
+    let newDialogues: DialogueLineNode[];
+    if (afterId) {
+      newDialogues = activeDialogues.map((d) => {
+        if (d.order >= nextOrder) {
+          return { ...d, order: d.order + 1 };
+        }
+        return d;
+      });
+      newDialogues.push(newDlg);
+    } else {
+      newDialogues = [...activeDialogues, newDlg];
+    }
+
+    updateActiveDialogues(newDialogues);
+    setSelectedDialogueId(newDlg.id);
+    toast.success('새 대사가 추가되었습니다.');
+  };
+
+  const handleDeleteDialogue = (id: string) => {
+    // Also remove references from nextDialogueId and choices
+    const nextDialogues = activeDialogues
+      .filter((d) => d.id !== id)
+      .map((d) => ({
+        ...d,
+        nextDialogueId: d.nextDialogueId === id ? undefined : d.nextDialogueId,
+        choices: d.choices.map((c) => ({
+          ...c,
+          nextDialogueId: c.nextDialogueId === id ? undefined : c.nextDialogueId,
+        })),
+      }));
+
+    if (selectedDialogueId === id) {
+      const remaining = nextDialogues.sort((a, b) => a.order - b.order);
+      setSelectedDialogueId(remaining[0]?.id || null);
+    }
+
+    updateActiveDialogues(nextDialogues);
+    toast.info('대사가 삭제되었습니다.');
+  };
+
+  const handleDuplicateDialogue = (id: string) => {
+    const target = activeDialogues.find((d) => d.id === id);
+    if (!target) return;
+
+    const newId = `dlg-${Date.now().toString(36)}`;
+    const duplicated: DialogueLineNode = {
+      ...target,
+      id: newId,
+      order: target.order + 1,
+      choices: target.choices.map((c) => ({
+        ...c,
+        id: `choice-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 5)}`,
+      })),
+      position: {
+        x: target.position.x + 40,
+        y: target.position.y + 40,
+      },
+    };
+
+    const nextDialogues = activeDialogues.map((d) => {
+      if (d.order > target.order) {
+        return { ...d, order: d.order + 1 };
+      }
+      return d;
+    });
+    nextDialogues.push(duplicated);
+
+    updateActiveDialogues(nextDialogues);
+    setSelectedDialogueId(newId);
+    toast.success('대사가 복제되었습니다.');
+  };
+
+  const handleMoveOrder = (id: string, direction: 'up' | 'down') => {
+    const sorted = [...activeDialogues].sort((a, b) => a.order - b.order);
+    const index = sorted.findIndex((d) => d.id === id);
+    if (index === -1) return;
+
+    if (direction === 'up' && index > 0) {
+      const prev = sorted[index - 1];
+      const cur = sorted[index];
+      const tempOrder = prev.order;
+      prev.order = cur.order;
+      cur.order = tempOrder;
+      updateActiveDialogues([...sorted]);
+    } else if (direction === 'down' && index < sorted.length - 1) {
+      const next = sorted[index + 1];
+      const cur = sorted[index];
+      const tempOrder = next.order;
+      next.order = cur.order;
+      cur.order = tempOrder;
+      updateActiveDialogues([...sorted]);
+    }
+  };
+
+  const handleUpdateDialogue = (id: string, updates: Partial<DialogueLineNode>) => {
+    const nextDialogues = activeDialogues.map((d) => (d.id === id ? { ...d, ...updates } : d));
+    updateActiveDialogues(nextDialogues);
+  };
+
+  // ------------------------------------------------------------------
+  // Graph Connections & Positions
+  // ------------------------------------------------------------------
+  const handleConnectNext = (sourceId: string, targetId: string, choiceId?: string) => {
+    if (sourceId === targetId) {
+      toast.warning('자기 자신을 다음 대사로 연결할 수 없습니다.');
+      return;
+    }
+
+    const nextDialogues = activeDialogues.map((d) => {
+      if (d.id === sourceId) {
+        if (choiceId) {
+          const nextChoices = d.choices.map((c) =>
+            c.id === choiceId ? { ...c, nextDialogueId: targetId } : c
+          );
+          return { ...d, choices: nextChoices };
+        } else {
+          return { ...d, nextDialogueId: targetId };
+        }
+      }
+      return d;
+    });
+
+    updateActiveDialogues(nextDialogues);
+    toast.success('대화 흐름이 연결되었습니다.');
+  };
+
+  const handleDisconnectNext = (sourceId: string, choiceId?: string) => {
+    const nextDialogues = activeDialogues.map((d) => {
+      if (d.id === sourceId) {
+        if (choiceId) {
+          const nextChoices = d.choices.map((c) =>
+            c.id === choiceId ? { ...c, nextDialogueId: undefined } : c
+          );
+          return { ...d, choices: nextChoices };
+        } else {
+          return { ...d, nextDialogueId: undefined };
+        }
+      }
+      return d;
+    });
+
+    updateActiveDialogues(nextDialogues);
+    toast.info('연결이 해제되었습니다.');
+  };
+
+  const handleUpdatePosition = (id: string, pos: { x: number; y: number }) => {
+    const nextDialogues = activeDialogues.map((d) => (d.id === id ? { ...d, position: pos } : d));
+    updateActiveDialogues(nextDialogues);
+  };
+
+  // ------------------------------------------------------------------
+  // Quick Add Choice from Toolbar
+  // ------------------------------------------------------------------
+  const handleQuickAddChoice = () => {
+    if (!selectedDialogue) {
+      toast.warning('선택지를 추가할 대사를 먼저 선택해주세요.');
+      return;
+    }
+
+    const newChoice: DialogueChoice = {
+      id: `choice-${Date.now().toString(36)}`,
+      text: `선택지 ${selectedDialogue.choices.length + 1}`,
+    };
+
+    const nextChoices = [...selectedDialogue.choices, newChoice];
+    handleUpdateDialogue(selectedDialogue.id, { choices: nextChoices });
+    toast.success(`'${selectedDialogue.speakerName || '대사'}'에 선택지가 추가되었습니다.`);
+  };
+
+  // Add custom speaker
+  const handleAddSpeaker = (speaker: DialogueSpeaker) => {
+    const nextSpeakers = [...currentSpeakers, speaker];
+    pushState({
+      ...docData,
+      speakers: nextSpeakers,
+    });
+    toast.success(`'${speaker.name}' 화자가 등록되었습니다.`);
+  };
+
+  // Export Image
   const handleExportImage = async () => {
     if (!printRef.current || !activeDocument) return;
-    await exportElementAsPng(printRef.current, {
-      fileName: `${activeDocument.title}-대사스크립트`,
-    });
-  };
-
-  const handleAddLine = (speaker: string = '아르젠') => {
-    const isArzen = speaker === '아르젠';
-    const newLine: DialogueLine = {
-      id: `dlg-${generateId()}`,
-      speaker,
-      avatarUrl: isArzen
-        ? 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=200&auto=format&fit=crop'
-        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop',
-      text: '새로운 대사를 입력하세요.',
-      tags: ['기본'],
-      memo: '',
-    };
-    const next = [...lines, newLine];
-    persistLines(next);
-    setSelectedLineId(newLine.id);
-  };
-
-  const handleDeleteLine = (id: string) => {
-    const next = lines.filter((l) => l.id !== id);
-    persistLines(next);
-    if (selectedLineId === id) {
-      setSelectedLineId(next[0]?.id || null);
+    try {
+      await exportElementAsPng(printRef.current, {
+        fileName: `${activeDocument.title || '캐릭터-대사-스크립트'}_${activeScenario.title}`,
+      });
+      toast.success('대사 스크립트 이미지가 저장되었습니다.');
+    } catch (e) {
+      toast.error('이미지 저장 중 오류가 발생했습니다.');
     }
   };
 
-  const updateSelectedLine = (key: keyof DialogueLine, value: any) => {
-    if (!selectedLineId) return;
-    const next = lines.map((l) => (l.id === selectedLineId ? { ...l, [key]: value } : l));
-    persistLines(next);
-  };
-
-  const selectedLine = lines.find((l) => l.id === selectedLineId) || lines[0];
-
-  const handleAddTag = () => {
-    if (!newTagInput.trim() || !selectedLine) return;
-    const tag = newTagInput.trim();
-    if (!selectedLine.tags.includes(tag)) {
-      updateSelectedLine('tags', [...selectedLine.tags, tag]);
+  // Toggle Fullscreen
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => setIsFullscreen(true)).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => setIsFullscreen(false)).catch(() => {});
     }
-    setNewTagInput('');
-  };
-
-  const handleRemoveTag = (t: string) => {
-    if (!selectedLine) return;
-    updateSelectedLine('tags', selectedLine.tags.filter((item) => item !== t));
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
-      {/* Header */}
+    <div
+      ref={printRef}
+      className={`h-full flex flex-col bg-slate-50 dark:bg-[#17171D] text-slate-800 dark:text-[#E8E7EF] font-sans antialiased overflow-hidden select-none transition-colors duration-200 ${
+        isFullscreen ? 'fixed inset-0 z-50' : 'relative'
+      }`}
+    >
+      {/* 1. Global Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}
         onExportImage={handleExportImage}
-        extraControls={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleAddLine(selectedLine?.speaker === '아르젠' ? '카일' : '아르젠')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-lavender-600 hover:bg-lavender-700 text-white font-semibold text-xs shadow-xs transition-colors"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              <span>대사 추가</span>
-            </button>
-            <button
-              onClick={() => info('선택지 안내', '선택지 분기 블록이 삽입되었습니다.')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] bg-white dark:bg-[#1E1E27] hover:bg-slate-50 dark:hover:bg-[#292936] text-slate-700 dark:text-[#E8E7EF] font-medium text-xs transition-colors"
-            >
-              <Split className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
-              <span>선택지 추가</span>
-            </button>
-            <button
-              onClick={() => info('분기 패널', '분기 설정 패널을 엽니다.')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] bg-white dark:bg-[#1E1E27] hover:bg-slate-50 dark:hover:bg-[#292936] text-slate-700 dark:text-[#E8E7EF] font-medium text-xs transition-colors"
-            >
-              <GitBranch className="w-3.5 h-3.5 text-slate-500 dark:text-[#A5A3B5]" />
-              <span>분기 설정</span>
-            </button>
-          </div>
-        }
       />
 
-      {/* Main 3-Column Layout: Left Dialogue List + Center Timeline + Right Inspector */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Dialogue Category List */}
-        <div className="w-56 bg-white border-r border-slate-200 p-4 flex flex-col justify-between shrink-0">
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-bold text-slate-500 px-1">대화 목록</span>
-            <div className="flex flex-col gap-1 text-xs">
-              {[
-                { id: 'daily', label: '일상 대화', count: 4 },
-                { id: 'conflict', label: '갈등', count: 2 },
-                { id: 'event', label: '특정 이벤트', count: 1 },
-              ].map((c) => {
-                const isSelected = dialogueCategory === c.id;
-                return (
-                  <button
-                    key={c.id}
-                    onClick={() => setDialogueCategory(c.id as any)}
-                    className={`flex items-center justify-between px-3 py-2 rounded-xl transition-all text-left ${
-                      isSelected
-                        ? 'bg-lavender-50 text-lavender-900 font-bold border border-lavender-200 shadow-2xs'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <MessageSquare className={`w-3.5 h-3.5 ${isSelected ? 'text-lavender-600' : 'text-slate-400'}`} />
-                      <span>{c.label}</span>
-                    </div>
-                    <span className="text-[10px] text-slate-400 font-semibold">{c.count}</span>
-                  </button>
-                );
-              })}
-            </div>
+      {/* 2. Specialized Secondary Control Toolbar */}
+      <div className="h-12 px-6 border-b border-[#ECEEF3] dark:border-[#3A3948] flex items-center justify-between shrink-0 bg-white/95 dark:bg-[#1E1E27]/95 backdrop-blur-xs transition-colors duration-200 z-10 shadow-2xs">
+        {/* Left: View Tabs + Dialogue / Choice Add Actions */}
+        <div className="flex items-center gap-2">
+          {/* Hybrid View Switcher */}
+          <div className="flex items-center bg-slate-100 dark:bg-[#292936] p-0.5 rounded-xl border border-slate-200/60 dark:border-[#3A3948]">
+            <button
+              type="button"
+              onClick={() => setViewTab('list')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                viewTab === 'list'
+                  ? 'bg-lavender-600 text-white shadow-2xs'
+                  : 'text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800 dark:hover:text-[#E8E7EF]'
+              }`}
+              title="대사 목록 보기"
+            >
+              <List className="w-3.5 h-3.5" />
+              <span>대사 목록</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewTab('graph')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                viewTab === 'graph'
+                  ? 'bg-lavender-600 text-white shadow-2xs'
+                  : 'text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800 dark:hover:text-[#E8E7EF]'
+              }`}
+              title="노드 그래프 보기"
+            >
+              <GitGraph className="w-3.5 h-3.5" />
+              <span>노드 그래프</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewTab('split')}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
+                viewTab === 'split'
+                  ? 'bg-lavender-600 text-white shadow-2xs'
+                  : 'text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800 dark:hover:text-[#E8E7EF]'
+              }`}
+              title="목록 및 그래프 분할 보기"
+            >
+              <Columns className="w-3.5 h-3.5" />
+              <span>분할 보기</span>
+            </button>
           </div>
 
-          <button
-            onClick={() => success('대화 추가됨', '새 대화 그룹이 추가되었습니다.')}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 dark:border-[#3A3948] hover:border-lavender-400 dark:hover:border-lavender-500 text-slate-500 dark:text-[#A5A3B5] hover:text-lavender-700 dark:hover:text-lavender-400 text-xs font-medium transition-colors"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>대화 추가</span>
-          </button>
-        </div>
+          <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] mx-1" />
 
-        {/* Center: Dialogue Script Timeline (Example Image Style) */}
-        <div className="flex-1 overflow-y-auto p-8 flex justify-center bg-[#F8FAFD]">
-          <div ref={printRef} className="max-w-2xl w-full flex flex-col gap-3.5">
-            {lines.map((line, idx) => {
-              const isSelected = line.id === selectedLineId;
-              const isArzen = line.speaker === '아르젠';
-
-              return (
-                <div
-                  key={line.id}
-                  onClick={() => setSelectedLineId(line.id)}
-                  className={`bg-white rounded-2xl border-2 p-4 flex items-start gap-3.5 transition-all cursor-pointer shadow-soft ${
-                    isSelected
-                      ? 'border-lavender-500 ring-4 ring-lavender-100 shadow-md scale-101'
-                      : 'border-slate-200 hover:border-slate-300'
-                  }`}
-                >
-                  <span className="text-[11px] font-mono text-slate-400 font-bold pt-1.5 w-6 shrink-0">
-                    #{String(idx + 1).padStart(2, '0')}
-                  </span>
-
-                  {/* Avatar */}
-                  <div className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 border border-slate-200 shrink-0">
-                    <img src={line.avatarUrl} alt={line.speaker} className="w-full h-full object-cover" />
-                  </div>
-
-                  {/* Speaker & Speech Bubble */}
-                  <div className="flex-1 flex flex-col gap-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-bold text-xs text-slate-800">{line.speaker}</span>
-                      <div className="flex items-center gap-1.5">
-                        {line.tags.map((t) => (
-                          <span
-                            key={t}
-                            className="text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium"
-                          >
-                            {t}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <p className="text-xs text-slate-700 leading-relaxed font-medium bg-slate-50/80 p-3 rounded-xl border border-slate-100/80 mt-0.5">
-                      {line.text}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Right Sidebar: Dialogue Inspector (대사 속성) */}
-        <div className="w-72 bg-white border-l border-slate-200 p-5 flex flex-col gap-4 shrink-0 overflow-y-auto">
-          <span className="text-xs font-bold text-slate-800 pb-2 border-b border-slate-100">
-            대사 속성
-          </span>
-
-          {selectedLine ? (
-            <div className="flex flex-col gap-4 text-xs">
-              {/* Speaker Select */}
-              <div>
-                <label className="font-semibold text-slate-600 block mb-1">화자</label>
-                <select
-                  value={selectedLine.speaker}
-                  onChange={(e) => {
-                    const spk = e.target.value;
-                    const avatar =
-                      spk === '아르젠'
-                        ? 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=200&auto=format&fit=crop'
-                        : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=200&auto=format&fit=crop';
-                    updateSelectedLine('speaker', spk);
-                    updateSelectedLine('avatarUrl', avatar);
-                  }}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-slate-800 font-medium focus:outline-none focus:border-lavender-500 !bg-white"
-                >
-                  <option value="아르젠">아르젠</option>
-                  <option value="카일">카일</option>
-                  <option value="세이라">세이라</option>
-                  <option value="루인">루인</option>
-                </select>
-              </div>
-
-              {/* Speech Text Input */}
-              <div>
-                <label className="font-semibold text-slate-600 block mb-1">대사 내용</label>
-                <textarea
-                  rows={3}
-                  value={selectedLine.text}
-                  onChange={(e) => updateSelectedLine('text', e.target.value)}
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-800 !bg-white focus:outline-none focus:border-lavender-500 resize-none"
-                />
-              </div>
-
-              {/* Expression Tags (표현 태그) */}
-              <div>
-                <label className="font-semibold text-slate-600 block mb-1.5">표현 태그</label>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {selectedLine.tags.map((t) => (
-                    <span
-                      key={t}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-lavender-50 text-lavender-700 text-[11px] font-semibold border border-lavender-200"
-                    >
-                      <span>{t}</span>
-                      <button onClick={() => handleRemoveTag(t)} className="text-lavender-400 hover:text-rose-500">
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                </div>
-                <div className="flex gap-1.5">
-                  <input
-                    type="text"
-                    value={newTagInput}
-                    onChange={(e) => setNewTagInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        handleAddTag();
-                      }
-                    }}
-                    placeholder="새 태그 입력 후 엔터"
-                    className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs !bg-white focus:outline-none focus:border-lavender-500"
-                  />
-                  <button
-                    onClick={handleAddTag}
-                    className="px-2.5 py-1.5 bg-lavender-100 text-lavender-700 rounded-lg font-bold text-xs hover:bg-lavender-200"
-                  >
-                    추가
-                  </button>
-                </div>
-              </div>
-
-              {/* Memo */}
-              <div>
-                <label className="font-semibold text-slate-600 block mb-1">메모</label>
-                <textarea
-                  rows={2}
-                  value={selectedLine.memo || ''}
-                  onChange={(e) => updateSelectedLine('memo', e.target.value)}
-                  placeholder="대사의 배경 의도나 성격 연출 메모"
-                  className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs text-slate-700 !bg-white resize-none focus:outline-none focus:border-lavender-500"
-                />
-              </div>
-
-              {/* Delete */}
+          {/* Quick Action: Add Dialogue */}
+          {isEditMode && (
+            <div className="flex items-center gap-1.5 animate-in fade-in">
               <button
-                onClick={() => handleDeleteLine(selectedLine.id)}
-                className="mt-2 flex items-center justify-center gap-1.5 py-2 rounded-xl text-rose-600 bg-rose-50 hover:bg-rose-100 font-semibold text-xs transition-colors"
+                type="button"
+                onClick={() => handleAddDialogue(selectedDialogueId || undefined)}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-lavender-50 dark:bg-[#2C2842] hover:bg-lavender-100 dark:hover:bg-[#383354] text-lavender-700 dark:text-[#C7B8FF] border border-lavender-200 dark:border-[#4B4372] rounded-xl text-xs font-bold transition-colors"
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>대사 삭제</span>
+                <Plus className="w-3.5 h-3.5" />
+                <span>대사 추가</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleQuickAddChoice}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-emerald-50 dark:bg-emerald-950/40 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-700/40 rounded-xl text-xs font-bold transition-colors"
+                title="선택된 대사에 선택지 추가"
+              >
+                <Split className="w-3.5 h-3.5" />
+                <span>선택지 추가</span>
+              </button>
+            </div>
+          )}
+
+          {/* Undo / Redo */}
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              title="실행 취소 (Ctrl+Z)"
+              disabled={historyIdx <= 0}
+              onClick={handleUndo}
+              className="p-1.5 text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800 dark:hover:text-[#E8E7EF] hover:bg-slate-100 dark:hover:bg-[#292936] rounded-lg transition-colors disabled:opacity-25"
+            >
+              <Undo2 className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              title="다시 실행 (Ctrl+Y)"
+              disabled={historyIdx >= history.length - 1}
+              onClick={handleRedo}
+              className="p-1.5 text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800 dark:hover:text-[#E8E7EF] hover:bg-slate-100 dark:hover:bg-[#292936] rounded-lg transition-colors disabled:opacity-25"
+            >
+              <Redo2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Center: View Mode vs Edit Mode Toggle */}
+        <div className="flex items-center gap-2">
+          {isEditMode ? (
+            <div className="flex items-center gap-2 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-500/40 px-3 py-1 rounded-full text-xs animate-in fade-in">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
+              <span className="font-bold text-emerald-700 dark:text-emerald-300">편집 모드 활성</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditMode(false);
+                  toast.success('보기 모드로 전환되었습니다.');
+                }}
+                className="ml-1.5 px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[11px] shadow-2xs flex items-center gap-1 transition-colors"
+              >
+                <Check className="w-3 h-3" />
+                <span>완료</span>
               </button>
             </div>
           ) : (
-            <p className="text-xs text-slate-400 py-6 text-center">선택된 대사가 없습니다.</p>
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] text-slate-400 dark:text-[#A5A3B5] font-medium hidden sm:inline">
+                읽기 전용 상태
+              </span>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsEditMode(true);
+                  toast.info('편집 모드로 진입했습니다. 대사 작성 및 노드 연결이 가능합니다.');
+                }}
+                className="flex items-center gap-1.5 px-3 py-1 bg-lavender-600 hover:bg-lavender-500 text-white font-bold rounded-xl text-xs shadow-xs transition-colors"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+                <span>편집 모드</span>
+              </button>
+            </div>
           )}
         </div>
+
+        {/* Right: In-Game Preview & Fullscreen */}
+        <div className="flex items-center gap-2">
+          {/* Preview Simulator Button */}
+          <button
+            type="button"
+            onClick={() => setIsPreviewOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1 bg-lavender-600 hover:bg-lavender-500 text-white text-xs font-bold rounded-xl shadow-xs transition-colors"
+            title="인게임 스타일 대화 미리보기 시뮬레이터 실행"
+          >
+            <Play className="w-3.5 h-3.5 fill-current" />
+            <span>대화 미리보기</span>
+          </button>
+
+          <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] mx-1" />
+
+          {/* Export PNG */}
+          <button
+            type="button"
+            onClick={handleExportImage}
+            title="대사 스크립트 PNG 이미지 저장"
+            className="p-1.5 text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800 dark:hover:text-[#E8E7EF] hover:bg-slate-100 dark:hover:bg-[#292936] rounded-lg transition-colors"
+          >
+            <Download className="w-4 h-4" />
+          </button>
+
+          {/* Fullscreen */}
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title={isFullscreen ? '전체화면 종료' : '전체화면 전환'}
+            className="p-1.5 text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800 dark:hover:text-[#E8E7EF] hover:bg-slate-100 dark:hover:bg-[#292936] rounded-lg transition-colors"
+          >
+            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
+
+      {/* 3. Main Body: 3-Column / Hybrid Editor Layout */}
+      <div className="flex-1 min-h-0 flex overflow-hidden">
+        {/* Left Panel: Dialogue Scenario Sidebar (280px) */}
+        <DialogueSidebar
+          scenarios={docData.scenarios}
+          activeScenarioId={docData.activeScenarioId}
+          isEditMode={isEditMode}
+          onSelectScenario={handleSelectScenario}
+          onAddScenario={handleAddScenario}
+          onDuplicateScenario={handleDuplicateScenario}
+          onRenameScenario={handleRenameScenario}
+          onDeleteScenario={handleDeleteScenario}
+          onUpdateCategory={handleUpdateCategory}
+        />
+
+        {/* Center Panel: Dialogue Views (List, Graph, or Split) */}
+        <div className="flex-1 min-w-0 flex overflow-hidden bg-slate-100/50 dark:bg-[#17171D]">
+          {viewTab === 'list' && (
+            <div className="flex-1 min-w-0 h-full flex flex-col">
+              <DialogueListView
+                dialogues={activeDialogues}
+                selectedDialogueId={selectedDialogueId}
+                speakers={currentSpeakers}
+                isEditMode={isEditMode}
+                onSelectDialogue={setSelectedDialogueId}
+                onAddDialogue={handleAddDialogue}
+                onDeleteDialogue={handleDeleteDialogue}
+                onDuplicateDialogue={handleDuplicateDialogue}
+                onMoveOrder={handleMoveOrder}
+                onUpdateDialogue={handleUpdateDialogue}
+              />
+            </div>
+          )}
+
+          {viewTab === 'graph' && (
+            <div className="flex-1 min-w-0 h-full flex flex-col relative">
+              <DialogueGraphView
+                dialogues={activeDialogues}
+                selectedDialogueId={selectedDialogueId}
+                isEditMode={isEditMode}
+                onSelectDialogue={setSelectedDialogueId}
+                onConnectNext={handleConnectNext}
+                onDisconnectNext={handleDisconnectNext}
+                onUpdatePosition={handleUpdatePosition}
+              />
+            </div>
+          )}
+
+          {viewTab === 'split' && (
+            <div className="flex-1 min-w-0 h-full flex">
+              {/* Left Side of Split: List View (45%) */}
+              <div className="w-[45%] min-w-[340px] max-w-[500px] h-full flex flex-col border-r border-[#ECEEF3] dark:border-[#3A3948]">
+                <DialogueListView
+                  dialogues={activeDialogues}
+                  selectedDialogueId={selectedDialogueId}
+                  speakers={currentSpeakers}
+                  isEditMode={isEditMode}
+                  onSelectDialogue={setSelectedDialogueId}
+                  onAddDialogue={handleAddDialogue}
+                  onDeleteDialogue={handleDeleteDialogue}
+                  onDuplicateDialogue={handleDuplicateDialogue}
+                  onMoveOrder={handleMoveOrder}
+                  onUpdateDialogue={handleUpdateDialogue}
+                />
+              </div>
+
+              {/* Right Side of Split: Graph View (Remaining) */}
+              <div className="flex-1 min-w-0 h-full flex flex-col relative">
+                <DialogueGraphView
+                  dialogues={activeDialogues}
+                  selectedDialogueId={selectedDialogueId}
+                  isEditMode={isEditMode}
+                  onSelectDialogue={setSelectedDialogueId}
+                  onConnectNext={handleConnectNext}
+                  onDisconnectNext={handleDisconnectNext}
+                  onUpdatePosition={handleUpdatePosition}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Right Panel: Dialogue Inspector (340px) */}
+        <DialogueInspector
+          selectedDialogue={selectedDialogue}
+          allDialogues={activeDialogues}
+          speakers={currentSpeakers}
+          isEditMode={isEditMode}
+          onUpdateDialogue={handleUpdateDialogue}
+          onDeleteDialogue={handleDeleteDialogue}
+          onDuplicateDialogue={handleDuplicateDialogue}
+          onAddSpeaker={handleAddSpeaker}
+        />
+      </div>
+
+      {/* 4. In-Game Style Dialogue Preview Simulator Modal */}
+      <DialoguePreviewModal
+        dialogues={activeDialogues}
+        isOpen={isPreviewOpen}
+        onClose={() => setIsPreviewOpen(false)}
+      />
     </div>
   );
 };
-

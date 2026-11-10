@@ -10,7 +10,6 @@ import { CommonDocumentEditor } from '../editor/CommonDocumentEditor';
 import { CharacterSheetEditor } from '../editor/special/CharacterSheetEditor';
 import { CharacterRelationsEditor } from '../editor/special/CharacterRelationsEditor';
 import { CharacterDialogueEditor } from '../editor/special/CharacterDialogueEditor';
-import { CharacterEventEditor } from '../editor/special/CharacterEventEditor';
 import { WorldMapEditor } from '../editor/special/WorldMapEditor';
 import { WorldRegionFactionsEditor } from '../editor/special/WorldRegionFactionsEditor';
 import { WorldChronicleEditor } from '../editor/special/WorldChronicleEditor';
@@ -67,8 +66,6 @@ export const WorkspaceView: React.FC = () => {
         return <CharacterRelationsEditor />;
       case 'character-dialogue':
         return <CharacterDialogueEditor />;
-      case 'character-event':
-        return <CharacterEventEditor />;
 
       // 2. 세계관 카테고리
       case 'world-map-factions':

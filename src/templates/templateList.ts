@@ -43,15 +43,6 @@ export const TEMPLATES: TemplateDefinition[] = [
     defaultTitle: '캐릭터 대사 스크립트',
     defaultContent: '주요 씬별 캐릭터 대사와 지문'
   },
-  {
-    id: 'character-event',
-    name: '캐릭터 이벤트',
-    description: '스토리 진행에 따른 캐릭터 이벤트와 선택지 분기를 정리합니다.',
-    category: 'character',
-    iconName: 'Calendar',
-    defaultTitle: '[메인] 1장. 만남',
-    defaultContent: '스토리 시작 시 발동하는 캐릭터 이벤트'
-  },
 
   // 2. 세계관
   {
