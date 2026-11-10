@@ -7,10 +7,20 @@ import { DocumentCard } from './DocumentCard';
 import { EmptyState } from './EmptyState';
 import { FabButton } from './FabButton';
 import { CommonDocumentEditor } from '../editor/CommonDocumentEditor';
+import { CharacterSheetEditor } from '../editor/special/CharacterSheetEditor';
 import { CharacterRelationsEditor } from '../editor/special/CharacterRelationsEditor';
+import { CharacterDialogueEditor } from '../editor/special/CharacterDialogueEditor';
+import { CharacterEventEditor } from '../editor/special/CharacterEventEditor';
 import { WorldMapEditor } from '../editor/special/WorldMapEditor';
+import { WorldRegionFactionsEditor } from '../editor/special/WorldRegionFactionsEditor';
+import { WorldChronicleEditor } from '../editor/special/WorldChronicleEditor';
+import { WorldGlossaryEditor } from '../editor/special/WorldGlossaryEditor';
+import { GameDesignSystemEditor } from '../editor/special/GameDesignSystemEditor';
 import { GameFlowEditor } from '../editor/special/GameFlowEditor';
+import { GameUiUxEditor } from '../editor/special/GameUiUxEditor';
 import { ItemDataEditor } from '../editor/special/ItemDataEditor';
+import { ReferenceBoardEditor } from '../editor/special/ReferenceBoardEditor';
+import { ModelingSheetEditor } from '../editor/special/ModelingSheetEditor';
 import { AnimationEditor } from '../editor/special/AnimationEditor';
 import { SoundBoardEditor } from '../editor/special/SoundBoardEditor';
 import { Folder as FolderIcon, FileText, Star, Trash2 } from 'lucide-react';
@@ -49,18 +59,45 @@ export const WorkspaceView: React.FC = () => {
 
   if (activeDocument) {
     switch (activeDocument.templateType) {
+      // 1. 캐릭터 카테고리
+      case 'character-sheet':
+        return <CharacterSheetEditor />;
       case 'character-relations':
         return <CharacterRelationsEditor />;
+      case 'character-dialogue':
+        return <CharacterDialogueEditor />;
+      case 'character-event':
+        return <CharacterEventEditor />;
+
+      // 2. 세계관 카테고리
       case 'world-map-factions':
-        return <WorldMapEditor />;
+      case 'world-sheet':
+        return <WorldRegionFactionsEditor />;
+      case 'world-chronicle':
+        return <WorldChronicleEditor />;
+      case 'world-glossary':
+        return <WorldGlossaryEditor />;
+
+      // 3. 게임 기획 카테고리
+      case 'game-design-system':
+        return <GameDesignSystemEditor />;
       case 'game-flow':
         return <GameFlowEditor />;
+      case 'game-ui-ux':
+        return <GameUiUxEditor />;
       case 'game-items-equip':
         return <ItemDataEditor />;
+
+      // 4. 디자인 및 자료 카테고리
+      case 'design-reference-board':
+        return <ReferenceBoardEditor />;
+      case 'design-modeling-sheet':
+        return <ModelingSheetEditor />;
       case 'design-animation-sheet':
         return <AnimationEditor />;
       case 'design-sound-board':
         return <SoundBoardEditor />;
+
       default:
         return <CommonDocumentEditor />;
     }
