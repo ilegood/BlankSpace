@@ -480,3 +480,4 @@ export const DialogueInspector: React.FC<DialogueInspectorProps> = ({
     </div>
   );
 };
+
