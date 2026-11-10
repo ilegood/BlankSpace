@@ -55,3 +55,4 @@ export interface WorldMapDocData {
   settings: MapSettings;
   updatedAt: number;
 }
+

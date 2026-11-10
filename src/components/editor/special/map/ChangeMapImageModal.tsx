@@ -185,3 +185,4 @@ export const ChangeMapImageModal: React.FC<ChangeMapImageModalProps> = ({
     </div>
   );
 };
+

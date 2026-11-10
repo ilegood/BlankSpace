@@ -198,3 +198,4 @@ export function convertLegacyToWorldMap(raw: any): WorldMapDocData {
 
   return INITIAL_MAP_DATA;
 }
+

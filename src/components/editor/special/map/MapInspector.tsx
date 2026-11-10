@@ -642,3 +642,4 @@ export const MapInspector: React.FC<MapInspectorProps> = ({
 
   return null;
 };
+

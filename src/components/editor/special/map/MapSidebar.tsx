@@ -430,3 +430,4 @@ export const MapSidebar: React.FC<MapSidebarProps> = ({
     </div>
   );
 };
+
