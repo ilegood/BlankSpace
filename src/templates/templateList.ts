@@ -56,8 +56,8 @@ export const TEMPLATES: TemplateDefinition[] = [
   },
   {
     id: 'world-map-factions',
-    name: '지역 및 장소 + 국가 및 세력',
-    description: '지도 기반으로 세력과 장소를 배치합니다.',
+    name: '지도 및 세력',
+    description: '지도 이미지 위에 국가, 지역, 세력 거점을 배치하고 영토 경계선을 관리합니다.',
     category: 'world',
     iconName: 'MapPin',
     defaultTitle: '세계 지도 및 세력도',

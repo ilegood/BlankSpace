@@ -68,3 +68,4 @@ export interface WorldSheetDocData {
   items: WorldSheetItem[];   // 자유롭게 추가/삭제/정렬 가능한 카드 목록
   updatedAt: number;
 }
+

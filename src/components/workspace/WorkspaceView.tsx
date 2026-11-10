@@ -72,7 +72,7 @@ export const WorkspaceView: React.FC = () => {
       case 'world-sheet':
         return <WorldSheetEditor />;
       case 'world-map-factions':
-        return <WorldRegionFactionsEditor />;
+        return <WorldMapEditor />;
       case 'world-chronicle':
         return <WorldChronicleEditor />;
       case 'world-glossary':
