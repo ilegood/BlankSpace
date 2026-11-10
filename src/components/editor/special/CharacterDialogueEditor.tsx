@@ -386,3 +386,4 @@ export const CharacterDialogueEditor: React.FC = () => {
     </div>
   );
 };
+

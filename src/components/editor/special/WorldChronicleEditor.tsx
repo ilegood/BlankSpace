@@ -372,3 +372,4 @@ export const WorldChronicleEditor: React.FC = () => {
     </div>
   );
 };
+

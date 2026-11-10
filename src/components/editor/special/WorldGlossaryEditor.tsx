@@ -418,3 +418,4 @@ export const WorldGlossaryEditor: React.FC = () => {
     </div>
   );
 };
+

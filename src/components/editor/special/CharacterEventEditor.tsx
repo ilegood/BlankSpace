@@ -245,3 +245,4 @@ export const CharacterEventEditor: React.FC = () => {
     </div>
   );
 };
+
