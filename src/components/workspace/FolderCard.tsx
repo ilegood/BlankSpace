@@ -109,11 +109,8 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
 
         // Try moving folder into this folder
         const res = await moveItem('folder', data.id, folder.id);
-        if (!res.success) {
-          // If cannot move inside (e.g. self or descendant), reorder them instead
-          if (sortOption !== 'custom') {
-            setSortOption('custom');
-          }
+        if (!res.success && sortOption === 'custom') {
+          // 커스텀 정렬 상태일 때만 순서 재배치
           await reorderItems('folder', data.id, folder.id);
         }
       }

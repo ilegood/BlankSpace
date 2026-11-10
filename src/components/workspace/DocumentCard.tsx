@@ -95,11 +95,10 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
       if (!data.id || data.id === document.id) return;
 
       if (data.type === 'document') {
-        // Reorder document with this document (Switch to custom sorting if not active)
-        if (sortOption !== 'custom') {
-          setSortOption('custom');
+        // 커스텀 정렬 상태에서만 항목 순서 변경 허용 (기존 정렬 방식과의 충돌 방지)
+        if (sortOption === 'custom') {
+          await reorderItems('document', data.id, document.id);
         }
-        await reorderItems('document', data.id, document.id);
       }
     } catch (err) {
       console.error('Drop error:', err);

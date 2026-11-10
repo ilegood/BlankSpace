@@ -1,66 +1,54 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
-  FileText,
-  User,
-  Plus,
-  Trash2,
-  Edit2,
-  ChevronRight,
-  Shield,
-  Sparkles,
-  Type,
   Image as ImageIcon,
-  Table as TableIcon,
+  Type,
+  FileText,
+  List,
+  Shield,
+  Square,
   Minus,
-  Quote,
-  CheckSquare,
-  ChevronDown,
-  MessageSquare,
-  Bookmark,
-  Share2,
+  Undo2,
+  Redo2,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  Copy,
+  Trash2,
+  ArrowUp,
+  ArrowDown,
+  Palette,
+  Sparkles,
+  Download,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
-
-interface CharacterSheetData {
-  name: string;
-  affiliation: string;
-  age: string;
-  height: string;
-  personality: string;
-  imageUrl: string;
-  stats: { [key: string]: string };
-  quote: string;
-  description: string;
-}
-
-const DEFAULT_ARZEN: CharacterSheetData = {
-  name: '아르젠',
-  affiliation: '노바 기사단',
-  age: '19세',
-  height: '168cm',
-  personality: '냉정하고 이성적이나, 가까운 이에게는 다정함.',
-  imageUrl: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=600&auto=format&fit=crop',
-  stats: {
-    '힘': 'B',
-    '민첩': 'A',
-    '지능': 'A',
-    '체력': 'B',
-    '마력': 'S',
-    '행운': 'C',
-  },
-  quote: '"언젠가, 이 선택이 옳았다고 믿고 싶어."',
-  description: '노바 기사단 소속의 신입 기사. 뛰어난 재능으로 주목받고 있지만, 과거의 사건으로 인해 휩사리 타인에게 마음을 열지 않는다. 검술과 원소 마법의 융합에 능하며 고대 유적 탐사 임무를 맡고 있다.',
-};
+import {
+  CanvasDocumentData,
+  CanvasElement,
+  CanvasElementType,
+} from '../../../types/canvas';
+import {
+  DEFAULT_CHARACTER_CANVAS,
+  convertOldDataToCanvas,
+} from '../canvas/defaultPresets';
+import { CanvasElementRenderer } from '../canvas/CanvasElementRenderer';
 
 export const CharacterSheetEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
-  const [activeTab, setActiveTab] = useState<'basic' | 'background' | 'ability' | 'extra'>('basic');
-  const [data, setData] = useState<CharacterSheetData>(DEFAULT_ARZEN);
+  // Canvas State
+  const [canvasData, setCanvasData] = useState<CanvasDocumentData>(
+    DEFAULT_CHARACTER_CANVAS
+  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Undo / Redo History
+  const [history, setHistory] = useState<CanvasDocumentData[]>([]);
+  const [historyIdx, setHistoryIdx] = useState<number>(-1);
+  const isUndoRedoAction = useRef(false);
 
   // Load from page content or default
   useEffect(() => {
@@ -68,244 +56,662 @@ export const CharacterSheetEditor: React.FC = () => {
     try {
       if (activePage.content && activePage.content.startsWith('{')) {
         const parsed = JSON.parse(activePage.content);
-        setData({ ...DEFAULT_ARZEN, ...parsed });
+        const converted = convertOldDataToCanvas(parsed);
+        setCanvasData(converted);
+        setHistory([converted]);
+        setHistoryIdx(0);
         return;
       }
     } catch {}
-    setData(DEFAULT_ARZEN);
+    setCanvasData(DEFAULT_CHARACTER_CANVAS);
+    setHistory([DEFAULT_CHARACTER_CANVAS]);
+    setHistoryIdx(0);
   }, [activePage?.id]);
 
-  const persistData = (next: CharacterSheetData) => {
-    setData(next);
-    if (!activePage) return;
-    setSaveStatus('saving');
-    updatePageContent(activePage.id, JSON.stringify(next));
-    setTimeout(() => setSaveStatus('saved'), 300);
+  // Push history and persist
+  const pushState = useCallback(
+    (nextData: CanvasDocumentData) => {
+      setCanvasData(nextData);
+
+      if (!isUndoRedoAction.current) {
+        setHistory((prev) => {
+          const sliced = prev.slice(0, historyIdx + 1);
+          return [...sliced, nextData];
+        });
+        setHistoryIdx((prev) => prev + 1);
+      }
+      isUndoRedoAction.current = false;
+
+      if (!activePage) return;
+      setSaveStatus('saving');
+      updatePageContent(activePage.id, JSON.stringify(nextData));
+      setTimeout(() => setSaveStatus('saved'), 300);
+    },
+    [activePage, historyIdx, updatePageContent]
+  );
+
+  // Undo / Redo
+  const handleUndo = () => {
+    if (historyIdx > 0) {
+      isUndoRedoAction.current = true;
+      const prev = history[historyIdx - 1];
+      setHistoryIdx(historyIdx - 1);
+      setCanvasData(prev);
+      if (activePage) updatePageContent(activePage.id, JSON.stringify(prev));
+    }
   };
 
-  const handleExportImage = async () => {
-    if (!printRef.current || !activeDocument) return;
-    await exportElementAsPng(printRef.current, {
-      fileName: `${data.name || '캐릭터'}-캐릭터시트`,
+  const handleRedo = () => {
+    if (historyIdx < history.length - 1) {
+      isUndoRedoAction.current = true;
+      const next = history[historyIdx + 1];
+      setHistoryIdx(historyIdx + 1);
+      setCanvasData(next);
+      if (activePage) updatePageContent(activePage.id, JSON.stringify(next));
+    }
+  };
+
+  // Keyboard Shortcuts: Delete, Duplicate, Undo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ignore if user is typing inside input or textarea
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedId) {
+          e.preventDefault();
+          handleDeleteElement(selectedId);
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'd') {
+        if (selectedId) {
+          e.preventDefault();
+          handleDuplicateElement(selectedId);
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleRedo();
+        } else {
+          handleUndo();
+        }
+      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'y') {
+        e.preventDefault();
+        handleRedo();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedId, canvasData, historyIdx, history]);
+
+  // Update a single element
+  const handleUpdateElement = (id: string, updates: Partial<CanvasElement>) => {
+    const nextElements = canvasData.elements.map((el) =>
+      el.id === id ? { ...el, ...updates } : el
+    );
+    pushState({ ...canvasData, elements: nextElements });
+  };
+
+  // Delete element
+  const handleDeleteElement = (id: string) => {
+    const nextElements = canvasData.elements.filter((el) => el.id !== id);
+    setSelectedId(null);
+    pushState({ ...canvasData, elements: nextElements });
+  };
+
+  // Duplicate element
+  const handleDuplicateElement = (id: string) => {
+    const target = canvasData.elements.find((el) => el.id === id);
+    if (!target) return;
+
+    const newEl: CanvasElement = {
+      ...JSON.parse(JSON.stringify(target)),
+      id: `el-${Date.now()}`,
+      x: target.x + 24,
+      y: target.y + 24,
+      zIndex: canvasData.elements.length + 1,
+    };
+    setSelectedId(newEl.id);
+    pushState({
+      ...canvasData,
+      elements: [...canvasData.elements, newEl],
     });
   };
 
+  // Bring Forward / Send Backward
+  const handleBringToFront = (id: string) => {
+    const maxZ = Math.max(...canvasData.elements.map((e) => e.zIndex), 1);
+    handleUpdateElement(id, { zIndex: maxZ + 1 });
+  };
+
+  const handleSendToBack = (id: string) => {
+    const minZ = Math.min(...canvasData.elements.map((e) => e.zIndex), 1);
+    handleUpdateElement(id, { zIndex: Math.max(0, minZ - 1) });
+  };
+
+  // Add new element from library
+  const handleAddElement = (type: CanvasElementType) => {
+    const newId = `el-${Date.now()}`;
+    const baseZ = canvasData.elements.length + 1;
+    let newEl: CanvasElement;
+
+    const centerX = 340;
+    const centerY = 180;
+
+    switch (type) {
+      case 'image':
+        newEl = {
+          id: newId,
+          type: 'image',
+          x: centerX,
+          y: centerY,
+          width: 240,
+          height: 320,
+          zIndex: baseZ,
+          style: { borderRadius: 16, borderWidth: 1, borderColor: '#ECEEF3' },
+          content: {
+            imageUrl:
+              'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
+            alt: '새 이미지',
+            aspectRatio: true,
+          },
+        };
+        break;
+
+      case 'heading':
+        newEl = {
+          id: newId,
+          type: 'heading',
+          x: centerX,
+          y: centerY,
+          width: 320,
+          height: 40,
+          zIndex: baseZ,
+          style: { fontSize: 22, fontWeight: 'bold', color: '#1E293B' },
+          content: { text: '새 제목을 입력하세요' },
+        };
+        break;
+
+      case 'text':
+        newEl = {
+          id: newId,
+          type: 'text',
+          x: centerX,
+          y: centerY,
+          width: 340,
+          height: 80,
+          zIndex: baseZ,
+          style: { fontSize: 13, color: '#475569' },
+          content: { text: '이곳에 내용을 자유롭게 작성하세요.' },
+        };
+        break;
+
+      case 'info-field':
+        newEl = {
+          id: newId,
+          type: 'info-field',
+          x: centerX,
+          y: centerY,
+          width: 360,
+          height: 120,
+          zIndex: baseZ,
+          style: {
+            backgroundColor: '#FFFFFF',
+            borderColor: '#ECEEF3',
+            borderWidth: 1,
+            borderRadius: 16,
+            padding: 12,
+          },
+          content: {
+            infoItems: [
+              { id: '1', label: '항목 1', value: '내용 입력' },
+              { id: '2', label: '항목 2', value: '내용 입력' },
+            ],
+          },
+        };
+        break;
+
+      case 'status-chart':
+        newEl = {
+          id: newId,
+          type: 'status-chart',
+          x: centerX,
+          y: centerY,
+          width: 360,
+          height: 140,
+          zIndex: baseZ,
+          style: {
+            backgroundColor: '#FFFFFF',
+            borderColor: '#ECEEF3',
+            borderWidth: 1,
+            borderRadius: 16,
+            padding: 12,
+          },
+          content: {
+            statDisplayType: 'card',
+            stats: [
+              { id: '1', label: '공격력', value: 'A' },
+              { id: '2', label: '방어력', value: 'B' },
+              { id: '3', label: '스피드', value: 'S' },
+            ],
+          },
+        };
+        break;
+
+      case 'container':
+        newEl = {
+          id: newId,
+          type: 'container',
+          x: centerX,
+          y: centerY,
+          width: 380,
+          height: 180,
+          zIndex: 1, // send to bottom by default
+          style: {
+            backgroundColor: '#F8FAFC',
+            borderColor: '#E2E8F0',
+            borderWidth: 1,
+            borderRadius: 16,
+          },
+          content: {},
+        };
+        break;
+
+      case 'divider':
+        newEl = {
+          id: newId,
+          type: 'divider',
+          x: centerX,
+          y: centerY,
+          width: 300,
+          height: 16,
+          zIndex: baseZ,
+          content: { orientation: 'horizontal' },
+        };
+        break;
+    }
+
+    setSelectedId(newId);
+    pushState({
+      ...canvasData,
+      elements: [...canvasData.elements, newEl],
+    });
+  };
+
+  // Export Canvas as PNG
+  const handleExportImage = async () => {
+    if (!printRef.current || !activeDocument) return;
+    await exportElementAsPng(printRef.current, {
+      fileName: `${activeDocument.title || '캐릭터시트'}-자유배치`,
+    });
+  };
+
+  const selectedElement = canvasData.elements.find((el) => el.id === selectedId);
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
-      {/* Header */}
-      <SpecialEditorHeader saveStatus={saveStatus} onExportImage={handleExportImage} />
+      {/* Top Header */}
+      <SpecialEditorHeader
+        saveStatus={saveStatus}
+        onExportImage={handleExportImage}
+      />
 
-      {/* Main 3-Column Layout: Left Sidebar + Center Document Sheet + Right Block Inspector */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left Sidebar: Pages */}
-        <div className="w-56 bg-white border-r border-slate-200 p-4 flex flex-col justify-between shrink-0">
-          <div className="flex flex-col gap-3">
-            <span className="text-xs font-bold text-slate-400 px-1">페이지</span>
-            <div className="flex flex-col gap-1">
-              {[
-                { id: 'basic', label: '기본 정보', icon: User },
-                { id: 'background', label: '설정 및 배경', icon: FileText },
-                { id: 'ability', label: '능력 및 특성', icon: Sparkles },
-                { id: 'extra', label: '추가 자료', icon: Bookmark },
-              ].map((p) => {
-                const Icon = p.icon;
-                const isSelected = activeTab === p.id;
-                return (
-                  <button
-                    key={p.id}
-                    onClick={() => setActiveTab(p.id as any)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-medium transition-all text-left ${
-                      isSelected
-                        ? 'bg-lavender-50 text-lavender-800 font-bold border border-lavender-200 shadow-2xs'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    <Icon className={`w-3.5 h-3.5 ${isSelected ? 'text-lavender-600' : 'text-slate-400'}`} />
-                    <span>{p.label}</span>
-                  </button>
-                );
-              })}
-            </div>
+      {/* Sub Toolbar: Undo/Redo + Zoom Controls + Quick Export */}
+      <div className="h-11 bg-white border-b border-slate-200 px-4 flex items-center justify-between shrink-0 shadow-2xs">
+        {/* Left Undo / Redo */}
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            title="실행 취소 (Ctrl+Z)"
+            onClick={handleUndo}
+            disabled={historyIdx <= 0}
+            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <Undo2 className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            title="다시 실행 (Ctrl+Y)"
+            onClick={handleRedo}
+            disabled={historyIdx >= history.length - 1}
+            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+          >
+            <Redo2 className="w-4 h-4" />
+          </button>
+
+          <div className="h-4 w-px bg-slate-200 mx-1.5" />
+
+          <span className="text-[11px] font-medium text-slate-400">
+            총 {canvasData.elements.length}개 요소
+          </span>
+        </div>
+
+        {/* Selected Element Quick Action Floating Bar (Center) */}
+        {selectedElement && (
+          <div className="flex items-center gap-1 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-xl shadow-2xs text-xs animate-in fade-in duration-100">
+            <span className="text-[11px] font-bold text-lavender-700 px-1 truncate max-w-[100px]">
+              {selectedElement.type}
+            </span>
+            <div className="h-3 w-px bg-slate-200 mx-0.5" />
+            <button
+              type="button"
+              title="복제 (Ctrl+D)"
+              onClick={() => handleDuplicateElement(selectedElement.id)}
+              className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded"
+            >
+              <Copy className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              title="맨 앞으로 가져오기"
+              onClick={() => handleBringToFront(selectedElement.id)}
+              className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded"
+            >
+              <ArrowUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              title="맨 뒤로 보내기"
+              onClick={() => handleSendToBack(selectedElement.id)}
+              className="p-1 text-slate-500 hover:text-slate-800 hover:bg-slate-200/60 rounded"
+            >
+              <ArrowDown className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              title="삭제 (Del)"
+              onClick={() => handleDeleteElement(selectedElement.id)}
+              className="p-1 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Right Zoom Controls & Image Save */}
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 text-xs">
+            <button
+              type="button"
+              title="축소"
+              onClick={() =>
+                pushState({
+                  ...canvasData,
+                  zoom: Math.max(50, canvasData.zoom - 10),
+                })
+              }
+              className="p-1 text-slate-400 hover:text-slate-700 rounded"
+            >
+              <ZoomOut className="w-3.5 h-3.5" />
+            </button>
+            <span className="font-mono text-slate-600 font-medium px-1">
+              {canvasData.zoom}%
+            </span>
+            <button
+              type="button"
+              title="확대"
+              onClick={() =>
+                pushState({
+                  ...canvasData,
+                  zoom: Math.min(150, canvasData.zoom + 10),
+                })
+              }
+              className="p-1 text-slate-400 hover:text-slate-700 rounded"
+            >
+              <ZoomIn className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           <button
-            onClick={() => alert('새 페이지가 추가되었습니다.')}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 hover:border-lavender-400 text-slate-500 hover:text-lavender-700 text-xs font-medium transition-colors"
+            type="button"
+            onClick={handleExportImage}
+            className="flex items-center gap-1.5 px-3 py-1 bg-lavender-500 hover:bg-lavender-600 text-white rounded-lg text-xs font-semibold shadow-xs transition-colors"
           >
-            <Plus className="w-3.5 h-3.5" />
-            <span>페이지 추가</span>
+            <Download className="w-3.5 h-3.5" />
+            <span>이미지로 저장</span>
           </button>
         </div>
+      </div>
 
-        {/* Center: Character Sheet Document Canvas */}
-        <div className="flex-1 overflow-y-auto p-8 flex justify-center">
-          <div
-            ref={printRef}
-            className="bg-white rounded-3xl border border-slate-200/80 shadow-soft max-w-3xl w-full p-8 flex flex-col gap-6"
-          >
-            {/* Top Row: Character Portrait + Meta Info & Status */}
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start pb-6 border-b border-slate-100">
-              {/* Left Column: Portrait */}
-              <div className="md:col-span-5 flex flex-col items-center">
-                <div className="w-full aspect-[3/4] max-h-72 rounded-2xl overflow-hidden border border-slate-200 bg-slate-50 shadow-xs relative group">
-                  <img
-                    src={data.imageUrl}
-                    alt={data.name}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                    <button
-                      onClick={() => {
-                        const url = prompt('캐릭터 이미지 URL을 입력하세요:', data.imageUrl);
-                        if (url) persistData({ ...data, imageUrl: url });
-                      }}
-                      className="px-3 py-1.5 bg-white text-slate-800 rounded-xl text-xs font-bold shadow-md hover:bg-slate-50"
-                    >
-                      이미지 변경
-                    </button>
-                  </div>
-                </div>
+      {/* Main 2-Column: Left Element Library + Center Freeform Canvas */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar: Element Library & Properties */}
+        <div className="w-56 bg-white border-r border-slate-200 p-4 flex flex-col justify-between shrink-0 overflow-y-auto">
+          <div className="flex flex-col gap-5">
+            {/* 1. Element Library Panel */}
+            <div className="flex flex-col gap-2">
+              <span className="text-[11px] font-bold text-slate-400 tracking-wider">
+                요소 라이브러리
+              </span>
+              <div className="flex flex-col gap-1.5 text-xs">
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('image')}
+                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
+                >
+                  <ImageIcon className="w-4 h-4 text-lavender-600" />
+                  <span>이미지 추가</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('heading')}
+                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
+                >
+                  <Type className="w-4 h-4 text-lavender-600" />
+                  <span>제목 추가</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('text')}
+                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
+                >
+                  <FileText className="w-4 h-4 text-lavender-600" />
+                  <span>본문 텍스트</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('info-field')}
+                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
+                >
+                  <List className="w-4 h-4 text-lavender-600" />
+                  <span>기본 정보 카드</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('status-chart')}
+                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
+                >
+                  <Shield className="w-4 h-4 text-lavender-600" />
+                  <span>스테이터스 표</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('container')}
+                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
+                >
+                  <Square className="w-4 h-4 text-lavender-600" />
+                  <span>배경 박스 / 카드</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleAddElement('divider')}
+                  className="flex items-center gap-2.5 px-3 py-2 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200/60"
+                >
+                  <Minus className="w-4 h-4 text-lavender-600" />
+                  <span>구분선</span>
+                </button>
               </div>
+            </div>
 
-              {/* Right Column: Name, Attributes, Status Table */}
-              <div className="md:col-span-7 flex flex-col gap-4">
-                {/* Character Name */}
-                <div>
-                  <input
-                    type="text"
-                    value={data.name}
-                    onChange={(e) => persistData({ ...data, name: e.target.value })}
-                    className="text-2xl font-black text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-lavender-500 focus:outline-none w-full !bg-white"
-                    placeholder="캐릭터 이름"
-                  />
-                </div>
+            {/* 2. Inspector Properties for Selected Element */}
+            {selectedElement && (
+              <div className="flex flex-col gap-3 pt-3 border-t border-slate-100 text-xs">
+                <span className="text-[11px] font-bold text-slate-400 tracking-wider">
+                  선택 요소 속성
+                </span>
 
-                {/* Basic Meta List */}
-                <div className="grid grid-cols-2 gap-y-2 text-xs text-slate-600 bg-slate-50/70 p-3.5 rounded-2xl border border-slate-100">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-400 w-10">소속</span>
+                {/* Image URL Input if Image */}
+                {selectedElement.type === 'image' && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      이미지 URL
+                    </span>
                     <input
                       type="text"
-                      value={data.affiliation}
-                      onChange={(e) => persistData({ ...data, affiliation: e.target.value })}
-                      className="text-slate-800 font-semibold focus:outline-none !bg-white px-1.5 py-0.5 rounded border border-transparent hover:border-slate-200 flex-1"
+                      value={selectedElement.content.imageUrl || ''}
+                      onChange={(e) =>
+                        handleUpdateElement(selectedElement.id, {
+                          content: {
+                            ...selectedElement.content,
+                            imageUrl: e.target.value,
+                          },
+                        })
+                      }
+                      className="w-full px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs !bg-white"
+                      placeholder="https://..."
                     />
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-400 w-10">나이</span>
-                    <input
-                      type="text"
-                      value={data.age}
-                      onChange={(e) => persistData({ ...data, age: e.target.value })}
-                      className="text-slate-800 font-semibold focus:outline-none !bg-white px-1.5 py-0.5 rounded border border-transparent hover:border-slate-200 flex-1"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-400 w-10">신장</span>
-                    <input
-                      type="text"
-                      value={data.height}
-                      onChange={(e) => persistData({ ...data, height: e.target.value })}
-                      className="text-slate-800 font-semibold focus:outline-none !bg-white px-1.5 py-0.5 rounded border border-transparent hover:border-slate-200 flex-1"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2 col-span-2 mt-1">
-                    <span className="font-bold text-slate-400 w-10 shrink-0">성격</span>
-                    <input
-                      type="text"
-                      value={data.personality}
-                      onChange={(e) => persistData({ ...data, personality: e.target.value })}
-                      className="text-slate-800 font-medium focus:outline-none !bg-white px-1.5 py-0.5 rounded border border-transparent hover:border-slate-200 flex-1"
-                    />
-                  </div>
-                </div>
+                )}
 
-                {/* Status Table (스테이터스) */}
+                {/* Font Size for Heading / Text */}
+                {(selectedElement.type === 'heading' ||
+                  selectedElement.type === 'text') && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-slate-500 font-medium">
+                      글꼴 크기
+                    </span>
+                    <input
+                      type="number"
+                      min={10}
+                      max={48}
+                      value={selectedElement.style?.fontSize || 14}
+                      onChange={(e) =>
+                        handleUpdateElement(selectedElement.id, {
+                          style: {
+                            ...selectedElement.style,
+                            fontSize: Number(e.target.value),
+                          },
+                        })
+                      }
+                      className="w-16 px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-xs font-mono !bg-white"
+                    />
+                  </div>
+                )}
+
+                {/* Background Color Quick Chips */}
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-xs font-bold text-slate-700">스테이터스</span>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {Object.entries(data.stats).map(([statName, val]) => (
-                      <div
-                        key={statName}
-                        className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 flex items-center justify-between text-xs shadow-2xs"
-                      >
-                        <span className="text-slate-400 font-medium">{statName}</span>
-                        <input
-                          type="text"
-                          value={val}
-                          onChange={(e) => {
-                            const nextStats = { ...data.stats, [statName]: e.target.value };
-                            persistData({ ...data, stats: nextStats });
-                          }}
-                          className="w-7 text-right font-black text-lavender-700 focus:outline-none !bg-white"
-                        />
-                      </div>
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    배경색
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    {[
+                      'transparent',
+                      '#FFFFFF',
+                      '#FAFBFD',
+                      '#F8FAFC',
+                      '#EDE9FE',
+                      '#FCE7F3',
+                    ].map((col) => (
+                      <button
+                        key={col}
+                        type="button"
+                        onClick={() =>
+                          handleUpdateElement(selectedElement.id, {
+                            style: {
+                              ...selectedElement.style,
+                              backgroundColor: col,
+                            },
+                          })
+                        }
+                        title={col}
+                        style={{ backgroundColor: col === 'transparent' ? '#F1F5F9' : col }}
+                        className={`w-6 h-6 rounded-lg border transition-transform ${
+                          selectedElement.style?.backgroundColor === col
+                            ? 'ring-2 ring-lavender-500 scale-110'
+                            : 'border-slate-300'
+                        }`}
+                      />
                     ))}
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* Bottom Row: Quote & Description */}
-            <div className="flex flex-col gap-5">
-              {/* One-line Quote */}
-              <div className="flex flex-col gap-1">
-                <span className="text-xs font-bold text-slate-700">한줄 소개</span>
-                <div className="bg-lavender-50/60 border border-lavender-100 rounded-2xl p-3.5 italic text-slate-700 text-xs font-medium">
-                  <input
-                    type="text"
-                    value={data.quote}
-                    onChange={(e) => persistData({ ...data, quote: e.target.value })}
-                    className="w-full bg-transparent focus:outline-none text-lavender-900 font-bold"
-                  />
+                {/* Border Radius */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] text-slate-500 font-medium">
+                    둥근 모서리
+                  </span>
+                  <select
+                    value={selectedElement.style?.borderRadius || 0}
+                    onChange={(e) =>
+                      handleUpdateElement(selectedElement.id, {
+                        style: {
+                          ...selectedElement.style,
+                          borderRadius: Number(e.target.value),
+                        },
+                      })
+                    }
+                    className="px-2 py-1 bg-white border border-slate-200 rounded-lg text-xs !bg-white"
+                  >
+                    <option value={0}>각지게 (0px)</option>
+                    <option value={8}>약간 둥글게 (8px)</option>
+                    <option value={16}>부드럽게 (16px)</option>
+                    <option value={24}>많이 둥글게 (24px)</option>
+                  </select>
                 </div>
               </div>
+            )}
+          </div>
 
-              {/* Detailed Description */}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-bold text-slate-700">상세 설명</span>
-                <textarea
-                  rows={4}
-                  value={data.description}
-                  onChange={(e) => persistData({ ...data, description: e.target.value })}
-                  className="w-full text-xs text-slate-700 leading-relaxed border border-slate-200 rounded-2xl p-3.5 focus:outline-none focus:border-lavender-500 !bg-white resize-none"
-                  placeholder="캐릭터의 출신, 배경 스토리 및 특징을 작성하세요."
-                />
-              </div>
-            </div>
+          {/* Quick Help Guide */}
+          <div className="pt-4 border-t border-slate-100 text-[11px] text-slate-400 leading-relaxed">
+            💡 요소 드래그로 위치 변경, 8개 핸들로 크기 조절, 텍스트 더블클릭으로 바로 수정할 수 있습니다.
           </div>
         </div>
 
-        {/* Right Sidebar: Block Tools Palette */}
-        <div className="w-52 bg-white border-l border-slate-200 p-4 flex flex-col gap-3 shrink-0">
-          <span className="text-xs font-bold text-slate-400 px-1">블록 추가</span>
-          <div className="flex flex-col gap-1 text-xs">
-            {[
-              { label: '텍스트', icon: Type },
-              { label: '이미지', icon: ImageIcon },
-              { label: '표', icon: TableIcon },
-              { label: '구분선', icon: Minus },
-              { label: '인용문', icon: Quote },
-              { label: '체크리스트', icon: CheckSquare },
-              { label: '접기/펼치기', icon: ChevronDown },
-              { label: '콜아웃 (메모)', icon: MessageSquare },
-            ].map((block) => {
-              const Icon = block.icon;
-              return (
-                <button
-                  key={block.label}
-                  onClick={() => alert(`'${block.label}' 블록이 템플릿에 추가되었습니다.`)}
-                  className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-slate-600 hover:bg-slate-50 hover:text-lavender-700 transition-colors text-left"
-                >
-                  <Icon className="w-4 h-4 text-slate-400" />
-                  <span className="font-medium text-xs">{block.label}</span>
-                </button>
-              );
-            })}
+        {/* Center Freeform Canvas Workspace */}
+        <div
+          onClick={() => setSelectedId(null)}
+          className="flex-1 bg-[#F5F6FA] overflow-auto p-10 flex items-center justify-center relative select-none"
+          style={{
+            backgroundImage:
+              'radial-gradient(circle, #CBD5E1 1px, transparent 1px)',
+            backgroundSize: '20px 20px',
+          }}
+        >
+          {/* Canvas Sheet Paper (Captured for PNG export) */}
+          <div
+            ref={printRef}
+            style={{
+              width: `${canvasData.canvasWidth}px`,
+              minHeight: `${canvasData.canvasHeight}px`,
+              transform: `scale(${canvasData.zoom / 100})`,
+              transformOrigin: 'top center',
+            }}
+            onClick={(e) => e.stopPropagation()}
+            className="relative bg-white rounded-3xl shadow-sm border border-slate-200/90 transition-transform duration-75 overflow-hidden"
+          >
+            {/* Render Canvas Elements */}
+            {canvasData.elements.map((el) => (
+              <CanvasElementRenderer
+                key={el.id}
+                element={el}
+                isSelected={selectedId === el.id}
+                zoom={canvasData.zoom}
+                onSelect={(id) => setSelectedId(id)}
+                onUpdate={handleUpdateElement}
+                onDelete={handleDeleteElement}
+              />
+            ))}
           </div>
         </div>
       </div>
     </div>
   );
 };
-
