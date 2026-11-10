@@ -1,4 +1,6 @@
 import React from 'react';
+import { ThemeProvider } from './store/ThemeContext';
+import { ToastProvider } from './components/toast/ToastContext';
 import { WorkspaceProvider, useWorkspace } from './store/WorkspaceContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -12,7 +14,7 @@ const AppContent: React.FC = () => {
 
   if (!isLoaded) {
     return (
-      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#F9FAFD] text-slate-500 gap-3">
+      <div className="h-screen w-screen flex flex-col items-center justify-center bg-[#F9FAFD] dark:bg-[#17171D] text-slate-500 dark:text-[#A5A3B5] gap-3">
         <div className="w-8 h-8 rounded-full border-2 border-lavender-500 border-t-transparent animate-spin" />
         <span className="text-xs font-medium">Blankspace 불러오는 중...</span>
       </div>
@@ -20,7 +22,7 @@ const AppContent: React.FC = () => {
   }
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-[#F9FAFD]">
+    <div className="flex h-screen w-screen overflow-hidden bg-[#F9FAFD] dark:bg-[#17171D] text-slate-800 dark:text-[#E8E7EF] transition-colors duration-200">
       {/* Left Sidebar */}
       <Sidebar />
 
@@ -40,9 +42,13 @@ const AppContent: React.FC = () => {
 
 export const App: React.FC = () => {
   return (
-    <WorkspaceProvider>
-      <AppContent />
-    </WorkspaceProvider>
+    <ThemeProvider>
+      <ToastProvider>
+        <WorkspaceProvider>
+          <AppContent />
+        </WorkspaceProvider>
+      </ToastProvider>
+    </ThemeProvider>
   );
 };
 

@@ -2,12 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg-main: #F9FAFD;
+  --bg-sidebar: #FFFFFF;
+  --bg-card: #FFFFFF;
+  --bg-document: #FFFFFF;
+  --text-main: #1E293B;
+  --text-sub: #64748B;
+  --border-main: #ECEEF3;
+  --lavender-primary: #7E61E7;
+  --lavender-light: #EDE9FE;
+}
+
+html.dark {
+  --bg-main: #17171D;
+  --bg-sidebar: #1E1E27;
+  --bg-card: #292936;
+  --bg-document: #22222C;
+  --text-main: #E8E7EF;
+  --text-sub: #A5A3B5;
+  --border-main: #3A3948;
+  --lavender-primary: #A995F5;
+  --lavender-light: #2D2749;
+}
+
 @layer base {
-  /* 모든 텍스트 입력 영역은 흰색 배경 보장 */
+  /* 모든 텍스트 입력 영역 기본값 */
   input,
   textarea,
   select {
     background-color: #ffffff !important;
+  }
+
+  /* 다크모드 입력창 */
+  html.dark input,
+  html.dark textarea,
+  html.dark select {
+    background-color: #292936 !important;
+    color: #E8E7EF !important;
+    border-color: #3A3948 !important;
   }
 
   /* 부드러운 스크롤 */
@@ -29,6 +62,13 @@
   }
   ::-webkit-scrollbar-thumb:hover {
     background: #CBD5E1;
+  }
+
+  html.dark ::-webkit-scrollbar-thumb {
+    background: #3A3948;
+  }
+  html.dark ::-webkit-scrollbar-thumb:hover {
+    background: #4E4C62;
   }
 }
 
@@ -306,4 +346,69 @@
 .blankspace-link-card:hover {
   transform: translateY(-1px);
   box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+/* ==========================================================================
+   다크모드 ProseMirror 편집기 스타일
+   ========================================================================== */
+html.dark .ProseMirror h1,
+html.dark .ProseMirror h2,
+html.dark .ProseMirror h3,
+html.dark .ProseMirror strong,
+html.dark .ProseMirror b {
+  color: #E8E7EF !important;
+}
+
+html.dark .ProseMirror p,
+html.dark .ProseMirror li {
+  color: #D1D0DD !important;
+}
+
+html.dark .ProseMirror h1 {
+  border-bottom-color: #3A3948 !important;
+}
+
+html.dark .ProseMirror blockquote {
+  border-left-color: #A995F5 !important;
+  background-color: #292936 !important;
+  color: #A5A3B5 !important;
+}
+
+html.dark .ProseMirror code {
+  background-color: #292936 !important;
+  color: #B7A5FF !important;
+}
+
+html.dark .ProseMirror hr {
+  border-color: #3A3948 !important;
+}
+
+html.dark .ProseMirror td,
+html.dark .ProseMirror th {
+  border-color: #3A3948 !important;
+  color: #E8E7EF !important;
+}
+
+html.dark .ProseMirror th {
+  background-color: #1E1E27 !important;
+}
+
+html.dark .ProseMirror a[href^="#blankspace-doc:"],
+html.dark .ProseMirror a.internal-link {
+  background-color: #352E58 !important;
+  color: #B7A5FF !important;
+  border-color: #554884 !important;
+}
+
+html.dark .ProseMirror a[href^="#blankspace-doc:"]:hover,
+html.dark .ProseMirror a.internal-link:hover {
+  background-color: #433970 !important;
+  color: #D5CFFB !important;
+  border-color: #7E61E7 !important;
+}
+
+html.dark .blankspace-link-card {
+  background-color: #292936 !important;
+  border-color: #3A3948 !important;
+  color: #E8E7EF !important;
 }

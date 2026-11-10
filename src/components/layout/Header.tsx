@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Home, ChevronRight, Search, Bell } from 'lucide-react';
+import { Home, ChevronRight, Search, Bell, Sun, Moon, Laptop } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
+import { useTheme } from '../../store/ThemeContext';
 import { GlobalSearchModal } from '../modals/GlobalSearchModal';
 
 export const Header: React.FC = () => {
@@ -15,6 +16,8 @@ export const Header: React.FC = () => {
     setSearchQuery,
     moveItem,
   } = useWorkspace();
+
+  const { theme, isDark, setTheme, toggleTheme } = useTheme();
 
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   const [isSearchModalOpen, setIsSearchModalOpen] = useState(false);
@@ -47,9 +50,9 @@ export const Header: React.FC = () => {
   };
 
   return (
-    <header className="h-14 px-6 border-b border-[#ECEEF3] bg-white flex items-center justify-between shrink-0 select-none">
+    <header className="h-14 px-6 border-b border-[#ECEEF3] dark:border-[#3A3948] bg-white dark:bg-[#1E1E27] flex items-center justify-between shrink-0 select-none transition-colors duration-200">
       {/* Breadcrumbs with Drag and Drop Support */}
-      <nav className="flex items-center gap-1.5 text-xs text-slate-500 font-medium">
+      <nav className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-[#A5A3B5] font-medium">
         <button
           onClick={() => {
             setActiveProject(null);
@@ -59,8 +62,8 @@ export const Header: React.FC = () => {
           title="홈 (프로젝트 목록으로 이동)"
           className={`p-1.5 rounded-lg transition-colors flex items-center gap-1 ${
             !activeProject
-              ? 'text-lavender-700 font-semibold bg-lavender-50'
-              : 'hover:text-lavender-600 hover:bg-lavender-50'
+              ? 'text-lavender-700 dark:text-[#B7A5FF] font-semibold bg-lavender-50 dark:bg-[#352E58]'
+              : 'hover:text-lavender-600 dark:hover:text-[#A995F5] hover:bg-lavender-50 dark:hover:bg-[#292936]'
           }`}
         >
           <Home className="w-3.5 h-3.5" />
@@ -69,12 +72,12 @@ export const Header: React.FC = () => {
 
         {!activeProject ? (
           <>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
-            <span className="text-slate-800 font-semibold">프로젝트 목록</span>
+            <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-[#3A3948]" />
+            <span className="text-slate-800 dark:text-[#E8E7EF] font-semibold">프로젝트 목록</span>
           </>
         ) : (
           <>
-            <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+            <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-[#3A3948]" />
             <button
               onClick={() => {
                 setActiveFolder(null);
@@ -90,10 +93,10 @@ export const Header: React.FC = () => {
               title="프로젝트 루트로 이동 (드롭하여 최상위로 이동 가능)"
               className={`px-2 py-1 rounded-lg transition-all ${
                 dragOverTarget === 'root'
-                  ? 'bg-lavender-100 text-lavender-700 ring-2 ring-lavender-400 font-bold scale-105'
+                  ? 'bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] ring-2 ring-lavender-400 font-bold scale-105'
                   : !activeFolder
-                  ? 'text-slate-800 font-semibold'
-                  : 'hover:text-lavender-600 hover:bg-slate-50'
+                  ? 'text-slate-800 dark:text-[#E8E7EF] font-semibold'
+                  : 'hover:text-lavender-600 dark:hover:text-[#A995F5] hover:bg-slate-50 dark:hover:bg-[#292936]'
               }`}
             >
               {activeProject.name}
@@ -107,9 +110,9 @@ export const Header: React.FC = () => {
             const isLast = idx === folderBreadcrumbs.length - 1;
             return (
               <React.Fragment key={crumb.id}>
-                <ChevronRight className="w-3.5 h-3.5 text-slate-300" />
+                <ChevronRight className="w-3.5 h-3.5 text-slate-300 dark:text-[#3A3948]" />
                 {isLast ? (
-                  <span className="text-slate-800 font-semibold truncate max-w-[160px] px-1 py-0.5">
+                  <span className="text-slate-800 dark:text-[#E8E7EF] font-semibold truncate max-w-[160px] px-1 py-0.5">
                     {crumb.name}
                   </span>
                 ) : (
@@ -128,8 +131,8 @@ export const Header: React.FC = () => {
                     title={`'${crumb.name}' 폴더로 이동 (드롭 가능)`}
                     className={`px-2 py-1 rounded-lg transition-all truncate max-w-[140px] ${
                       dragOverTarget === crumb.id
-                        ? 'bg-lavender-100 text-lavender-700 ring-2 ring-lavender-400 font-bold scale-105'
-                        : 'hover:text-lavender-600 hover:bg-slate-50'
+                        ? 'bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] ring-2 ring-lavender-400 font-bold scale-105'
+                        : 'hover:text-lavender-600 dark:hover:text-[#A995F5] hover:bg-slate-50 dark:hover:bg-[#292936]'
                     }`}
                   >
                     {crumb.name}
@@ -147,17 +150,31 @@ export const Header: React.FC = () => {
           onClick={() => setIsSearchModalOpen(true)}
           className="relative flex items-center cursor-pointer group"
         >
-          <Search className="w-4 h-4 text-slate-400 absolute left-3 pointer-events-none group-hover:text-lavender-600 transition-colors" />
+          <Search className="w-4 h-4 text-slate-400 dark:text-[#A5A3B5] absolute left-3 pointer-events-none group-hover:text-lavender-600 dark:group-hover:text-[#A995F5] transition-colors" />
           <input
             type="text"
             readOnly
             placeholder="빠른 검색..."
-            className="w-60 pl-9 pr-14 py-1.5 text-xs rounded-xl border border-slate-200 group-hover:border-lavender-400 group-hover:ring-1 group-hover:ring-lavender-200 transition-all text-slate-700 placeholder-slate-400 !bg-white cursor-pointer select-none"
+            className="w-56 pl-9 pr-14 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-[#3A3948] group-hover:border-lavender-400 dark:group-hover:border-[#A995F5] group-hover:ring-1 group-hover:ring-lavender-200 transition-all text-slate-700 dark:text-[#E8E7EF] placeholder-slate-400 dark:placeholder-[#A5A3B5] bg-white dark:bg-[#292936] cursor-pointer select-none"
           />
-          <kbd className="absolute right-2 px-1.5 py-0.5 text-[10px] font-sans font-medium text-slate-400 bg-slate-100 rounded border border-slate-200 group-hover:border-lavender-300 group-hover:text-lavender-600">
+          <kbd className="absolute right-2 px-1.5 py-0.5 text-[10px] font-sans font-medium text-slate-400 dark:text-[#A5A3B5] bg-slate-100 dark:bg-[#1E1E27] rounded border border-slate-200 dark:border-[#3A3948] group-hover:border-lavender-300 group-hover:text-lavender-600">
             Ctrl + K
           </kbd>
         </div>
+
+        {/* Quick Theme Toggle Button */}
+        <button
+          type="button"
+          onClick={toggleTheme}
+          title={`현재 테마: ${theme === 'system' ? '시스템 설정 따르기' : isDark ? '다크 모드' : '라이트 모드'} (클릭 시 전환)`}
+          className="p-2 rounded-xl text-slate-500 dark:text-[#A5A3B5] hover:bg-slate-100/70 dark:hover:bg-[#292936] hover:text-lavender-600 dark:hover:text-[#A995F5] transition-colors"
+        >
+          {isDark ? (
+            <Moon className="w-4 h-4 text-[#A995F5]" />
+          ) : (
+            <Sun className="w-4 h-4 text-amber-500" />
+          )}
+        </button>
 
         {/* Notification */}
         <div className="relative">
@@ -167,20 +184,20 @@ export const Header: React.FC = () => {
             aria-label="알림"
             aria-expanded={isNotificationsOpen}
             onClick={() => setIsNotificationsOpen((open) => !open)}
-            className="p-2 rounded-xl text-slate-500 hover:bg-slate-100/70 hover:text-slate-700 transition-colors"
+            className="p-2 rounded-xl text-slate-500 dark:text-[#A5A3B5] hover:bg-slate-100/70 dark:hover:bg-[#292936] hover:text-slate-700 dark:hover:text-[#E8E7EF] transition-colors"
           >
             <Bell className="w-4 h-4" />
           </button>
           {isNotificationsOpen && (
-            <div role="status" className="absolute right-0 top-12 z-40 w-72 rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
-              <h2 className="text-sm font-bold text-slate-800">알림</h2>
-              <p className="mt-2 text-xs text-slate-500">새 알림이 없습니다.</p>
+            <div role="status" className="absolute right-0 top-12 z-40 w-72 rounded-2xl border border-slate-200 dark:border-[#3A3948] bg-white dark:bg-[#292936] p-5 shadow-xl">
+              <h2 className="text-sm font-bold text-slate-800 dark:text-[#E8E7EF]">알림</h2>
+              <p className="mt-2 text-xs text-slate-500 dark:text-[#A5A3B5]">새 알림이 없습니다.</p>
             </div>
           )}
         </div>
 
         {/* User Profile */}
-        <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 cursor-pointer">
+        <div className="w-8 h-8 rounded-full overflow-hidden border border-slate-200 dark:border-[#3A3948] cursor-pointer">
           <img
             src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=150&auto=format&fit=crop"
             alt="User Avatar"

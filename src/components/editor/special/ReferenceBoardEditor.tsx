@@ -20,6 +20,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
 
@@ -156,6 +157,7 @@ const DEFAULT_BOARD_ITEMS: BoardItem[] = [
 
 export const ReferenceBoardEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { customPrompt, success } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -221,13 +223,19 @@ export const ReferenceBoardEditor: React.FC = () => {
     persistData(updated);
   };
 
-  const handleAddBoard = () => {
-    const name = prompt('새 보드 이름을 입력하세요:');
+  const handleAddBoard = async () => {
+    const name = await customPrompt({
+      title: '새 보드 추가',
+      message: '생성할 레퍼런스 보드의 이름을 입력하세요:',
+      placeholder: '예: 캐릭터 복식, 던전 컨셉아트',
+      confirmText: '생성',
+    });
     if (!name?.trim()) return;
     const newBoard = { id: `board-${Date.now()}`, name: name.trim() };
     const nextBoards = [...boards, newBoard];
     persistData(items, nextBoards);
     setActiveBoard(newBoard.id);
+    success('보드 추가됨', `'${name.trim()}' 보드가 생성되었습니다.`);
   };
 
   const handleAddItem = (type: BoardItem['type']) => {
@@ -259,7 +267,7 @@ export const ReferenceBoardEditor: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}

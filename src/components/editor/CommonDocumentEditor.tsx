@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChevronLeft, Save, Star, Download, Image as ImageIcon } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
+import { useToast } from '../toast/ToastContext';
 import { TEMPLATES } from '../../templates/templateList';
 import { PageSidebar } from './PageSidebar';
 import { RichTextEditor } from './RichTextEditor';
@@ -17,6 +18,7 @@ export const CommonDocumentEditor: React.FC = () => {
     updatePageContent,
     toggleFavoriteDocument,
   } = useWorkspace();
+  const toast = useToast();
 
   const [docTitle, setDocTitle] = useState('');
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
@@ -121,28 +123,29 @@ export const CommonDocumentEditor: React.FC = () => {
       await exportElementAsPng(documentPrintRef.current, {
         fileName: `${activeDocument.title}-${activePage?.title || 'page'}`,
       });
+      toast.success('이미지 저장 완료', '문서 내용이 이미지(PNG)로 저장되었습니다.');
     } catch (err) {
-      alert('이미지 내보내기 중 오류가 발생했습니다.');
+      toast.error('내보내기 실패', '이미지 내보내기 중 오류가 발생했습니다.');
     } finally {
       setIsExporting(false);
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#F9FAFD] overflow-hidden animate-in fade-in duration-150">
+    <div className="flex-1 flex flex-col h-full bg-[#F9FAFD] dark:bg-[#17171D] overflow-hidden animate-in fade-in duration-150">
       {/* Top Document Header Bar */}
-      <div className="h-14 px-6 border-b border-[#ECEEF3] flex items-center justify-between shrink-0 bg-white shadow-xs">
+      <div className="h-14 px-6 border-b border-[#ECEEF3] dark:border-[#3A3948] flex items-center justify-between shrink-0 bg-white dark:bg-[#1E1E27] shadow-xs">
         {/* Left: Back button + Title input + Template Badge */}
         <div className="flex items-center gap-3.5 flex-1 min-w-0">
           <button
             onClick={handleBackToList}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 text-xs font-medium text-slate-600 hover:bg-slate-50 transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] text-xs font-medium text-slate-600 dark:text-[#E8E7EF] hover:bg-slate-50 dark:hover:bg-[#292936] transition-colors shrink-0"
           >
-            <ChevronLeft className="w-4 h-4 text-slate-400" />
+            <ChevronLeft className="w-4 h-4 text-slate-400 dark:text-[#A5A3B5]" />
             <span>목록으로</span>
           </button>
 
-          <div className="h-4 w-px bg-slate-200 shrink-0" />
+          <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] shrink-0" />
 
           {/* Document Title (Editable) */}
           <input
@@ -156,52 +159,52 @@ export const CommonDocumentEditor: React.FC = () => {
               }
             }}
             placeholder="제목 없는 문서"
-            className="text-[15px] font-bold text-slate-800 border-b border-transparent hover:border-slate-300 focus:border-lavender-500 focus:outline-none transition-colors px-1 py-0.5 truncate max-w-md !bg-white"
+            className="text-[15px] font-bold text-slate-800 dark:text-[#E8E7EF] border-b border-transparent hover:border-slate-300 dark:hover:border-[#3A3948] focus:border-lavender-500 focus:outline-none transition-colors px-1 py-0.5 truncate max-w-md bg-transparent"
           />
 
-          <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-lavender-100 text-lavender-700 shrink-0">
+          <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-lavender-100 dark:bg-lavender-950/40 text-lavender-700 dark:text-lavender-300 shrink-0">
             {template?.name || '문서'}
           </span>
         </div>
 
         {/* Right: Autosave status & Favorite */}
-        <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
+        <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-[#A5A3B5] shrink-0">
           <div className="flex items-center gap-1.5 text-[11.5px]">
             <Save
               className={`w-3.5 h-3.5 ${
-                saveStatus === 'saving' ? 'text-amber-500 animate-pulse' : 'text-slate-400'
+                saveStatus === 'saving' ? 'text-amber-500 animate-pulse' : 'text-slate-400 dark:text-[#A5A3B5]'
               }`}
             />
-            <span className={saveStatus === 'saving' ? 'text-amber-600 font-medium' : 'text-slate-400'}>
+            <span className={saveStatus === 'saving' ? 'text-amber-600 dark:text-amber-400 font-medium' : 'text-slate-400 dark:text-[#A5A3B5]'}>
               {saveStatus === 'saving' ? '저장 중...' : '자동 저장됨'}
             </span>
           </div>
 
-          <span className="text-slate-200">|</span>
+          <span className="text-slate-200 dark:text-[#3A3948]">|</span>
 
           {/* Phase 6: Image Export Button */}
           <button
             onClick={handleExportImage}
             disabled={isExporting}
             title="문서 내용 이미지로 저장 (PNG)"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:text-lavender-700 hover:bg-lavender-50 hover:border-lavender-200 transition-colors text-xs font-medium"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#E8E7EF] hover:text-lavender-700 dark:hover:text-lavender-400 hover:bg-lavender-50 dark:hover:bg-[#292936] hover:border-lavender-200 dark:hover:border-[#3A3948] transition-colors text-xs font-medium"
           >
-            <Download className={`w-3.5 h-3.5 ${isExporting ? 'animate-bounce text-lavender-600' : 'text-slate-400'}`} />
+            <Download className={`w-3.5 h-3.5 ${isExporting ? 'animate-bounce text-lavender-600' : 'text-slate-400 dark:text-[#A5A3B5]'}`} />
             <span>{isExporting ? '내보내는 중...' : '이미지 저장'}</span>
           </button>
 
-          <span className="text-slate-200">|</span>
+          <span className="text-slate-200 dark:text-[#3A3948]">|</span>
 
           <button
             onClick={() => toggleFavoriteDocument(activeDocument.id)}
             title="즐겨찾기 토글"
             className={`p-1.5 rounded-lg border transition-colors ${
               activeDocument.isFavorite
-                ? 'border-lavender-200 bg-lavender-50 text-lavender-600'
-                : 'border-slate-200 text-slate-400 hover:text-slate-600'
+                ? 'border-lavender-200 bg-lavender-50 text-lavender-600 dark:border-lavender-700 dark:bg-lavender-950/40 dark:text-lavender-400'
+                : 'border-slate-200 dark:border-[#3A3948] text-slate-400 dark:text-[#A5A3B5] hover:text-slate-600 dark:hover:text-[#E8E7EF]'
             }`}
           >
-            <Star className={`w-3.5 h-3.5 ${activeDocument.isFavorite ? 'fill-lavender-600' : ''}`} />
+            <Star className={`w-3.5 h-3.5 ${activeDocument.isFavorite ? 'fill-lavender-600 dark:fill-lavender-400' : ''}`} />
           </button>
         </div>
       </div>
@@ -214,11 +217,11 @@ export const CommonDocumentEditor: React.FC = () => {
         {/* Main: Rich Text Canvas */}
         <main className="flex-1 overflow-y-auto p-6 flex flex-col max-w-5xl mx-auto w-full">
           {activePage ? (
-            <div ref={documentPrintRef} className="flex-1 flex flex-col gap-3 pb-12 bg-white p-6 rounded-3xl border border-slate-200/80 shadow-soft">
+            <div ref={documentPrintRef} className="flex-1 flex flex-col gap-3 pb-12 bg-white dark:bg-[#22222C] p-6 rounded-3xl border border-slate-200/80 dark:border-[#3A3948] shadow-soft">
               {/* Active Page Header info */}
               <div className="flex items-center justify-between px-1">
-                <h2 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-                  현재 페이지: <span className="text-slate-700 font-bold">{activePage.title}</span>
+                <h2 className="text-xs font-semibold text-slate-400 dark:text-[#A5A3B5] uppercase tracking-wider">
+                  현재 페이지: <span className="text-slate-700 dark:text-[#E8E7EF] font-bold">{activePage.title}</span>
                 </h2>
               </div>
 
@@ -236,7 +239,7 @@ export const CommonDocumentEditor: React.FC = () => {
               <BacklinkPanel onNavigateToDocument={handleNavigateInternalLink} />
             </div>
           ) : (
-            <div className="flex-1 flex items-center justify-center text-slate-400 text-xs">
+            <div className="flex-1 flex items-center justify-center text-slate-400 dark:text-[#A5A3B5] text-xs">
               선택된 페이지가 없습니다.
             </div>
           )}

@@ -17,6 +17,7 @@ import {
   Tag,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
 
@@ -30,6 +31,7 @@ interface ViewSettings {
 
 export const ModelingSheetEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { customPrompt, success } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -83,13 +85,19 @@ export const ModelingSheetEditor: React.FC = () => {
     });
   };
 
-  const handleAddSheet = () => {
-    const name = prompt('새 시트 이름을 입력하세요:');
+  const handleAddSheet = async () => {
+    const name = await customPrompt({
+      title: '새 시트 추가',
+      message: '생성할 모델링 시트의 이름을 입력하세요:',
+      placeholder: '예: 무기/도구, 보스 몬스터',
+      confirmText: '추가',
+    });
     if (!name?.trim()) return;
     const newSheet = { id: `sheet-${Date.now()}`, name: name.trim() };
     const nextSheets = [...sheets, newSheet];
     persistData(viewSettings, nextSheets);
     setActiveSheet(newSheet.id);
+    success('시트 추가됨', `'${name.trim()}' 시트가 추가되었습니다.`);
   };
 
   const toggleView = (key: keyof ViewSettings) => {
@@ -97,7 +105,7 @@ export const ModelingSheetEditor: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}

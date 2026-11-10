@@ -76,3 +76,4 @@ export interface CanvasDocumentData {
   zoom: number;
   elements: CanvasElement[];
 }
+

@@ -34,6 +34,7 @@ import {
   X,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { generateId } from '../../../utils/id';
 import { exportElementAsPng } from '../../../utils/exportImage';
@@ -192,6 +193,7 @@ const INITIAL_FLOW_EDGES: Edge[] = [
 
 export const GameFlowEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { customPrompt, success, info } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const flowContainerRef = useRef<HTMLDivElement>(null);
 
@@ -344,22 +346,25 @@ export const GameFlowEditor: React.FC = () => {
               <span>결정(분기)</span>
             </button>
             <button
-              onClick={() => alert('노드의 점을 드래그하여 다른 노드로 연결선을 그으세요.')}
-              className="flex items-center gap-2.5 p-2 rounded-xl border border-slate-200 hover:border-lavender-300 hover:bg-slate-50 text-slate-700"
+              onClick={() => info('연결선 안내', '노드의 연결 점을 드래그하여 다른 노드로 연결선을 그으세요.')}
+              className="flex items-center gap-2.5 p-2 rounded-xl border border-slate-200 dark:border-[#3A3948] hover:border-lavender-300 hover:bg-slate-50 dark:hover:bg-[#292936] text-slate-700 dark:text-[#E8E7EF]"
             >
               <ArrowRight className="w-4 h-4 text-slate-500" />
               <span>이동(연결)</span>
             </button>
             <button
               onClick={() => handleAddElement('note', '주석 메모')}
-              className="flex items-center gap-2.5 p-2 rounded-xl border border-slate-200 hover:border-lavender-300 hover:bg-slate-50 text-slate-700"
+              className="flex items-center gap-2.5 p-2 rounded-xl border border-slate-200 dark:border-[#3A3948] hover:border-lavender-300 hover:bg-slate-50 dark:hover:bg-[#292936] text-slate-700 dark:text-[#E8E7EF]"
             >
               <FileText className="w-4 h-4 text-amber-500" />
               <span>주석(메모)</span>
             </button>
             <button
-              onClick={() => alert('영역 그룹 박스를 배치합니다.')}
-              className="flex items-center gap-2.5 p-2 rounded-xl border border-dashed border-slate-300 hover:border-lavender-300 hover:bg-slate-50 text-slate-600"
+              onClick={() => {
+                handleAddElement('rect', '영역 그룹');
+                success('영역 그룹 배치', '영역 그룹 박스가 배치되었습니다.');
+              }}
+              className="flex items-center gap-2.5 p-2 rounded-xl border border-dashed border-slate-300 dark:border-[#3A3948] hover:border-lavender-300 hover:bg-slate-50 dark:hover:bg-[#292936] text-slate-600 dark:text-[#A5A3B5]"
             >
               <Square className="w-4 h-4 text-slate-400 stroke-dashed" />
               <span>영역 그룹</span>
@@ -464,11 +469,20 @@ export const GameFlowEditor: React.FC = () => {
                   </div>
                 ) : (
                   <button
-                    onClick={() => {
-                      const title = prompt('연결할 문서 제목을 입력하세요:', '생활 시스템 기획서');
-                      if (title) updateSelectedNode('linkedDocTitle', title);
+                    onClick={async () => {
+                      const title = await customPrompt({
+                        title: '문서 연결',
+                        message: '연결할 문서 제목을 입력하세요:',
+                        defaultValue: '생활 시스템 기획서',
+                        placeholder: '문서 제목',
+                        confirmText: '연결',
+                      });
+                      if (title) {
+                        updateSelectedNode('linkedDocTitle', title.trim());
+                        success('문서 연결됨', `'${title.trim()}' 문서가 연결되었습니다.`);
+                      }
                     }}
-                    className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 hover:border-lavender-400 text-slate-500 text-xs font-medium"
+                    className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 dark:border-[#3A3948] hover:border-lavender-400 dark:hover:border-lavender-500 text-slate-500 dark:text-[#A5A3B5] text-xs font-medium"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     <span>문서 연결</span>

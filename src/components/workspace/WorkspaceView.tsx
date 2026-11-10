@@ -28,6 +28,7 @@ import { formatRelativeTime } from '../../utils/time';
 import { TEMPLATES } from '../../templates/templateList';
 import { HomeView } from '../home/HomeView';
 import { UtilityView } from '../home/UtilityView';
+import { toast, customConfirm } from '../toast/ToastContext';
 
 export const WorkspaceView: React.FC = () => {
   const {
@@ -126,20 +127,20 @@ export const WorkspaceView: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#F9FAFD] relative">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#F9FAFD] dark:bg-[#17171D] relative transition-colors duration-200">
       <div className="p-8 max-w-7xl w-full mx-auto flex flex-col gap-6">
         {/* Banner or Folder Header */}
         {!activeFolder ? (
           <ProjectBanner project={activeProject} />
         ) : (
-          <div className="bg-white border border-[#ECEEF3] rounded-2xl p-6 shadow-soft flex items-center justify-between">
+          <div className="bg-white dark:bg-[#292936] border border-[#ECEEF3] dark:border-[#3A3948] rounded-2xl p-6 shadow-soft flex items-center justify-between">
             <div className="flex items-center gap-3.5">
-              <div className="w-11 h-11 rounded-xl bg-lavender-100 text-lavender-600 flex items-center justify-center">
-                <FolderIcon className="w-6 h-6 fill-lavender-300 text-lavender-600" />
+              <div className="w-11 h-11 rounded-xl bg-lavender-100 dark:bg-[#352E58] text-lavender-600 dark:text-[#B7A5FF] flex items-center justify-center">
+                <FolderIcon className="w-6 h-6 fill-lavender-300 dark:fill-[#554884] text-lavender-600 dark:text-[#B7A5FF]" />
               </div>
               <div>
-                <h1 className="text-lg font-bold text-slate-800">{activeFolder.name}</h1>
-                <p className="text-xs text-slate-400 mt-0.5">
+                <h1 className="text-lg font-bold text-slate-800 dark:text-[#E8E7EF]">{activeFolder.name}</h1>
+                <p className="text-xs text-slate-400 dark:text-[#A5A3B5] mt-0.5">
                   폴더 내 총 {currentFolders.length + currentDocuments.length}개 항목
                 </p>
               </div>
@@ -194,7 +195,7 @@ export const WorkspaceView: React.FC = () => {
           </div>
         ) : (
           /* List View Mode */
-          <div className="bg-white border border-[#ECEEF3] rounded-2xl overflow-hidden shadow-soft divide-y divide-slate-100">
+          <div className="bg-white dark:bg-[#292936] border border-[#ECEEF3] dark:border-[#3A3948] rounded-2xl overflow-hidden shadow-soft divide-y divide-slate-100 dark:divide-[#3A3948]">
             {showFolders &&
               currentFolders.map((folder) => (
                 <div
@@ -219,27 +220,34 @@ export const WorkspaceView: React.FC = () => {
                     } catch {}
                   }}
                   onClick={() => setActiveFolder(folder.id)}
-                  className="px-5 py-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors"
+                  className="px-5 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-[#1E1E27] cursor-pointer transition-colors"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 rounded-lg bg-lavender-100 text-lavender-600 flex items-center justify-center">
-                      <FolderIcon className="w-4 h-4 fill-lavender-300 text-lavender-600" />
+                    <div className="w-7 h-7 rounded-lg bg-lavender-100 dark:bg-[#352E58] text-lavender-600 dark:text-[#B7A5FF] flex items-center justify-center">
+                      <FolderIcon className="w-4 h-4 fill-lavender-300 dark:fill-[#554884] text-lavender-600 dark:text-[#B7A5FF]" />
                     </div>
-                    <span className="text-xs font-semibold text-slate-800">{folder.name}</span>
-                    <span className="text-[11px] text-slate-400">폴더</span>
+                    <span className="text-xs font-semibold text-slate-800 dark:text-[#E8E7EF]">{folder.name}</span>
+                    <span className="text-[11px] text-slate-400 dark:text-[#A5A3B5]">폴더</span>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-slate-400">
+                    <span className="text-xs text-slate-400 dark:text-[#A5A3B5]">
                       {formatRelativeTime(folder.updatedAt)}
                     </span>
                     <button
                       onClick={async (e) => {
                         e.stopPropagation();
-                        if (window.confirm(`'${folder.name}' 폴더를 삭제하시겠습니까? 하위 항목도 모두 삭제됩니다.`)) {
+                        const ok = await customConfirm({
+                          title: '폴더 삭제',
+                          message: `'${folder.name}' 폴더를 삭제하시겠습니까? 하위 항목도 함께 삭제됩니다.`,
+                          confirmText: '삭제',
+                          isDanger: true,
+                        });
+                        if (ok) {
                           await deleteFolder(folder.id);
+                          toast.success('폴더 삭제 완료', `'${folder.name}' 폴더가 삭제되었습니다.`);
                         }
                       }}
-                      className="p-1 rounded hover:bg-rose-50 text-slate-300 hover:text-rose-500 transition-colors"
+                      className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-300 dark:text-[#A5A3B5] hover:text-rose-500 transition-colors"
                       title="폴더 삭제"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -259,17 +267,17 @@ export const WorkspaceView: React.FC = () => {
                       e.dataTransfer.setData('application/json', JSON.stringify({ type: 'document', id: doc.id }));
                     }}
                     onClick={() => setActiveDocument(doc.id)}
-                    className="px-5 py-3 flex items-center justify-between hover:bg-slate-50 cursor-pointer transition-colors"
+                    className="px-5 py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-[#1E1E27] cursor-pointer transition-colors"
                   >
                     <div className="flex items-center gap-3">
-                      <FileText className="w-4 h-4 text-slate-400" />
-                      <span className="text-xs font-semibold text-slate-800">{doc.title}</span>
-                      <span className="text-[10px] px-2 py-0.5 rounded bg-lavender-100 text-lavender-700 font-medium">
+                      <FileText className="w-4 h-4 text-slate-400 dark:text-[#A5A3B5]" />
+                      <span className="text-xs font-semibold text-slate-800 dark:text-[#E8E7EF]">{doc.title}</span>
+                      <span className="text-[10px] px-2 py-0.5 rounded bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] font-medium">
                         {t?.name || '문서'}
                       </span>
                     </div>
                     <div className="flex items-center gap-3">
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-slate-400 dark:text-[#A5A3B5]">
                         {formatRelativeTime(doc.updatedAt)}
                       </span>
                       <button
@@ -277,19 +285,26 @@ export const WorkspaceView: React.FC = () => {
                           e.stopPropagation();
                           toggleFavoriteDocument(doc.id);
                         }}
-                        className={`p-1 ${doc.isFavorite ? 'text-lavender-600 fill-lavender-600' : 'text-slate-300'}`}
+                        className={`p-1 ${doc.isFavorite ? 'text-lavender-600 dark:text-[#A995F5] fill-lavender-600' : 'text-slate-300 dark:text-[#A5A3B5]'}`}
                         title="즐겨찾기 토글"
                       >
-                        <Star className={`w-3.5 h-3.5 ${doc.isFavorite ? 'fill-lavender-600' : ''}`} />
+                        <Star className={`w-3.5 h-3.5 ${doc.isFavorite ? 'fill-lavender-600 dark:fill-[#A995F5]' : ''}`} />
                       </button>
                       <button
                         onClick={async (e) => {
                           e.stopPropagation();
-                          if (window.confirm(`'${doc.title}' 문서를 삭제하시겠습니까?`)) {
+                          const ok = await customConfirm({
+                            title: '문서 삭제',
+                            message: `'${doc.title}' 문서를 삭제하시겠습니까?`,
+                            confirmText: '삭제',
+                            isDanger: true,
+                          });
+                          if (ok) {
                             await deleteDocument(doc.id);
+                            toast.success('문서 삭제 완료', `'${doc.title}' 문서가 삭제되었습니다.`);
                           }
                         }}
-                        className="p-1 rounded hover:bg-rose-50 text-slate-300 hover:text-rose-500 transition-colors"
+                        className="p-1 rounded hover:bg-rose-50 dark:hover:bg-rose-950/40 text-slate-300 dark:text-[#A5A3B5] hover:text-rose-500 transition-colors"
                         title="문서 삭제"
                       >
                         <Trash2 className="w-3.5 h-3.5" />

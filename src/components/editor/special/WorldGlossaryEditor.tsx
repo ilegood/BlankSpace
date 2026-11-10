@@ -20,6 +20,7 @@ import {
   Apple,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
 
@@ -120,6 +121,7 @@ const CATEGORIES = [
 
 export const WorldGlossaryEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { customPrompt, success } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -165,21 +167,26 @@ export const WorldGlossaryEditor: React.FC = () => {
     persistData(next);
   };
 
-  const handleAddTerm = () => {
-    const name = prompt('용어명 (예: 신성 제국):');
+  const handleAddTerm = async () => {
+    const name = await customPrompt({
+      title: '새 용어 추가',
+      message: '등록할 세계관 용어명을 입력하세요:',
+      placeholder: '예: 신성 제국, 마나 코어, 에테르',
+      confirmText: '추가',
+    });
     if (!name?.trim()) return;
-    const enName = prompt('영문명 (선택):') || '';
-    const desc = prompt('설명:') || '용어에 대한 설명';
+    const cat = selectedCategory === '전체' ? '설정' : selectedCategory;
     const newTerm: GlossaryTerm = {
       id: `term-${Date.now()}`,
       name: name.trim(),
-      enName: enName.trim(),
-      category: selectedCategory === '전체' ? '설정' : selectedCategory,
-      tags: [selectedCategory === '전체' ? '설정' : selectedCategory],
-      desc,
+      enName: '',
+      category: cat,
+      tags: [cat],
+      desc: '해당 용어의 정의와 세계관 내 배경 설명을 작성하세요.',
       icon: '📖',
     };
     persistData([...terms, newTerm]);
+    success('용어 추가됨', `'${name.trim()}' 용어가 사전에 등록되었습니다.`);
   };
 
   const filteredTerms = terms.filter((t) => {
@@ -196,7 +203,7 @@ export const WorldGlossaryEditor: React.FC = () => {
   });
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}

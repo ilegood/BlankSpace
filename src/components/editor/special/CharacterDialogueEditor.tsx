@@ -11,6 +11,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { generateId } from '../../../utils/id';
 import { exportElementAsPng } from '../../../utils/exportImage';
@@ -61,6 +62,7 @@ const DEFAULT_DIALOGUES: DialogueLine[] = [
 
 export const CharacterDialogueEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { success, info } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -149,7 +151,7 @@ export const CharacterDialogueEditor: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}
@@ -164,17 +166,17 @@ export const CharacterDialogueEditor: React.FC = () => {
               <span>대사 추가</span>
             </button>
             <button
-              onClick={() => alert('선택지 분기 블록이 삽입되었습니다.')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors"
+              onClick={() => info('선택지 안내', '선택지 분기 블록이 삽입되었습니다.')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] bg-white dark:bg-[#1E1E27] hover:bg-slate-50 dark:hover:bg-[#292936] text-slate-700 dark:text-[#E8E7EF] font-medium text-xs transition-colors"
             >
-              <Split className="w-3.5 h-3.5 text-lavender-600" />
+              <Split className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
               <span>선택지 추가</span>
             </button>
             <button
-              onClick={() => alert('분기 설정 패널을 엽니다.')}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-medium text-xs transition-colors"
+              onClick={() => info('분기 패널', '분기 설정 패널을 엽니다.')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] bg-white dark:bg-[#1E1E27] hover:bg-slate-50 dark:hover:bg-[#292936] text-slate-700 dark:text-[#E8E7EF] font-medium text-xs transition-colors"
             >
-              <GitBranch className="w-3.5 h-3.5 text-slate-500" />
+              <GitBranch className="w-3.5 h-3.5 text-slate-500 dark:text-[#A5A3B5]" />
               <span>분기 설정</span>
             </button>
           </div>
@@ -216,8 +218,8 @@ export const CharacterDialogueEditor: React.FC = () => {
           </div>
 
           <button
-            onClick={() => alert('새 대화 그룹이 추가되었습니다.')}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 hover:border-lavender-400 text-slate-500 hover:text-lavender-700 text-xs font-medium transition-colors"
+            onClick={() => success('대화 추가됨', '새 대화 그룹이 추가되었습니다.')}
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 dark:border-[#3A3948] hover:border-lavender-400 dark:hover:border-lavender-500 text-slate-500 dark:text-[#A5A3B5] hover:text-lavender-700 dark:hover:text-lavender-400 text-xs font-medium transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>대화 추가</span>

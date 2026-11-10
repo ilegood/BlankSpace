@@ -4,6 +4,7 @@ import { Document } from '../../types';
 import { formatRelativeTime } from '../../utils/time';
 import { TEMPLATES } from '../../templates/templateList';
 import { useWorkspace } from '../../store/WorkspaceContext';
+import { toast, customConfirm } from '../toast/ToastContext';
 
 interface DocumentCardProps {
   document: Document;
@@ -31,16 +32,24 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
 
   const handleRenameSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (titleInput.trim()) {
+    if (titleInput.trim() && titleInput.trim() !== document.title) {
       await updateDocumentTitle(document.id, titleInput.trim());
+      toast.success('문서 제목 변경', `'${titleInput.trim()}'으로 변경되었습니다.`);
     }
     setIsRenaming(false);
   };
 
   const handleDelete = async () => {
     setMenuPos(null);
-    if (window.confirm(`'${document.title}' 문서를 삭제하시겠습니까?`)) {
+    const confirmed = await customConfirm({
+      title: '문서 삭제',
+      message: `'${document.title}' 문서를 삭제하시겠습니까?`,
+      confirmText: '문서 삭제',
+      isDanger: true,
+    });
+    if (confirmed) {
       await deleteDocument(document.id);
+      toast.success('문서 삭제 완료', `'${document.title}' 문서가 삭제되었습니다.`);
     }
   };
 
@@ -118,16 +127,16 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
         onClick={() => {
           if (!isRenaming) setActiveDocument(document.id);
         }}
-        className={`group bg-white border rounded-2xl overflow-hidden flex flex-col transition-all duration-200 cursor-pointer select-none ${
+        className={`group bg-white dark:bg-[#292936] border rounded-2xl overflow-hidden flex flex-col transition-all duration-200 cursor-pointer select-none ${
           isDragging ? 'opacity-40 scale-95 border-dashed border-lavender-400' : ''
         } ${
           isDragOver
-            ? 'border-lavender-500 bg-lavender-50/50 shadow-md ring-2 ring-lavender-300 scale-[1.01]'
-            : 'border-[#ECEEF3] hover:border-lavender-300 hover:shadow-soft-hover'
+            ? 'border-lavender-500 bg-lavender-50/50 dark:bg-[#352E58]/40 shadow-md ring-2 ring-lavender-300 scale-[1.01]'
+            : 'border-[#ECEEF3] dark:border-[#3A3948] hover:border-lavender-300 dark:hover:border-[#A995F5] hover:shadow-soft-hover'
         }`}
       >
         {/* Thumbnail Preview Area */}
-        <div className="h-28 w-full bg-slate-50 relative overflow-hidden border-b border-slate-100 flex items-center justify-center">
+        <div className="h-28 w-full bg-slate-50 dark:bg-[#1E1E27] relative overflow-hidden border-b border-slate-100 dark:border-[#3A3948] flex items-center justify-center">
           {document.coverImage ? (
             <img
               src={document.coverImage}
@@ -138,8 +147,8 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
               }}
             />
           ) : (
-            <div className="flex flex-col items-center justify-center text-slate-300 gap-1">
-              <FileText className="w-8 h-8 stroke-1 text-slate-300" />
+            <div className="flex flex-col items-center justify-center text-slate-300 dark:text-[#A5A3B5] gap-1">
+              <FileText className="w-8 h-8 stroke-1 text-slate-300 dark:text-[#A5A3B5]" />
               <span className="text-[11px] font-medium">문서 미리보기</span>
             </div>
           )}
@@ -148,7 +157,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
           <div className="absolute top-2 right-2" onClick={(e) => e.stopPropagation()}>
             <button
               onClick={handleOpenMenu}
-              className="p-1 rounded-lg bg-white/80 hover:bg-white text-slate-600 shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
+              className="p-1 rounded-lg bg-white/80 dark:bg-[#292936]/80 hover:bg-white dark:hover:bg-[#292936] text-slate-600 dark:text-[#E8E7EF] shadow-sm opacity-0 group-hover:opacity-100 transition-opacity"
               title="문서 메뉴"
             >
               <MoreHorizontal className="w-3.5 h-3.5" />
@@ -195,14 +204,14 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
 
             {/* Template Tag Badge */}
             <div>
-              <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-medium bg-lavender-100/80 text-lavender-700">
+              <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-medium bg-lavender-100/80 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF]">
                 {templateName}
               </span>
             </div>
           </div>
 
           {/* Footer info: Last Updated + Star */}
-          <div className="flex items-center justify-between pt-2 border-t border-slate-100/70 text-[11.5px] text-slate-400">
+          <div className="flex items-center justify-between pt-2 border-t border-slate-100/70 dark:border-[#3A3948] text-[11.5px] text-slate-400 dark:text-[#A5A3B5]">
             <span>{formatRelativeTime(document.updatedAt)}</span>
             <button
               onClick={(e) => {
@@ -211,13 +220,13 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
               }}
               className={`p-1 rounded transition-colors ${
                 document.isFavorite
-                  ? 'text-lavender-600 fill-lavender-600'
-                  : 'text-slate-300 hover:text-slate-500'
+                  ? 'text-lavender-600 dark:text-[#A995F5] fill-lavender-600'
+                  : 'text-slate-300 dark:text-slate-600 hover:text-slate-500'
               }`}
             >
               <Star
                 className={`w-3.5 h-3.5 ${
-                  document.isFavorite ? 'fill-lavender-600' : ''
+                  document.isFavorite ? 'fill-lavender-600 dark:fill-[#A995F5]' : ''
                 }`}
               />
             </button>
@@ -241,21 +250,21 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
               left: `${menuPos.left}px`,
             }}
             onClick={(e) => e.stopPropagation()}
-            className="fixed z-50 bg-white border border-[#ECEEF3] rounded-xl shadow-modal p-1 w-32 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
+            className="fixed z-50 bg-white dark:bg-[#292936] border border-[#ECEEF3] dark:border-[#3A3948] rounded-xl shadow-modal p-1 w-32 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
           >
             <button
               onClick={() => {
                 setMenuPos(null);
                 setIsRenaming(true);
               }}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-lavender-50 hover:text-lavender-700 transition-colors text-left"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-[#E8E7EF] hover:bg-lavender-50 dark:hover:bg-[#1E1E27] hover:text-lavender-700 dark:hover:text-[#B7A5FF] transition-colors text-left"
             >
-              <Edit2 className="w-3.5 h-3.5 text-slate-400" />
+              <Edit2 className="w-3.5 h-3.5 text-slate-400 dark:text-[#A5A3B5]" />
               <span>이름 변경</span>
             </button>
             <button
               onClick={handleDelete}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors text-left"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-500" />
               <span>문서 삭제</span>

@@ -12,6 +12,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
 
@@ -46,6 +47,7 @@ const DEFAULT_EVENT: EventData = {
 
 export const CharacterEventEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { success } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -80,7 +82,7 @@ export const CharacterEventEditor: React.FC = () => {
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Header */}
       <SpecialEditorHeader saveStatus={saveStatus} onExportImage={handleExportImage} />
 
@@ -120,8 +122,8 @@ export const CharacterEventEditor: React.FC = () => {
           </div>
 
           <button
-            onClick={() => alert('새 이벤트 항목이 생성되었습니다.')}
-            className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 hover:border-lavender-400 text-slate-500 hover:text-lavender-700 text-xs font-medium transition-colors"
+            onClick={() => success('이벤트 생성됨', '새 이벤트 항목이 생성되었습니다.')}
+            className="flex items-center justify-center gap-1.5 py-2 rounded-xl border border-dashed border-slate-300 dark:border-[#3A3948] hover:border-lavender-400 dark:hover:border-lavender-500 text-slate-500 dark:text-[#A5A3B5] hover:text-lavender-700 dark:hover:text-lavender-400 text-xs font-medium transition-colors"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>이벤트 추가</span>

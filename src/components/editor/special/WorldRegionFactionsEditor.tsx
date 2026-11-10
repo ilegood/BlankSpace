@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
 
@@ -90,6 +91,7 @@ const DEFAULT_WORLD_DATA: WorldRegionData = {
 
 export const WorldRegionFactionsEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { customPrompt, success } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -123,36 +125,46 @@ export const WorldRegionFactionsEditor: React.FC = () => {
     });
   };
 
-  const handleAddRegion = () => {
-    const name = prompt('새 지역/장소 명칭:');
+  const handleAddRegion = async () => {
+    const name = await customPrompt({
+      title: '새 지역 추가',
+      message: '생성할 지역/장소 명칭을 입력하세요:',
+      placeholder: '예: 안개 숲, 아케론 요새',
+      confirmText: '추가',
+    });
     if (!name?.trim()) return;
-    const location = prompt('위치 (예: 남부 연안):') || '미정';
     const newReg: RegionItem = {
       id: `reg-${Date.now()}`,
       name: name.trim(),
-      location,
-      desc: '지역에 대한 상세 설명',
+      location: '미정',
+      desc: '해당 지역의 지리적 환경과 특징을 기록하세요.',
       imageUrl:
         'https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=400&auto=format&fit=crop',
     };
     persistData({ ...data, regions: [...data.regions, newReg] });
+    success('지역 추가됨', `'${name.trim()}' 지역이 추가되었습니다.`);
   };
 
-  const handleAddFaction = () => {
-    const name = prompt('새 국가/세력 명칭:');
+  const handleAddFaction = async () => {
+    const name = await customPrompt({
+      title: '새 세력/국가 추가',
+      message: '생성할 국가/세력 명칭을 입력하세요:',
+      placeholder: '예: 성도 기사단, 은빛 동맹',
+      confirmText: '추가',
+    });
     if (!name?.trim()) return;
-    const desc = prompt('설명:') || '신규 세력 설명';
     const newFac: FactionItem = {
       id: `fac-${Date.now()}`,
       name: name.trim(),
-      desc,
+      desc: '해당 세력의 설립 목적과 주요 활동을 기록하세요.',
       symbol: '🛡️',
     };
     persistData({ ...data, factions: [...data.factions, newFac] });
+    success('세력 추가됨', `'${name.trim()}' 세력이 추가되었습니다.`);
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}

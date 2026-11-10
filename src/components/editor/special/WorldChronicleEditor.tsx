@@ -15,6 +15,7 @@ import {
   Download,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
 
@@ -89,6 +90,7 @@ const DEFAULT_CHRONICLE_DATA: ChronicleData = {
 
 export const WorldChronicleEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { customPrompt, success } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -123,23 +125,27 @@ export const WorldChronicleEditor: React.FC = () => {
     });
   };
 
-  const handleAddEvent = () => {
-    const title = prompt('사건 명칭 (예: 대전쟁):');
+  const handleAddEvent = async () => {
+    const title = await customPrompt({
+      title: '새 연대기 사건 추가',
+      message: '기록할 역사 사건의 명칭을 입력하세요:',
+      placeholder: '예: 제1차 마도 대전쟁, 고대 왕국의 몰락',
+      confirmText: '추가',
+    });
     if (!title?.trim()) return;
-    const year = prompt('연도 (예: 1,200년):') || '미상';
-    const desc = prompt('사건 설명:') || '사건에 대한 설명';
     const newEv: EventItem = {
       id: `ev-${Date.now()}`,
-      year,
+      year: '신화 시대',
       title: title.trim(),
-      desc,
+      desc: '해당 연대기 사건의 상세한 배경과 전개 과정을 기록하세요.',
       icon: '📜',
     };
     persistData({ ...data, events: [...data.events, newEv] });
+    success('사건 추가됨', `'${title.trim()}' 사건이 연대기에 추가되었습니다.`);
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}

@@ -11,6 +11,7 @@ import {
   Check,
 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
+import { useToast } from '../../toast/ToastContext';
 import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
 
@@ -88,6 +89,7 @@ const WAVEFORM_BARS = [
 
 export const SoundBoardEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const { customPrompt, success } = useToast();
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
@@ -171,8 +173,14 @@ export const SoundBoardEditor: React.FC = () => {
     persistData(updated);
   };
 
-  const handleAddTrack = () => {
-    const fileName = prompt('추가할 파일명을 입력하세요 (예: Battle_BGM.ogg):');
+  const handleAddTrack = async () => {
+    const fileName = await customPrompt({
+      title: '트랙 추가',
+      message: '추가할 사운드 파일명을 입력하세요:',
+      placeholder: '예: Battle_BGM.ogg, Skill_Slash.wav',
+      defaultValue: 'New_Sound.ogg',
+      confirmText: '추가',
+    });
     if (!fileName?.trim()) return;
     const newTrack: SoundTrack = {
       id: `s-${Date.now()}`,
@@ -181,19 +189,26 @@ export const SoundBoardEditor: React.FC = () => {
       duration: '02:15',
       durationSec: 135,
       isLoop: true,
-      description: '새 배경음악',
-      tags: ['전투'],
+      description: '새 사운드 트랙',
+      tags: ['신규'],
     };
     persistData([newTrack, ...tracks]);
+    success('트랙 추가됨', `'${fileName.trim()}' 트랙이 추가되었습니다.`);
   };
 
-  const handleAddCategory = () => {
-    const name = prompt('새 사운드 카테고리를 입력하세요:');
+  const handleAddCategory = async () => {
+    const name = await customPrompt({
+      title: '새 카테고리 추가',
+      message: '생성할 사운드 카테고리 이름을 입력하세요:',
+      placeholder: '예: 전투 효과음, 인터랙션',
+      confirmText: '추가',
+    });
     if (!name?.trim()) return;
     const newCat = { id: `cat-${Date.now()}`, name: name.trim() };
     const nextCats = [...categories, newCat];
     persistData(tracks, nextCats);
     setActiveCategory(newCat.id);
+    success('카테고리 추가됨', `'${name.trim()}' 카테고리가 추가되었습니다.`);
   };
 
   const toggleSelect = (id: string) => {
@@ -216,7 +231,7 @@ export const SoundBoardEditor: React.FC = () => {
     : 0;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
+    <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
         saveStatus={saveStatus}

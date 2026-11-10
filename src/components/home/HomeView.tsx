@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Sparkles, Search, LayoutGrid, ChevronDown, FolderOpen } from 'lucide-react';
+import { Plus, Sparkles, Search } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 import { ProjectCard } from './ProjectCard';
 
@@ -16,18 +16,18 @@ export const HomeView: React.FC = () => {
     });
 
   return (
-    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#F9FAFD]">
+    <div className="flex-1 flex flex-col h-full overflow-y-auto bg-[#F9FAFD] dark:bg-[#17171D] transition-colors duration-200">
       <div className="p-8 max-w-7xl w-full mx-auto flex flex-col gap-8">
         {/* Top Header Section */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#ECEEF3]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-[#ECEEF3] dark:border-[#3A3948]">
           <div>
             <div className="flex items-center gap-2.5">
-              <h1 className="text-xl font-bold text-slate-800 tracking-tight">프로젝트 목록</h1>
-              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-lavender-100 text-lavender-700">
+              <h1 className="text-xl font-bold text-slate-800 dark:text-[#E8E7EF] tracking-tight">프로젝트 목록</h1>
+              <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF]">
                 {projects.length}
               </span>
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-slate-500 dark:text-[#A5A3B5] mt-1">
               창작 중인 모든 게임 프로젝트를 한곳에서 관리하세요.
             </p>
           </div>
@@ -36,13 +36,13 @@ export const HomeView: React.FC = () => {
             {/* Search within projects */}
             {projects.length > 0 && (
               <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <Search className="w-3.5 h-3.5 text-slate-400 dark:text-[#A5A3B5] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="text"
                   value={searchFilter}
                   onChange={(e) => setSearchFilter(e.target.value)}
                   placeholder="프로젝트 검색..."
-                  className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 focus:outline-none focus:border-lavender-500 text-slate-700 !bg-white w-48"
+                  className="pl-8 pr-3 py-1.5 text-xs rounded-xl border border-slate-200 dark:border-[#3A3948] focus:outline-none focus:border-lavender-500 text-slate-700 dark:text-[#E8E7EF] bg-white dark:bg-[#292936] w-48"
                 />
               </div>
             )}
@@ -60,15 +60,15 @@ export const HomeView: React.FC = () => {
 
         {/* Projects Content Area */}
         {projects.length === 0 ? (
-          /* Empty Minimal White Space (기획서 3.1) */
+          /* Empty Minimal White Space */
           <div className="py-24 flex flex-col items-center justify-center text-center select-none">
-            <div className="w-16 h-16 rounded-2xl bg-lavender-100/70 text-lavender-600 flex items-center justify-center mb-4 shadow-soft">
-              <Sparkles className="w-8 h-8 fill-lavender-200 stroke-[1.5]" />
+            <div className="w-16 h-16 rounded-2xl bg-lavender-100/70 dark:bg-[#352E58] text-lavender-600 dark:text-[#B7A5FF] flex items-center justify-center mb-4 shadow-soft">
+              <Sparkles className="w-8 h-8 fill-lavender-200 dark:fill-[#554884] stroke-[1.5]" />
             </div>
-            <h2 className="text-lg font-bold text-slate-800 tracking-tight">
+            <h2 className="text-lg font-bold text-slate-800 dark:text-[#E8E7EF] tracking-tight">
               당신만의 첫 번째 게임 프로젝트를 시작해 보세요
             </h2>
-            <p className="text-xs text-slate-500 max-w-sm mt-1.5 leading-relaxed">
+            <p className="text-xs text-slate-500 dark:text-[#A5A3B5] max-w-sm mt-1.5 leading-relaxed">
               기획서, 캐릭터 설정, 세계관 지도, 레퍼런스 등을 하나의 프로젝트 공간 안에서 체계적으로 관리할 수 있습니다.
             </p>
             <button
@@ -80,7 +80,7 @@ export const HomeView: React.FC = () => {
             </button>
           </div>
         ) : filteredProjects.length === 0 ? (
-          <div className="py-20 flex flex-col items-center justify-center text-slate-400 text-xs text-center">
+          <div className="py-20 flex flex-col items-center justify-center text-slate-400 dark:text-[#A5A3B5] text-xs text-center">
             <p>검색 조건에 일치하는 프로젝트가 없습니다.</p>
           </div>
         ) : (
@@ -95,4 +95,3 @@ export const HomeView: React.FC = () => {
     </div>
   );
 };
-

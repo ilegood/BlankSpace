@@ -162,16 +162,16 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/40 backdrop-blur-xs p-4 animate-in fade-in duration-150"
+      className="fixed inset-0 z-50 flex items-start justify-center pt-24 bg-black/50 backdrop-blur-xs p-4 animate-in fade-in duration-150"
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-100 flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
+        className="bg-white dark:bg-[#292936] rounded-3xl w-full max-w-xl shadow-2xl border border-slate-100 dark:border-[#3A3948] flex flex-col overflow-hidden animate-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Search Input Bar */}
-        <div className="p-4 border-b border-slate-100 flex items-center gap-3">
-          <Search className="w-5 h-5 text-lavender-600 shrink-0 ml-1" />
+        <div className="p-4 border-b border-slate-100 dark:border-[#3A3948] flex items-center gap-3">
+          <Search className="w-5 h-5 text-lavender-600 dark:text-lavender-400 shrink-0 ml-1" />
           <input
             ref={inputRef}
             type="text"
@@ -182,7 +182,7 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
             }}
             onKeyDown={handleInputKeyDown}
             placeholder="문서 제목, 폴더, 기획 내용 빠른 검색..."
-            className="flex-1 text-sm text-slate-800 placeholder-slate-400 focus:outline-none !bg-white"
+            className="flex-1 text-sm text-slate-800 dark:text-[#E8E7EF] placeholder-slate-400 dark:placeholder-[#A5A3B5]/50 focus:outline-none bg-transparent"
           />
           {query ? (
             <button
@@ -190,12 +190,12 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                 setQuery('');
                 inputRef.current?.focus();
               }}
-              className="p-1 rounded-lg text-slate-400 hover:text-slate-600"
+              className="p-1 rounded-lg text-slate-400 dark:text-[#A5A3B5] hover:text-slate-600 dark:hover:text-[#E8E7EF]"
             >
               <X className="w-4 h-4" />
             </button>
           ) : (
-            <kbd className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold text-slate-400 bg-slate-100 border border-slate-200 rounded-md">
+            <kbd className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold text-slate-400 dark:text-[#A5A3B5] bg-slate-100 dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-md">
               ESC
             </kbd>
           )}
@@ -204,8 +204,8 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         {/* Results List */}
         <div ref={listRef} className="max-h-80 overflow-y-auto p-2 flex flex-col gap-1">
           {results.length === 0 ? (
-            <div className="py-12 text-center flex flex-col items-center justify-center text-slate-400 gap-2">
-              <Search className="w-8 h-8 stroke-1 text-slate-300" />
+            <div className="py-12 text-center flex flex-col items-center justify-center text-slate-400 dark:text-[#A5A3B5] gap-2">
+              <Search className="w-8 h-8 stroke-1 text-slate-300 dark:text-[#525068]" />
               <p className="text-xs">일치하는 문서나 폴더를 찾을 수 없습니다.</p>
             </div>
           ) : (
@@ -218,16 +218,16 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                   onMouseEnter={() => setSelectedIndex(index)}
                   className={`px-3.5 py-2.5 rounded-2xl flex items-center justify-between cursor-pointer transition-all ${
                     isSelected
-                      ? 'bg-lavender-50 text-lavender-900 ring-1 ring-lavender-200'
-                      : 'hover:bg-slate-50 text-slate-700'
+                      ? 'bg-lavender-50 dark:bg-lavender-950/60 text-lavender-900 dark:text-lavender-200 ring-1 ring-lavender-200 dark:ring-lavender-700'
+                      : 'hover:bg-slate-50 dark:hover:bg-[#1E1E27] text-slate-700 dark:text-[#E8E7EF]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <div
                       className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                         item.type === 'folder'
-                          ? 'bg-amber-100 text-amber-600'
-                          : 'bg-lavender-100 text-lavender-600'
+                          ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400'
+                          : 'bg-lavender-100 dark:bg-lavender-950/50 text-lavender-600 dark:text-lavender-400'
                       }`}
                     >
                       {item.type === 'folder' ? (
@@ -237,19 +237,19 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
                       )}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <h4 className="font-bold text-xs truncate text-slate-800">{item.title}</h4>
-                      <p className="text-[10.5px] text-slate-400 truncate mt-0.5">{item.subtitle}</p>
+                      <h4 className="font-bold text-xs truncate text-slate-800 dark:text-[#E8E7EF]">{item.title}</h4>
+                      <p className="text-[10.5px] text-slate-400 dark:text-[#A5A3B5] truncate mt-0.5">{item.subtitle}</p>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0 ml-3">
                     {item.templateType && (
-                      <span className="hidden sm:inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white border border-slate-200 text-slate-600 shadow-2xs">
+                      <span className="hidden sm:inline-block px-2 py-0.5 rounded-md text-[10px] font-semibold bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#A5A3B5] shadow-2xs">
                         {TEMPLATES.find((t) => t.id === item.templateType)?.name || '문서'}
                       </span>
                     )}
                     {isSelected && (
-                      <CornerDownLeft className="w-3.5 h-3.5 text-lavender-600" />
+                      <CornerDownLeft className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
                     )}
                   </div>
                 </div>
@@ -259,15 +259,15 @@ export const GlobalSearchModal: React.FC<GlobalSearchModalProps> = ({ isOpen, on
         </div>
 
         {/* Footer Shortcut Tips */}
-        <div className="px-4 py-2.5 bg-slate-50/70 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
+        <div className="px-4 py-2.5 bg-slate-50/70 dark:bg-[#1E1E27]/70 border-t border-slate-100 dark:border-[#3A3948] text-[11px] text-slate-400 dark:text-[#A5A3B5] flex items-center justify-between">
           <div className="flex items-center gap-3">
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px]">↑</kbd>
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px]">↓</kbd>
+              <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded text-[10px]">↑</kbd>
+              <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded text-[10px]">↓</kbd>
               <span>이동</span>
             </span>
             <span className="flex items-center gap-1">
-              <kbd className="px-1.5 py-0.5 bg-white border border-slate-200 rounded text-[10px]">Enter</kbd>
+              <kbd className="px-1.5 py-0.5 bg-white dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded text-[10px]">Enter</kbd>
               <span>선택</span>
             </span>
           </div>

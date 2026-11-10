@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Folder as FolderIcon, MoreHorizontal, Edit2, Trash2, Check, X, CornerDownRight } from 'lucide-react';
 import { Folder } from '../../types';
 import { useWorkspace } from '../../store/WorkspaceContext';
+import { toast, customConfirm } from '../toast/ToastContext';
 
 interface FolderCardProps {
   folder: Folder;
@@ -17,7 +18,6 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
     moveItem,
     reorderItems,
     sortOption,
-    setSortOption,
   } = useWorkspace();
 
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -33,20 +33,25 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
 
   const handleRenameSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (nameInput.trim()) {
+    if (nameInput.trim() && nameInput.trim() !== folder.name) {
       await renameFolder(folder.id, nameInput.trim());
+      toast.success('폴더 이름 변경', `'${nameInput.trim()}'으로 변경되었습니다.`);
     }
     setIsRenaming(false);
   };
 
   const handleDelete = async () => {
     setMenuPos(null);
-    if (
-      window.confirm(
-        `'${folder.name}' 폴더를 삭제하시겠습니까?\n내부에 포함된 모든 하위 폴더와 문서도 함께 삭제됩니다.`
-      )
-    ) {
+    const confirmed = await customConfirm({
+      title: '폴더 삭제',
+      message: `'${folder.name}' 폴더를 삭제하시겠습니까?\n내부에 포함된 모든 하위 폴더와 문서도 함께 삭제됩니다.`,
+      confirmText: '폴더 삭제',
+      isDanger: true,
+    });
+
+    if (confirmed) {
       await deleteFolder(folder.id);
+      toast.success('폴더 삭제 완료', `'${folder.name}' 폴더가 삭제되었습니다.`);
     }
   };
 
@@ -104,13 +109,15 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
 
       if (data.type === 'document') {
         await moveItem('document', data.id, folder.id);
+        toast.success('이동 완료', '문서가 폴더로 이동되었습니다.');
       } else if (data.type === 'folder') {
         if (data.id === folder.id) return;
 
         // Try moving folder into this folder
         const res = await moveItem('folder', data.id, folder.id);
-        if (!res.success && sortOption === 'custom') {
-          // 커스텀 정렬 상태일 때만 순서 재배치
+        if (res.success) {
+          toast.success('이동 완료', '폴더가 이동되었습니다.');
+        } else if (sortOption === 'custom') {
           await reorderItems('folder', data.id, folder.id);
         }
       }
@@ -132,18 +139,18 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
         onClick={() => {
           if (!isRenaming) setActiveFolder(folder.id);
         }}
-        className={`group relative bg-white border rounded-2xl p-4 flex flex-col justify-between h-36 transition-all duration-200 cursor-pointer select-none ${
+        className={`group relative bg-white dark:bg-[#292936] border rounded-2xl p-4 flex flex-col justify-between h-36 transition-all duration-200 cursor-pointer select-none ${
           isDragging ? 'opacity-40 scale-95 border-dashed border-lavender-400' : ''
         } ${
           isDragOver
-            ? 'border-lavender-500 bg-lavender-50/80 shadow-md ring-2 ring-lavender-300 scale-[1.02]'
-            : 'border-[#ECEEF3] hover:border-lavender-300 hover:shadow-soft-hover'
+            ? 'border-lavender-500 bg-lavender-50/80 dark:bg-[#352E58]/40 shadow-md ring-2 ring-lavender-300 scale-[1.02]'
+            : 'border-[#ECEEF3] dark:border-[#3A3948] hover:border-lavender-300 dark:hover:border-[#A995F5] hover:shadow-soft-hover'
         }`}
       >
         {/* Drop target badge when hovering */}
         {isDragOver && (
           <div className="absolute inset-x-0 -top-3 flex justify-center pointer-events-none z-10 animate-in fade-in">
-            <span className="bg-lavender-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow flex items-center gap-1">
+            <span className="bg-lavender-600 dark:bg-[#A995F5] text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow flex items-center gap-1">
               <CornerDownRight className="w-3 h-3" />
               <span>이 폴더로 이동</span>
             </span>
@@ -152,13 +159,13 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
 
         {/* Top row: Folder Icon + More Menu */}
         <div className="flex items-start justify-between">
-          <div className="w-12 h-10 rounded-xl bg-lavender-100/90 text-lavender-600 flex items-center justify-center transition-transform group-hover:scale-105">
-            <FolderIcon className="w-6 h-6 fill-lavender-400/30 text-lavender-600" />
+          <div className="w-12 h-10 rounded-xl bg-lavender-100/90 dark:bg-[#352E58] text-lavender-600 dark:text-[#B7A5FF] flex items-center justify-center transition-transform group-hover:scale-105">
+            <FolderIcon className="w-6 h-6 fill-lavender-400/30 dark:fill-[#554884] text-lavender-600 dark:text-[#B7A5FF]" />
           </div>
 
           <button
             onClick={handleOpenMenu}
-            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+            className="p-1 rounded-lg text-slate-400 dark:text-[#A5A3B5] hover:text-slate-700 dark:hover:text-[#E8E7EF] hover:bg-slate-100 dark:hover:bg-[#1E1E27] transition-colors"
             title="폴더 옵션"
           >
             <MoreHorizontal className="w-4 h-4" />
@@ -174,28 +181,28 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
                 autoFocus
                 value={nameInput}
                 onChange={(e) => setNameInput(e.target.value)}
-                className="text-xs font-semibold px-2 py-0.5 rounded border border-lavender-400 focus:outline-none !bg-white w-full"
+                className="text-xs font-semibold px-2 py-0.5 rounded border border-lavender-400 focus:outline-none bg-white dark:bg-[#1E1E27] text-slate-800 dark:text-[#E8E7EF] w-full"
               />
               <button
                 type="submit"
-                className="p-1 text-lavender-600 hover:bg-lavender-50 rounded"
+                className="p-1 text-lavender-600 dark:text-[#A995F5] hover:bg-lavender-50 dark:hover:bg-[#352E58] rounded"
               >
                 <Check className="w-3 h-3" />
               </button>
               <button
                 type="button"
                 onClick={() => setIsRenaming(false)}
-                className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                className="p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1E1E27] rounded"
               >
                 <X className="w-3 h-3" />
               </button>
             </form>
           ) : (
             <>
-              <h3 className="font-semibold text-slate-800 text-[14.5px] truncate group-hover:text-lavender-700 transition-colors">
+              <h3 className="font-semibold text-slate-800 dark:text-[#E8E7EF] text-[14.5px] truncate group-hover:text-lavender-700 dark:group-hover:text-[#B7A5FF] transition-colors">
                 {folder.name}
               </h3>
-              <span className="text-xs text-slate-400 mt-0.5">
+              <span className="text-xs text-slate-400 dark:text-[#A5A3B5] mt-0.5">
                 {totalItems}개 항목
               </span>
             </>
@@ -219,21 +226,21 @@ export const FolderCard: React.FC<FolderCardProps> = ({ folder }) => {
               left: `${menuPos.left}px`,
             }}
             onClick={(e) => e.stopPropagation()}
-            className="fixed z-50 bg-white border border-[#ECEEF3] rounded-xl shadow-modal p-1 w-32 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
+            className="fixed z-50 bg-white dark:bg-[#292936] border border-[#ECEEF3] dark:border-[#3A3948] rounded-xl shadow-modal p-1 w-32 flex flex-col gap-0.5 animate-in fade-in zoom-in-95 duration-100"
           >
             <button
               onClick={() => {
                 setMenuPos(null);
                 setIsRenaming(true);
               }}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 hover:bg-lavender-50 hover:text-lavender-700 transition-colors text-left"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 dark:text-[#E8E7EF] hover:bg-lavender-50 dark:hover:bg-[#1E1E27] hover:text-lavender-700 dark:hover:text-[#B7A5FF] transition-colors text-left"
             >
-              <Edit2 className="w-3.5 h-3.5 text-slate-400" />
+              <Edit2 className="w-3.5 h-3.5 text-slate-400 dark:text-[#A5A3B5]" />
               <span>이름 변경</span>
             </button>
             <button
               onClick={handleDelete}
-              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 hover:bg-rose-50 transition-colors text-left"
+              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors text-left"
             >
               <Trash2 className="w-3.5 h-3.5 text-rose-500" />
               <span>폴더 삭제</span>

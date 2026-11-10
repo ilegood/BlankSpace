@@ -205,3 +205,4 @@ export const convertOldDataToCanvas = (raw: any): CanvasDocumentData => {
     }),
   };
 };
+
