@@ -1024,32 +1024,6 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                   />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
-                    표시 형식
-                  </span>
-                  <div className="flex items-center gap-1">
-                    {(['chips', 'table'] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() =>
-                          onUpdateElement(selectedElement.id, {
-                            content: { ...content, tagDisplayMode: mode },
-                          })
-                        }
-                        className={`px-3 py-1 rounded-lg border text-xs font-semibold ${
-                          (content.tagDisplayMode || 'chips') === mode
-                            ? 'border-lavender-500 bg-lavender-50 dark:bg-lavender-900/30 text-lavender-700 dark:text-lavender-300'
-                            : 'border-slate-200 dark:border-dark-border text-slate-600 dark:text-dark-textSecondary'
-                        }`}
-                      >
-                        {mode === 'chips' ? '태그 칩 (#)' : '표 형태'}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
                 {/* Tag List */}
                 <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-dark-border">
                   <div className="flex items-center justify-between">
@@ -1316,7 +1290,8 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                           <input
                             type="text"
                             value={rel.relation}
-                            placeholder="관계(예: 라이벌)"
+                            placeholder="관계(예: 동료)"
+                            style={{ color: rel.color || '#8B5CF6' }}
                             onChange={(e) => {
                               const list = (content.relationships || []).map((r) =>
                                 r.id === rel.id ? { ...r, relation: e.target.value } : r
@@ -1325,7 +1300,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                                 content: { ...content, relationships: list },
                               });
                             }}
-                            className="w-24 px-1.5 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-semibold text-lavender-600"
+                            className="w-24 px-1.5 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-semibold"
                           />
                           <button
                             type="button"
@@ -1341,6 +1316,41 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
+                        </div>
+
+                        {/* Relationship Badge Color Selector */}
+                        <div className="flex items-center justify-between text-[10px] text-slate-400 pt-0.5">
+                          <span>상태 배지 색상</span>
+                          <div className="flex items-center gap-1">
+                            {[
+                              { col: '#8B5CF6', title: '보라' },
+                              { col: '#F43F5E', title: '로즈' },
+                              { col: '#0284C7', title: '하늘' },
+                              { col: '#10B981', title: '초록' },
+                              { col: '#F59E0B', title: '앰버' },
+                              { col: '#64748B', title: '슬레이트' },
+                            ].map((preset) => (
+                              <button
+                                key={preset.col}
+                                type="button"
+                                title={preset.title}
+                                style={{ backgroundColor: preset.col }}
+                                onClick={() => {
+                                  const list = (content.relationships || []).map((r) =>
+                                    r.id === rel.id ? { ...r, color: preset.col } : r
+                                  );
+                                  onUpdateElement(selectedElement.id, {
+                                    content: { ...content, relationships: list },
+                                  });
+                                }}
+                                className={`w-3.5 h-3.5 rounded-full transition-transform ${
+                                  (rel.color || '#8B5CF6') === preset.col
+                                    ? 'ring-2 ring-slate-400 scale-125'
+                                    : 'opacity-80 hover:opacity-100'
+                                }`}
+                              />
+                            ))}
+                          </div>
                         </div>
                         <input
                           type="text"
@@ -1442,23 +1452,27 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                 {/* Quick Post-It Color Presets */}
                 <div className="flex flex-col gap-1.5">
                   <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
-                    메모지 색상 테마
+                    메모지 색상 테마 (테두리 및 제목 함께 반영)
                   </span>
                   <div className="flex items-center gap-2">
                     {[
-                      { bg: '#FEF9C3', name: '노랑' },
-                      { bg: '#F3E8FF', name: '연보라' },
-                      { bg: '#E0F2FE', name: '하늘' },
-                      { bg: '#DCFCE7', name: '연초록' },
-                      { bg: '#FCE7F3', name: '분홍' },
-                      { bg: '#292936', name: '다크' },
+                      { bg: '#FEF9C3', border: '#FDE047', name: '노랑' },
+                      { bg: '#F3E8FF', border: '#D8B4FE', name: '연보라' },
+                      { bg: '#E0F2FE', border: '#7DD3FC', name: '하늘' },
+                      { bg: '#DCFCE7', border: '#86EFAC', name: '연초록' },
+                      { bg: '#FCE7F3', border: '#F9A8D4', name: '분홍' },
+                      { bg: '#292936', border: '#4E4D61', name: '다크' },
                     ].map((theme) => (
                       <button
                         key={theme.bg}
                         type="button"
                         onClick={() =>
                           onUpdateElement(selectedElement.id, {
-                            style: { ...style, backgroundColor: theme.bg },
+                            style: {
+                              ...style,
+                              backgroundColor: theme.bg,
+                              borderColor: theme.border,
+                            },
                           })
                         }
                         title={theme.name}
@@ -1519,15 +1533,100 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                 </div>
                 <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-dark-elevated p-1.5 rounded-lg border border-slate-200 dark:border-dark-border">
                   <span className="text-slate-400 text-[10px]">H</span>
-                  <input
-                    type="number"
-                    value={Math.round(selectedElement.height)}
-                    onChange={(e) =>
-                      onUpdateElement(selectedElement.id, { height: Number(e.target.value) })
-                    }
-                    className="w-full bg-transparent text-xs text-slate-800 dark:text-dark-text focus:outline-none"
-                  />
+                  {['info-card', 'narrative-card', 'keyword-card', 'relationship-card'].includes(
+                    selectedElement.type
+                  ) ? (
+                    <span className="text-[10px] text-lavender-600 dark:text-lavender-400 font-sans font-semibold">
+                      자동 조절됨
+                    </span>
+                  ) : (
+                    <input
+                      type="number"
+                      value={Math.round(selectedElement.height)}
+                      onChange={(e) =>
+                        onUpdateElement(selectedElement.id, { height: Number(e.target.value) })
+                      }
+                      className="w-full bg-transparent text-xs text-slate-800 dark:text-dark-text focus:outline-none"
+                    />
+                  )}
                 </div>
+              </div>
+            </div>
+
+            {/* Requirement 3: Text Color Option for All Elements */}
+            <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-dark-border">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+                  글자 색상 (텍스트)
+                </span>
+                {style.color && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onUpdateElement(selectedElement.id, {
+                        style: { ...style, color: undefined },
+                      })
+                    }
+                    className="text-[10px] text-slate-400 hover:text-slate-600 dark:hover:text-dark-text underline"
+                  >
+                    기본값 복원
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  value={style.color || '#1E293B'}
+                  onChange={(e) =>
+                    onUpdateElement(selectedElement.id, {
+                      style: { ...style, color: e.target.value },
+                    })
+                  }
+                  className="w-7 h-7 rounded-lg cursor-pointer border border-slate-200 dark:border-dark-border shrink-0 bg-transparent"
+                />
+                <input
+                  type="text"
+                  placeholder="기본 테마 색상"
+                  value={style.color || ''}
+                  onChange={(e) =>
+                    onUpdateElement(selectedElement.id, {
+                      style: { ...style, color: e.target.value },
+                    })
+                  }
+                  className="flex-1 px-2.5 py-1 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg font-mono text-slate-800 dark:text-dark-text text-xs"
+                />
+              </div>
+
+              {/* Text color chips */}
+              <div className="flex items-center gap-1.5 mt-0.5">
+                {[
+                  { col: '#1E293B', title: '다크 블랙' },
+                  { col: '#E8E7EF', title: '라이트 화이트' },
+                  { col: '#64748B', title: '슬레이트' },
+                  { col: '#8B5CF6', title: '라벤더' },
+                  { col: '#D97706', title: '앰버' },
+                  { col: '#E11D48', title: '로즈' },
+                  { col: '#0284C7', title: '스카이' },
+                  { col: '#10B981', title: '에메랄드' },
+                ].map(({ col, title }) => (
+                  <button
+                    key={col}
+                    type="button"
+                    onClick={() =>
+                      onUpdateElement(selectedElement.id, {
+                        style: { ...style, color: col },
+                      })
+                    }
+                    title={title}
+                    style={{ backgroundColor: col }}
+                    className={`w-5 h-5 rounded-md border transition-transform ${
+                      style.color === col
+                        ? 'ring-2 ring-lavender-500 scale-110'
+                        : 'border-slate-300 dark:border-dark-border'
+                    }`}
+                  />
+                ))}
               </div>
             </div>
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React from 'react';
 import {
   CanvasElement,
   NameField,
@@ -7,16 +7,11 @@ import {
   RelationshipItem,
 } from '../../../types/canvas';
 import {
-  Shield,
   Sparkles,
-  Edit2,
-  Trash2,
-  Plus,
   Image as ImageIcon,
   Quote,
   FileText,
   Tag,
-  User,
   Heart,
   StickyNote,
 } from 'lucide-react';
@@ -25,6 +20,8 @@ interface CanvasElementRendererProps {
   element: CanvasElement;
   isSelected: boolean;
   zoom: number;
+  isViewMode?: boolean;
+  isLayoutLocked?: boolean;
   onSelect: (id: string, e: React.MouseEvent) => void;
   onUpdate: (id: string, updates: Partial<CanvasElement>) => void;
   onDelete: (id: string) => void;
@@ -40,20 +37,51 @@ type ResizeHandleDirection =
   | 'sw'
   | 'w';
 
+// Helper for Memo Card Theme Colors (resolves issue where border/title remained yellow)
+function getMemoTheme(bgColor: string = '#FEF9C3') {
+  const lower = bgColor.toLowerCase();
+  if (lower === '#fef9c3' || lower.includes('yellow')) {
+    return { border: '#FDE047', title: '#854D0E', text: '#713F12', icon: '#EAB308' };
+  }
+  if (lower === '#f3e8ff' || lower.includes('purple')) {
+    return { border: '#D8B4FE', title: '#6B21A8', text: '#581C87', icon: '#A855F7' };
+  }
+  if (lower === '#e0f2fe' || lower.includes('blue')) {
+    return { border: '#7DD3FC', title: '#0369A1', text: '#0C4A6E', icon: '#0284C7' };
+  }
+  if (lower === '#dcfce7' || lower.includes('green')) {
+    return { border: '#86EFAC', title: '#15803D', text: '#14532D', icon: '#22C55E' };
+  }
+  if (lower === '#fce7f3' || lower.includes('pink')) {
+    return { border: '#F9A8D4', title: '#9D174D', text: '#831843', icon: '#EC4899' };
+  }
+  if (lower === '#292936' || lower === '#1e1e27' || lower === '#17171d') {
+    return { border: '#4E4D61', title: '#E8E7EF', text: '#A5A3B5', icon: '#A995F5' };
+  }
+  return { border: '#E2E8F0', title: '#334155', text: '#475569', icon: '#8B5CF6' };
+}
+
 export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
   element,
   isSelected,
   zoom,
+  isViewMode = false,
+  isLayoutLocked = false,
   onSelect,
   onUpdate,
-  onDelete,
 }) => {
-  const [isEditingInline, setIsEditingInline] = useState(false);
-  const [inlineDraft, setInlineDraft] = useState('');
+  // Elements that automatically adjust height based on content
+  const isAutoHeightType = [
+    'info-card',
+    'narrative-card',
+    'keyword-card',
+    'relationship-card',
+  ].includes(element.type);
 
-  // 1. Drag to Move
+  // 1. Drag to Move (disabled in view mode or when layout is locked)
   const handleMouseDownMove = (e: React.MouseEvent) => {
-    // If clicking inside input/textarea or button, let native action work
+    if (isViewMode || isLayoutLocked) return;
+
     const tagName = (e.target as HTMLElement).tagName;
     if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'BUTTON' || tagName === 'A') {
       return;
@@ -86,11 +114,12 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     window.addEventListener('mouseup', handleMouseUp);
   };
 
-  // 2. Drag Resize Handles (8 directions)
+  // 2. Drag Resize Handles (horizontal only for auto-height cards)
   const handleMouseDownResize = (
     dir: ResizeHandleDirection,
     e: React.MouseEvent
   ) => {
+    if (isViewMode || isLayoutLocked) return;
     e.stopPropagation();
     e.preventDefault();
 
@@ -108,20 +137,25 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
       let newW = width;
       let newH = height;
 
-      if (dir.includes('e')) newW = Math.max(80, width + dx);
-      if (dir.includes('s')) newH = Math.max(40, height + dy);
+      // Width resizing (always allowed)
+      if (dir.includes('e')) newW = Math.max(120, width + dx);
       if (dir.includes('w')) {
         const potentialW = width - dx;
-        if (potentialW >= 80) {
+        if (potentialW >= 120) {
           newW = potentialW;
           newX = x + dx;
         }
       }
-      if (dir.includes('n')) {
-        const potentialH = height - dy;
-        if (potentialH >= 40) {
-          newH = potentialH;
-          newY = y + dy;
+
+      // Height resizing (only for non-auto-height cards)
+      if (!isAutoHeightType) {
+        if (dir.includes('s')) newH = Math.max(40, height + dy);
+        if (dir.includes('n')) {
+          const potentialH = height - dy;
+          if (potentialH >= 40) {
+            newH = potentialH;
+            newY = y + dy;
+          }
         }
       }
 
@@ -158,6 +192,9 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     return style?.backgroundColor || undefined;
   };
 
+  // Global custom text color from element style
+  const customTextColor = element.style?.color;
+
   // -------------------------------------------------------------
   // Sub-renderers for Meaningful Character Sheet Components
   // -------------------------------------------------------------
@@ -181,49 +218,61 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
           <div className="w-full h-full bg-slate-100 dark:bg-[#1E1E27] flex flex-col items-center justify-center gap-2 text-slate-400 dark:text-[#A5A3B5] p-4 text-center">
             <ImageIcon className="w-10 h-10 text-slate-300 dark:text-[#525068]" />
             <span className="text-xs font-semibold">캐릭터 이미지 등록</span>
-            <span className="text-[11px] text-slate-400">우측 패널에서 URL을 입력하거나 이미지를 업로드하세요</span>
+            <span className="text-[11px] text-slate-400">
+              우측 패널에서 URL을 입력하거나 이미지를 업로드하세요
+            </span>
           </div>
         )}
       </div>
     );
   };
 
-  // 2. Name Badge (Multiple Custom Name Fields)
+  // 2. Name Badge (Hide label, display ONLY the name value)
   const renderNameBadge = () => {
     const { content } = element;
     const fields: NameField[] = content.nameFields || [
-      { id: '1', label: '이름', value: content.text || '캐릭터 이름', fontSize: 24, fontWeight: 'bold', color: '#1E293B', isPrimary: true },
+      {
+        id: '1',
+        label: '이름',
+        value: content.text || '캐릭터 이름',
+        fontSize: 24,
+        fontWeight: 'bold',
+        color: '#1E293B',
+        isPrimary: true,
+      },
     ];
 
     return (
       <div className="w-full h-full flex flex-col justify-center gap-1.5 overflow-hidden">
-        {fields.map((f) => (
-          <div key={f.id} className="flex items-baseline gap-2 truncate">
-            {f.label && !f.isPrimary && (
-              <span className="text-[11px] font-semibold text-slate-400 dark:text-[#A5A3B5] shrink-0">
-                {f.label}
+        {fields.map((f) => {
+          // Requirement 2: Clean up any prefix like "이름 : " and show ONLY the value
+          const rawVal = f.value || '';
+          const cleanValue = rawVal.replace(/^(이름|본명|칭호|코드네임|성명)\s*[:：]\s*/i, '');
+          const displayColor = f.color || customTextColor || (f.isPrimary ? undefined : '#64748B');
+
+          return (
+            <div key={f.id} className="flex items-baseline truncate">
+              <span
+                style={{
+                  fontSize: f.fontSize ? `${f.fontSize}px` : f.isPrimary ? '24px' : '13px',
+                  fontWeight: f.fontWeight || (f.isPrimary ? 'bold' : 'normal'),
+                  color: displayColor,
+                }}
+                className={`truncate ${!displayColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+              >
+                {cleanValue || (f.isPrimary ? '캐릭터 이름 입력' : '호칭 입력')}
               </span>
-            )}
-            <span
-              style={{
-                fontSize: f.fontSize ? `${f.fontSize}px` : f.isPrimary ? '24px' : '13px',
-                fontWeight: f.fontWeight || (f.isPrimary ? 'bold' : 'normal'),
-                color: f.color || (f.isPrimary ? '#1E293B' : '#64748B'),
-              }}
-              className="truncate dark:text-[#E8E7EF]"
-            >
-              {f.value || `${f.label} 입력`}
-            </span>
-          </div>
-        ))}
+            </div>
+          );
+        })}
       </div>
     );
   };
 
-  // 3. Info Card (Unified Common Info Card)
+  // 3. Info Card (Unified Common Info Card: Auto-Height, NO internal scroll, line-wrap)
   const renderInfoCard = () => {
     const { content } = element;
-    const title = content.title || '정보';
+    const title = content.title || '기본 정보';
     const items: InfoCardItem[] = content.infoCardItems || [
       { id: '1', label: '항목 1', value: '내용 1' },
       { id: '2', label: '항목 2', value: '내용 2' },
@@ -231,22 +280,40 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     const mode = content.infoDisplayMode || 'grid-2col';
 
     return (
-      <div className="w-full h-full flex flex-col overflow-hidden">
+      <div className="w-full flex flex-col">
         {title && (
           <div className="flex items-center gap-1.5 pb-2.5 mb-2 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
             <div className="w-2 h-3.5 rounded-xs bg-lavender-500" />
-            <h4 className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] truncate">{title}</h4>
-            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">{items.length}개</span>
+            <h4
+              style={{ color: customTextColor }}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+            >
+              {title}
+            </h4>
+            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">
+              {items.length}개
+            </span>
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto pr-0.5 custom-scrollbar min-h-0">
+        {/* Removed overflow-y-auto so height adjusts automatically to content */}
+        <div className="w-full">
           {mode === 'grid-2col' && (
             <div className="grid grid-cols-2 gap-2 text-xs">
               {items.map((it) => (
-                <div key={it.id} className="flex flex-col bg-slate-50/70 dark:bg-[#1E1E27]/70 p-2 rounded-xl border border-slate-100 dark:border-[#3A3948] min-w-0">
-                  <span className="text-[10.5px] font-semibold text-slate-400 dark:text-[#A5A3B5] truncate">{it.label}</span>
-                  <span className="text-xs font-medium text-slate-800 dark:text-[#E8E7EF] mt-0.5 break-words">{it.value}</span>
+                <div
+                  key={it.id}
+                  className="flex flex-col bg-slate-50/70 dark:bg-[#1E1E27]/70 p-2 rounded-xl border border-slate-100 dark:border-[#3A3948] min-w-0"
+                >
+                  <span className="text-[10.5px] font-semibold text-slate-400 dark:text-[#A5A3B5] truncate">
+                    {it.label}
+                  </span>
+                  <span
+                    style={{ color: customTextColor }}
+                    className={`text-xs font-medium mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                  >
+                    {it.value}
+                  </span>
                 </div>
               ))}
             </div>
@@ -255,11 +322,14 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
           {mode === 'table' && (
             <div className="border border-slate-200 dark:border-[#3A3948] rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-[#3A3948] text-xs">
               {items.map((it) => (
-                <div key={it.id} className="flex items-center">
-                  <span className="w-24 shrink-0 px-3 py-1.5 font-semibold bg-slate-50 dark:bg-[#1E1E27] text-slate-500 dark:text-[#A5A3B5] border-r border-slate-100 dark:border-[#3A3948] truncate">
+                <div key={it.id} className="flex items-stretch">
+                  <span className="w-24 shrink-0 px-3 py-1.5 font-semibold bg-slate-50 dark:bg-[#1E1E27] text-slate-500 dark:text-[#A5A3B5] border-r border-slate-100 dark:border-[#3A3948] truncate flex items-center">
                     {it.label}
                   </span>
-                  <span className="flex-1 px-3 py-1.5 font-medium text-slate-800 dark:text-[#E8E7EF] break-words">
+                  <span
+                    style={{ color: customTextColor }}
+                    className={`flex-1 px-3 py-1.5 font-medium break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                  >
                     {it.value}
                   </span>
                 </div>
@@ -270,9 +340,19 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
           {mode === 'list-horizontal' && (
             <div className="flex flex-col gap-1.5 text-xs">
               {items.map((it) => (
-                <div key={it.id} className="flex items-center justify-between gap-2 py-1 border-b border-dashed border-slate-100 dark:border-[#3A3948]">
-                  <span className="text-slate-400 dark:text-[#A5A3B5] font-semibold truncate shrink-0">{it.label}</span>
-                  <span className="font-medium text-slate-800 dark:text-[#E8E7EF] text-right break-words">{it.value}</span>
+                <div
+                  key={it.id}
+                  className="flex items-start justify-between gap-2 py-1 border-b border-dashed border-slate-100 dark:border-[#3A3948]"
+                >
+                  <span className="text-slate-400 dark:text-[#A5A3B5] font-semibold truncate shrink-0">
+                    {it.label}
+                  </span>
+                  <span
+                    style={{ color: customTextColor }}
+                    className={`font-medium text-right break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                  >
+                    {it.value}
+                  </span>
                 </div>
               ))}
             </div>
@@ -281,9 +361,19 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
           {mode === 'list-vertical' && (
             <div className="flex flex-col gap-2 text-xs">
               {items.map((it) => (
-                <div key={it.id} className="p-2 bg-slate-50 dark:bg-[#1E1E27] rounded-xl border border-slate-100 dark:border-[#3A3948]">
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-[#A5A3B5] block uppercase">{it.label}</span>
-                  <span className="font-semibold text-slate-800 dark:text-[#E8E7EF] block mt-0.5 break-words">{it.value}</span>
+                <div
+                  key={it.id}
+                  className="p-2 bg-slate-50 dark:bg-[#1E1E27] rounded-xl border border-slate-100 dark:border-[#3A3948]"
+                >
+                  <span className="text-[10px] font-bold text-slate-400 dark:text-[#A5A3B5] block uppercase">
+                    {it.label}
+                  </span>
+                  <span
+                    style={{ color: customTextColor }}
+                    className={`font-semibold block mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                  >
+                    {it.value}
+                  </span>
                 </div>
               ))}
             </div>
@@ -293,27 +383,32 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     );
   };
 
-  // 4. Narrative Card (Personality, Background Story, Detailed Description)
+  // 4. Narrative Card (Auto-Height, NO scroll, line-wrap)
   const renderNarrativeCard = () => {
     const { content, style } = element;
     const title = content.title || '상세 설정';
     const text = content.narrativeText || '캐릭터의 설정을 입력해주세요.';
 
     return (
-      <div className="w-full h-full flex flex-col overflow-hidden">
+      <div className="w-full flex flex-col">
         {title && (
           <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
             <FileText className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
-            <h4 className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] truncate">{title}</h4>
+            <h4
+              style={{ color: customTextColor }}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+            >
+              {title}
+            </h4>
           </div>
         )}
         <div
           style={{
             textAlign: style?.textAlign || 'left',
             fontSize: style?.fontSize ? `${style.fontSize}px` : '12.5px',
-            color: style?.color || undefined,
+            color: customTextColor,
           }}
-          className="flex-1 overflow-y-auto pr-1 text-slate-700 dark:text-[#E8E7EF] leading-relaxed whitespace-pre-wrap break-words custom-scrollbar"
+          className={`w-full leading-relaxed whitespace-pre-wrap break-words ${!customTextColor ? 'text-slate-700 dark:text-[#E8E7EF]' : ''}`}
         >
           {text}
         </div>
@@ -321,7 +416,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     );
   };
 
-  // 5. Keyword & Category Card (Tags / Chips)
+  // 5. Keyword Card (Auto-Height, NO scroll, chips ONLY with line-wrap)
   const renderKeywordCard = () => {
     const { content } = element;
     const title = content.title || '특징 키워드';
@@ -329,41 +424,46 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
       { id: '1', text: '정의로움' },
       { id: '2', text: '책임감' },
     ];
-    const mode = content.tagDisplayMode || 'chips';
 
     return (
-      <div className="w-full h-full flex flex-col overflow-hidden">
+      <div className="w-full flex flex-col">
         {title && (
           <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
             <Tag className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
-            <h4 className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] truncate">{title}</h4>
-            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">{tags.length}개</span>
+            <h4
+              style={{ color: customTextColor }}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+            >
+              {title}
+            </h4>
+            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">
+              {tags.length}개
+            </span>
           </div>
         )}
 
-        <div className="flex-1 overflow-y-auto custom-scrollbar pr-0.5">
-          {mode === 'chips' ? (
-            <div className="flex flex-wrap gap-1.5">
-              {tags.map((t) => (
-                <span
-                  key={t.id}
-                  style={{ backgroundColor: t.color ? `${t.color}20` : undefined, color: t.color || undefined }}
-                  className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-lavender-50 text-lavender-700 dark:bg-lavender-950/60 dark:text-lavender-300 border border-lavender-200/60 dark:border-lavender-800/50 break-words"
-                >
-                  #{t.text}
-                </span>
-              ))}
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-[#3A3948] text-xs">
-              {tags.map((t, idx) => (
-                <div key={t.id} className="py-1 flex items-center justify-between">
-                  <span className="text-slate-400 dark:text-[#A5A3B5] font-mono text-[10px]">0{idx + 1}</span>
-                  <span className="font-semibold text-slate-700 dark:text-[#E8E7EF]">{t.text}</span>
-                </div>
-              ))}
-            </div>
-          )}
+        {/* Flexible Chips with line-wrapping; no overflow scroll */}
+        <div className="flex flex-wrap gap-1.5">
+          {tags.map((t) => {
+            const tagColor = t.color || customTextColor;
+            return (
+              <span
+                key={t.id}
+                style={{
+                  backgroundColor: tagColor ? `${tagColor}18` : undefined,
+                  color: tagColor || undefined,
+                  borderColor: tagColor ? `${tagColor}40` : undefined,
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold border break-words ${
+                  !tagColor
+                    ? 'bg-lavender-50 text-lavender-700 dark:bg-lavender-950/60 dark:text-lavender-300 border-lavender-200/60 dark:border-lavender-800/50'
+                    : ''
+                }`}
+              >
+                #{t.text}
+              </span>
+            );
+          })}
         </div>
       </div>
     );
@@ -388,7 +488,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     const w = element.width;
     const h = element.height;
     const headerHeight = title ? 28 : 0;
-    const availH = h - headerHeight;
+    const availH = Math.max(40, h - headerHeight);
     const size = Math.min(w, availH);
     const R = Math.max(20, (size - 48) / 2);
     const cx = w / 2;
@@ -416,12 +516,16 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
         {title && (
           <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
             <Sparkles className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
-            <h4 className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] truncate">{title}</h4>
+            <h4
+              style={{ color: customTextColor }}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+            >
+              {title}
+            </h4>
           </div>
         )}
         <div className="flex-1 flex items-center justify-center relative min-h-0">
           <svg width="100%" height="100%" viewBox={`0 0 ${w} ${h}`} className="overflow-visible">
-            {/* Guide Grid Circles */}
             {levels.map((lvl, lIdx) => {
               const pts = Array.from({ length: N })
                 .map((_, i) => {
@@ -441,7 +545,6 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
                 />
               );
             })}
-            {/* Radial Lines & Labels */}
             {axes.map((ax, i) => {
               const outer = getCoord(i, 1.0);
               const lblPt = getCoord(i, 1.22);
@@ -463,15 +566,14 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
                     dominantBaseline="central"
                     fontSize="9.5"
                     fontWeight="600"
-                    fill="#64748B"
-                    className="dark:fill-[#A5A3B5]"
+                    fill={customTextColor || '#64748B'}
+                    className={!customTextColor ? 'dark:fill-[#A5A3B5]' : ''}
                   >
                     {ax.label} ({ax.value})
                   </text>
                 </g>
               );
             })}
-            {/* Filled Polygon */}
             <polygon
               points={polygonPts}
               fill={mainColor}
@@ -479,7 +581,6 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
               stroke={mainColor}
               strokeWidth="2"
             />
-            {/* Points */}
             {axes.map((ax, i) => {
               const ratio = Math.max(0.08, Math.min(1, (ax.value || 0) / maxVal));
               const pt = getCoord(i, ratio);
@@ -501,7 +602,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     );
   };
 
-  // 7. Relationship Summary Card
+  // 7. Relationship Card (Auto-Height, NO scroll, custom relationship badge color)
   const renderRelationshipCard = () => {
     const { content } = element;
     const title = content.title || '주요 관계 요약';
@@ -510,33 +611,71 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     ];
 
     return (
-      <div className="w-full h-full flex flex-col overflow-hidden">
+      <div className="w-full flex flex-col">
         {title && (
           <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
             <Heart className="w-3.5 h-3.5 text-rose-500" />
-            <h4 className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] truncate">{title}</h4>
-            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">{rels.length}명</span>
+            <h4
+              style={{ color: customTextColor }}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+            >
+              {title}
+            </h4>
+            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">
+              {rels.length}명
+            </span>
           </div>
         )}
-        <div className="flex-1 overflow-y-auto pr-0.5 custom-scrollbar flex flex-col gap-2">
-          {rels.map((r) => (
-            <div key={r.id} className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#1E1E27] border border-slate-100 dark:border-[#3A3948] flex items-start gap-2.5 text-xs">
-              <div className="w-7 h-7 rounded-lg bg-lavender-100 text-lavender-700 dark:bg-lavender-950/60 dark:text-lavender-300 font-bold flex items-center justify-center shrink-0 text-xs">
-                {r.name.charAt(0)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-1.5">
-                  <span className="font-bold text-slate-800 dark:text-[#E8E7EF] truncate">{r.name}</span>
-                  <span className="px-1.5 py-0.2 rounded-md bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 font-medium text-[10px]">
-                    {r.relation}
-                  </span>
+
+        {/* Removed overflow-y-auto so height adjusts automatically */}
+        <div className="flex flex-col gap-2">
+          {rels.map((r) => {
+            // Requirement 7: Customizable relationship badge color (remove fixed red)
+            const relColor = r.color || '#8B5CF6';
+
+            return (
+              <div
+                key={r.id}
+                className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#1E1E27] border border-slate-100 dark:border-[#3A3948] flex items-start gap-2.5 text-xs"
+              >
+                <div
+                  style={{
+                    backgroundColor: `${relColor}20`,
+                    color: relColor,
+                  }}
+                  className="w-7 h-7 rounded-lg font-bold flex items-center justify-center shrink-0 text-xs"
+                >
+                  {r.name.charAt(0)}
                 </div>
-                <p className="text-[11px] text-slate-500 dark:text-[#A5A3B5] mt-0.5 break-words line-clamp-2">
-                  {r.description}
-                </p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span
+                      style={{ color: customTextColor }}
+                      className={`font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                    >
+                      {r.name}
+                    </span>
+                    <span
+                      style={{
+                        backgroundColor: `${relColor}15`,
+                        color: relColor,
+                        borderColor: `${relColor}30`,
+                      }}
+                      className="px-1.5 py-0.5 rounded-md font-semibold text-[10px] border"
+                    >
+                      {r.relation}
+                    </span>
+                  </div>
+                  <p
+                    style={{ color: customTextColor }}
+                    className={`text-[11px] mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-500 dark:text-[#A5A3B5]' : ''}`}
+                  >
+                    {r.description}
+                  </p>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     );
@@ -554,7 +693,12 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
         {title && (
           <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
             <Quote className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
-            <span className="text-[11px] font-bold text-slate-600 dark:text-[#A5A3B5] uppercase truncate">{title}</span>
+            <span
+              style={{ color: customTextColor }}
+              className={`text-[11px] font-bold uppercase truncate ${!customTextColor ? 'text-slate-600 dark:text-[#A5A3B5]' : ''}`}
+            >
+              {title}
+            </span>
           </div>
         )}
         <div className="flex-1 flex flex-col justify-center px-1 py-0.5 overflow-hidden">
@@ -562,9 +706,9 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
             style={{
               fontSize: style?.fontSize ? `${style.fontSize}px` : '13px',
               fontStyle: 'italic',
-              color: style?.color || undefined,
+              color: customTextColor,
             }}
-            className="font-medium text-slate-800 dark:text-[#E8E7EF] leading-relaxed break-words line-clamp-3"
+            className={`font-medium leading-relaxed break-words line-clamp-3 ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
           >
             "{quote}"
           </p>
@@ -578,40 +722,61 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     );
   };
 
-  // 9. Memo Card (Sticky Note)
+  // 9. Memo Card (Theme-aligned border, title, icon, text)
   const renderMemoCard = () => {
-    const { content } = element;
+    const { content, style } = element;
     const title = content.title || '메모';
     const text = content.memoContent || '자유롭게 메모를 작성하세요.';
 
+    // Requirement 8: Resolve fixed yellow issue when switching color theme
+    const theme = getMemoTheme(style?.backgroundColor || '#FEF9C3');
+    const titleColor = customTextColor || theme.title;
+    const bodyColor = customTextColor || theme.text;
+
     return (
       <div className="w-full h-full flex flex-col overflow-hidden">
-        <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-amber-200/60 dark:border-[#3A3948] shrink-0">
-          <StickyNote className="w-3.5 h-3.5 text-amber-500" />
-          <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200 truncate">{title}</h4>
+        <div
+          style={{ borderColor: `${theme.border}80` }}
+          className="flex items-center gap-1.5 pb-2 mb-2 border-b shrink-0"
+        >
+          <StickyNote style={{ color: theme.icon }} className="w-3.5 h-3.5" />
+          <h4
+            style={{ color: titleColor }}
+            className="text-xs font-bold truncate"
+          >
+            {title}
+          </h4>
         </div>
-        <div className="flex-1 overflow-y-auto pr-1 text-xs text-amber-950 dark:text-[#E8E7EF] leading-relaxed whitespace-pre-wrap break-words custom-scrollbar">
+        <div
+          style={{ color: bodyColor }}
+          className="flex-1 overflow-y-auto pr-1 text-xs leading-relaxed whitespace-pre-wrap break-words custom-scrollbar"
+        >
           {text}
         </div>
       </div>
     );
   };
 
-  // 10. Legacy Components (image, heading, text, info-field, status-chart, container, divider)
+  // 10. Legacy Components
   const renderLegacyContent = () => {
-    const { type, content, style } = element;
-
+    const { type, content } = element;
     if (type === 'image') return renderCharacterImage();
     if (type === 'heading') {
       return (
-        <div className="w-full h-full flex items-center select-none font-bold text-slate-800 dark:text-[#E8E7EF] text-lg truncate">
+        <div
+          style={{ color: customTextColor }}
+          className={`w-full h-full flex items-center select-none font-bold text-lg truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+        >
           {content.text || '제목'}
         </div>
       );
     }
     if (type === 'text') {
       return (
-        <div className="w-full h-full text-xs text-slate-700 dark:text-[#E8E7EF] leading-relaxed whitespace-pre-wrap break-words overflow-y-auto">
+        <div
+          style={{ color: customTextColor }}
+          className={`w-full h-full text-xs leading-relaxed whitespace-pre-wrap break-words overflow-y-auto ${!customTextColor ? 'text-slate-700 dark:text-[#E8E7EF]' : ''}`}
+        >
           {content.text || '내용을 입력하세요.'}
         </div>
       );
@@ -622,7 +787,11 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
       return <div className="w-full h-full rounded-[inherit]" />;
     }
     if (type === 'divider') {
-      return <div className="w-full h-full flex items-center justify-center"><hr className="w-full border-slate-300 dark:border-[#3A3948]" /></div>;
+      return (
+        <div className="w-full h-full flex items-center justify-center">
+          <hr className="w-full border-slate-300 dark:border-[#3A3948]" />
+        </div>
+      );
     }
     return null;
   };
@@ -653,6 +822,10 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     }
   };
 
+  // Effective styles
+  const memoTheme = element.type === 'memo-card' ? getMemoTheme(element.style?.backgroundColor) : null;
+  const effectiveBorderColor = element.style?.borderColor || memoTheme?.border || undefined;
+
   return (
     <div
       style={{
@@ -660,55 +833,77 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
         left: `${element.x}px`,
         top: `${element.y}px`,
         width: `${element.width}px`,
-        height: `${element.height}px`,
+        // Requirement 4, 5, 6, 7, 9: Auto-height for content-driven cards
+        height: isAutoHeightType ? 'auto' : `${element.height}px`,
+        minHeight: `${element.height || 60}px`,
         zIndex: element.zIndex,
         background: getContainerBackground(),
-        borderColor: element.style?.borderColor || undefined,
-        borderWidth: element.style?.borderWidth !== undefined ? `${element.style.borderWidth}px` : undefined,
-        borderRadius: element.style?.borderRadius !== undefined ? `${element.style.borderRadius}px` : undefined,
-        padding: element.style?.padding !== undefined ? `${element.style.padding}px` : undefined,
+        borderColor: effectiveBorderColor,
+        borderWidth:
+          element.style?.borderWidth !== undefined
+            ? `${element.style.borderWidth}px`
+            : memoTheme
+            ? '1px'
+            : undefined,
+        borderRadius:
+          element.style?.borderRadius !== undefined
+            ? `${element.style.borderRadius}px`
+            : undefined,
+        padding:
+          element.style?.padding !== undefined
+            ? `${element.style.padding}px`
+            : undefined,
         boxShadow: element.style?.boxShadow || undefined,
         opacity: element.style?.opacity !== undefined ? element.style.opacity : 1,
       }}
       onMouseDown={handleMouseDownMove}
       onClick={(e) => {
+        if (isViewMode) return;
         e.stopPropagation();
         onSelect(element.id, e);
       }}
-      className={`group cursor-move transition-shadow duration-100 ${
-        isSelected
+      className={`group transition-shadow duration-100 ${
+        isViewMode
+          ? 'cursor-default'
+          : isLayoutLocked
+          ? 'cursor-pointer hover:ring-1 hover:ring-lavender-400'
+          : 'cursor-move hover:ring-1 hover:ring-lavender-300'
+      } ${
+        !isViewMode && isSelected
           ? 'ring-2 ring-lavender-500 ring-offset-1 shadow-lg'
-          : 'hover:ring-1 hover:ring-lavender-300'
+          : ''
       }`}
     >
       {/* Element Inner Rendered Content */}
       {renderContent()}
 
-      {/* Resize Handles (8 directions) - Shown only when selected */}
-      {isSelected && (
+      {/* Resize Handles - Shown ONLY when selected, NOT in view mode, and NOT layout-locked */}
+      {!isViewMode && !isLayoutLocked && isSelected && (
         <>
-          {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as ResizeHandleDirection[]).map(
-            (dir) => {
-              const posStyles: Record<ResizeHandleDirection, string> = {
-                nw: '-top-1.5 -left-1.5 cursor-nwse-resize',
-                n: '-top-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize',
-                ne: '-top-1.5 -right-1.5 cursor-nesw-resize',
-                e: 'top-1/2 -translate-y-1/2 -right-1.5 cursor-ew-resize',
-                se: '-bottom-1.5 -right-1.5 cursor-nwse-resize',
-                s: '-bottom-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize',
-                sw: '-bottom-1.5 -left-1.5 cursor-nesw-resize',
-                w: 'top-1/2 -translate-y-1/2 -left-1.5 cursor-ew-resize',
-              };
+          {/* For auto-height cards, provide ONLY horizontal ('e', 'w') resize handles */}
+          {(isAutoHeightType
+            ? (['e', 'w'] as ResizeHandleDirection[])
+            : (['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as ResizeHandleDirection[])
+          ).map((dir) => {
+            const posStyles: Record<ResizeHandleDirection, string> = {
+              nw: '-top-1.5 -left-1.5 cursor-nwse-resize',
+              n: '-top-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize',
+              ne: '-top-1.5 -right-1.5 cursor-nesw-resize',
+              e: 'top-1/2 -translate-y-1/2 -right-1.5 cursor-ew-resize',
+              se: '-bottom-1.5 -right-1.5 cursor-nwse-resize',
+              s: '-bottom-1.5 left-1/2 -translate-x-1/2 cursor-ns-resize',
+              sw: '-bottom-1.5 -left-1.5 cursor-nesw-resize',
+              w: 'top-1/2 -translate-y-1/2 -left-1.5 cursor-ew-resize',
+            };
 
-              return (
-                <div
-                  key={dir}
-                  onMouseDown={(e) => handleMouseDownResize(dir, e)}
-                  className={`absolute w-3 h-3 bg-white border-2 border-lavender-600 rounded-full z-30 shadow-xs ${posStyles[dir]}`}
-                />
-              );
-            }
-          )}
+            return (
+              <div
+                key={dir}
+                onMouseDown={(e) => handleMouseDownResize(dir, e)}
+                className={`absolute w-3 h-3 bg-white border-2 border-lavender-600 rounded-full z-30 shadow-xs ${posStyles[dir]}`}
+              />
+            );
+          })}
         </>
       )}
     </div>

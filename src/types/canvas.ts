@@ -90,6 +90,7 @@ export interface RelationshipItem {
   name: string;        // 대상 인물명
   relation: string;    // 관계 유형 (동료, 라이벌, 스승, 가족 등)
   description: string; // 한줄 설명
+  color?: string;      // 관계 상태 배지 색상
   avatarUrl?: string;
 }
 
