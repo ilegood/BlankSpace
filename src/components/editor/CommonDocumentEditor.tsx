@@ -231,11 +231,11 @@ export const CommonDocumentEditor: React.FC = () => {
     <div className="flex-1 flex flex-col h-full bg-[#F9FAFD] dark:bg-[#17171D] overflow-hidden select-none animate-in fade-in duration-150 transition-colors">
       {/* 1. Global Navigation & Action Header */}
       <header className="h-14 px-6 border-b border-[#ECEEF3] dark:border-[#3A3948] flex items-center justify-between shrink-0 bg-white dark:bg-[#1E1E27] shadow-xs z-20">
-        {/* Left: Back button + Title input + Template Badge */}
-        <div className="flex items-center gap-3.5 flex-1 min-w-0">
+        {/* Left: 목록으로 | 이름 | 파일 형식 */}
+        <div className="flex items-center gap-3 flex-1 min-w-0">
           <button
             onClick={handleBackToList}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] text-xs font-medium text-slate-600 dark:text-[#E8E7EF] hover:bg-slate-50 dark:hover:bg-[#292936] transition-colors shrink-0"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] text-xs font-semibold text-slate-700 dark:text-[#E8E7EF] hover:bg-slate-50 dark:hover:bg-[#292936] transition-colors shrink-0"
           >
             <ChevronLeft className="w-4 h-4 text-slate-400 dark:text-[#A5A3B5]" />
             <span>목록으로</span>
@@ -243,34 +243,42 @@ export const CommonDocumentEditor: React.FC = () => {
 
           <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] shrink-0" />
 
-          {/* Document Title (Editable on Edit Mode / Click) */}
-          <input
-            type="text"
-            value={docTitle}
-            disabled={!isEditMode}
-            onChange={(e) => setDocTitle(e.target.value)}
-            onBlur={handleTitleBlurOrEnter}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                (e.target as HTMLInputElement).blur();
-              }
-            }}
-            placeholder="제목 없는 문서"
-            className={`text-[15px] font-bold text-slate-800 dark:text-[#E8E7EF] border-b border-transparent transition-colors px-1 py-0.5 truncate max-w-md bg-transparent ${
-              isEditMode
-                ? 'hover:border-slate-300 dark:hover:border-[#3A3948] focus:border-lavender-500 focus:outline-none cursor-text'
-                : 'cursor-default'
-            }`}
-          />
+          {/* Document Title: 보기 모드일 때는 연한 배경을 완전히 없애고 헤더 배경과 100% 동일하게 순수 텍스트로 표시 */}
+          {isEditMode ? (
+            <input
+              type="text"
+              value={docTitle}
+              onChange={(e) => setDocTitle(e.target.value)}
+              onBlur={handleTitleBlurOrEnter}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              placeholder="제목 없는 문서"
+              className="text-sm font-bold text-slate-800 dark:text-[#F3F2F8] bg-slate-100/70 dark:bg-[#2A2938] border border-slate-200 dark:border-[#3A3948] px-2.5 py-1 rounded-lg focus:border-lavender-500 focus:outline-none cursor-text truncate max-w-xs md:max-w-md transition-all"
+            />
+          ) : (
+            <span
+              onClick={() => setIsEditMode(true)}
+              title="클릭하여 편집 모드로 전환"
+              className="text-sm font-bold text-slate-800 dark:text-[#F3F2F8] bg-transparent border-0 px-1 py-1 truncate max-w-xs md:max-w-md cursor-pointer select-text"
+            >
+              {docTitle || '제목 없는 문서'}
+            </span>
+          )}
 
-          <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] shrink-0">
+          <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] shrink-0" />
+
+          {/* Template Badge (파일 형식) */}
+          <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] border border-lavender-200/60 dark:border-[#524580] shrink-0">
             {template?.name || '빈 문서'}
           </span>
         </div>
 
-        {/* Center / Right: Mode Toggle + Preset + Save Status + Actions */}
+        {/* Right: 보기/편집 | 자동 저장됨 | 다크모드 | 이미지 저장 | 즐겨찾기 | 도움말 */}
         <div className="flex items-center gap-2.5 text-xs text-slate-400 dark:text-[#A5A3B5] shrink-0">
-          {/* Phase 1 Core Rule: Mode Toggle Switch (View Mode vs Edit Mode) */}
+          {/* 1. 보기 / 편집 스위치 */}
           <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-[#292936] border border-slate-200/80 dark:border-[#3A3948]">
             <button
               type="button"
@@ -300,25 +308,7 @@ export const CommonDocumentEditor: React.FC = () => {
 
           <span className="text-slate-200 dark:text-[#3A3948]">|</span>
 
-          {/* Design Preset Selector */}
-          <div className="flex items-center gap-1">
-            <Palette className="w-3.5 h-3.5 text-slate-400 dark:text-[#8E8B9E]" />
-            <select
-              value={preset}
-              onChange={(e) => setPreset(e.target.value as DocumentStylePreset)}
-              className="text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg px-2 py-1 text-slate-700 dark:text-[#E8E7EF] focus:outline-none focus:border-lavender-500 cursor-pointer"
-              title="문서 디자인 프리셋"
-            >
-              <option value="modern">모던 라벤더</option>
-              <option value="minimal">미니멀 클린</option>
-              <option value="novel">소설 세리프</option>
-              <option value="compact">컴팩트 노트</option>
-            </select>
-          </div>
-
-          <span className="text-slate-200 dark:text-[#3A3948]">|</span>
-
-          {/* Autosave status indicator */}
+          {/* 2. 자동 저장됨 배지 */}
           <div className="flex items-center gap-1.5 text-[11.5px]">
             {saveStatus === 'error' ? (
               <button
@@ -353,12 +343,12 @@ export const CommonDocumentEditor: React.FC = () => {
 
           <span className="text-slate-200 dark:text-[#3A3948]">|</span>
 
-          {/* Theme Quick Toggle */}
+          {/* 3. 다크모드 토글 버튼 */}
           <button
             type="button"
             onClick={toggleTheme}
-            title={`테마 전환 (현재: ${isDark ? '다크' : '라이트'})`}
-            className="p-1.5 rounded-lg border border-slate-200 dark:border-[#3A3948] hover:bg-slate-50 dark:hover:bg-[#292936] text-slate-500 dark:text-[#A5A3B5] transition-colors"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-[#3A3948] hover:bg-lavender-50 dark:hover:bg-[#292936] transition-colors"
+            title="다크 모드 토글"
           >
             {isDark ? (
               <Moon className="w-3.5 h-3.5 text-[#A995F5]" />
@@ -367,7 +357,7 @@ export const CommonDocumentEditor: React.FC = () => {
             )}
           </button>
 
-          {/* Image Export Button */}
+          {/* 4. 이미지 저장 버튼 */}
           <button
             onClick={handleExportImage}
             disabled={isExporting}
@@ -382,7 +372,7 @@ export const CommonDocumentEditor: React.FC = () => {
             <span>{isExporting ? '내보내는 중...' : '이미지 저장'}</span>
           </button>
 
-          {/* Favorite Toggle */}
+          {/* 5. 즐겨찾기 버튼 */}
           <button
             onClick={() => toggleFavoriteDocument(activeDocument.id)}
             title="즐겨찾기 토글"
@@ -399,7 +389,7 @@ export const CommonDocumentEditor: React.FC = () => {
             />
           </button>
 
-          {/* Help Button */}
+          {/* 6. 도움말 버튼 */}
           <button
             type="button"
             onClick={() => setIsHelpOpen(true)}

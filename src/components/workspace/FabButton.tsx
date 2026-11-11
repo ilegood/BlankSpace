@@ -32,19 +32,19 @@ export const FabButton: React.FC = () => {
     <div className="fixed bottom-8 right-8 z-40 flex flex-col items-end gap-3 select-none" ref={menuRef}>
       {/* Expanded Menu */}
       {isFabOpen && (
-        <div className="bg-white border border-[#ECEEF3] rounded-2xl shadow-modal p-1.5 flex flex-col gap-1 w-44 animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="bg-white dark:bg-[#292936] border border-[#ECEEF3] dark:border-[#3A3948] rounded-2xl shadow-modal p-1.5 flex flex-col gap-1 w-44 animate-in fade-in slide-in-from-bottom-2 duration-150 transition-colors">
           <button
             onClick={openCreateFolderModal}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-50 transition-colors text-left"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-[#E8E7EF] hover:bg-slate-50 dark:hover:bg-[#1E1E27] transition-colors text-left"
           >
-            <FolderPlus className="w-4 h-4 text-slate-500" />
+            <FolderPlus className="w-4 h-4 text-slate-500 dark:text-[#A5A3B5]" />
             <span>폴더 추가</span>
           </button>
           <button
             onClick={openCreateDocumentModal}
-            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-semibold text-lavender-700 bg-lavender-50/80 hover:bg-lavender-100 transition-colors text-left"
+            className="flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 dark:text-[#E8E7EF] hover:bg-slate-50 dark:hover:bg-[#1E1E27] transition-colors text-left"
           >
-            <FilePlus className="w-4 h-4 text-lavender-600" />
+            <FilePlus className="w-4 h-4 text-slate-500 dark:text-[#A5A3B5]" />
             <span>문서 추가</span>
           </button>
         </div>

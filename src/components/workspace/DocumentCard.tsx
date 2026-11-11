@@ -180,23 +180,23 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
                   autoFocus
                   value={titleInput}
                   onChange={(e) => setTitleInput(e.target.value)}
-                  className="text-xs font-semibold px-2 py-0.5 rounded border border-lavender-400 focus:outline-none !bg-white w-full"
+                  className="text-xs font-semibold px-2 py-0.5 rounded border border-lavender-400 focus:outline-none bg-white dark:bg-[#1E1E27] text-slate-800 dark:text-[#E8E7EF] w-full"
                 />
-                <button type="submit" className="p-1 text-lavender-600 hover:bg-lavender-50 rounded">
+                <button type="submit" className="p-1 text-lavender-600 dark:text-[#A995F5] hover:bg-lavender-50 dark:hover:bg-[#352E58] rounded">
                   <Check className="w-3 h-3" />
                 </button>
                 <button
                   type="button"
                   onClick={() => setIsRenaming(false)}
-                  className="p-1 text-slate-400 hover:bg-slate-100 rounded"
+                  className="p-1 text-slate-400 hover:bg-slate-100 dark:hover:bg-[#1E1E27] rounded"
                 >
                   <X className="w-3 h-3" />
                 </button>
               </form>
             ) : (
               <div className="flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <h3 className="font-semibold text-slate-800 text-[14px] truncate group-hover:text-lavender-700 transition-colors">
+                <FileText className="w-3.5 h-3.5 text-slate-400 dark:text-[#A5A3B5] shrink-0" />
+                <h3 className="font-semibold text-slate-800 dark:text-[#F3F2F8] text-[14px] truncate group-hover:text-lavender-700 dark:group-hover:text-[#B7A5FF] transition-colors">
                   {document.title}
                 </h3>
               </div>
@@ -204,7 +204,7 @@ export const DocumentCard: React.FC<DocumentCardProps> = ({ document }) => {
 
             {/* Template Tag Badge */}
             <div>
-              <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-medium bg-lavender-100/80 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF]">
+              <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-medium bg-lavender-100/80 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] border border-lavender-200/50 dark:border-[#524580]/60">
                 {templateName}
               </span>
             </div>

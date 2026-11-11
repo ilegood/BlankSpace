@@ -797,6 +797,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return { success: false, error: '페이지를 찾을 수 없습니다.' };
     }
 
+    // 동일한 내용일 경우 불필요한 재저장 및 리렌더링 루프 방지
+    if (pagesRef.current[targetIdx].content === content) {
+      return { success: true };
+    }
+
     const targetDocId = pagesRef.current[targetIdx].documentId;
     const now = Date.now();
 

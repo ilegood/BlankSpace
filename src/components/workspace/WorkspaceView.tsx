@@ -22,6 +22,8 @@ import { ReferenceBoardEditor } from '../editor/special/ReferenceBoardEditor';
 import { ModelingSheetEditor } from '../editor/special/ModelingSheetEditor';
 import { AnimationEditor } from '../editor/special/AnimationEditor';
 import { SoundBoardEditor } from '../editor/special/SoundBoardEditor';
+import { IdeaBoardEditor } from '../editor/special/IdeaBoardEditor';
+import { ScheduleEditor } from '../editor/special/ScheduleEditor';
 import { Folder as FolderIcon, FileText, Star, Trash2 } from 'lucide-react';
 import { formatRelativeTime } from '../../utils/time';
 import { TEMPLATES } from '../../templates/templateList';
@@ -97,6 +99,12 @@ export const WorkspaceView: React.FC = () => {
         return <AnimationEditor />;
       case 'design-sound-board':
         return <SoundBoardEditor />;
+
+      // 5. 일반 카테고리
+      case 'general-idea-board':
+        return <IdeaBoardEditor />;
+      case 'general-timeline':
+        return <ScheduleEditor />;
 
       default:
         return <CommonDocumentEditor />;

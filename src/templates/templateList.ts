@@ -199,21 +199,12 @@ export const TEMPLATES: TemplateDefinition[] = [
   },
   {
     id: 'general-timeline',
-    name: '일정 및 타임라인',
-    description: '프로젝트의 마일스톤과 주요 일정을 정리합니다.',
+    name: '일정',
+    description: '개인 프로젝트 및 주간 업무 일정을 간트 차트로 관리합니다.',
     category: 'general',
     iconName: 'Calendar',
-    defaultTitle: '개발 마일스톤 타임라인',
-    defaultContent: 'Phase별 마일스톤 및 릴리즈 일정'
-  },
-  {
-    id: 'general-file-cabinet',
-    name: '파일 보관함',
-    description: '관련 원본 파일 및 리소스를 안전하게 보관합니다.',
-    category: 'general',
-    iconName: 'FolderArchive',
-    defaultTitle: '자료 보관함',
-    defaultContent: '외부 드라이브 링크 및 원본 소스 파일 링크'
-  },
+    defaultTitle: '주간 업무 계획 간트 차트',
+    defaultContent: ''
+  }
 ];
 
