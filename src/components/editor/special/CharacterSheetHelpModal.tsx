@@ -1,35 +1,51 @@
 import React from 'react';
-import { X, User, Sparkles, Image, BookOpen, Shield, Moon } from 'lucide-react';
+import {
+  X,
+  User,
+  Sparkles,
+  Image,
+  BookOpen,
+  Shield,
+  Layers,
+  Palette,
+  Check,
+  Activity,
+  List,
+  Move,
+} from 'lucide-react';
 
 interface CharacterSheetHelpModalProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
-export const CharacterSheetHelpModal: React.FC<CharacterSheetHelpModalProps> = ({ isOpen, onClose }) => {
+export const CharacterSheetHelpModal: React.FC<CharacterSheetHelpModalProps> = ({
+  isOpen,
+  onClose,
+}) => {
   if (!isOpen) return null;
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs animate-in fade-in duration-200 select-none"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl rounded-3xl bg-white dark:bg-[#1E1E27] p-6 shadow-2xl border border-slate-200 dark:border-[#3A3948] flex flex-col gap-5 text-slate-800 dark:text-[#E8E7EF] max-h-[90vh] overflow-y-auto"
+        className="relative w-full max-w-2xl rounded-3xl bg-white dark:bg-[#1E1E27] p-6 shadow-2xl border border-slate-200 dark:border-[#3A3948] flex flex-col gap-5 text-slate-800 dark:text-[#E8E7EF] max-h-[90vh] overflow-y-auto custom-scrollbar"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-[#3A3948]">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-lavender-100 dark:bg-[#352E58] text-lavender-600 dark:text-[#B7A5FF] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-2xl bg-lavender-100 dark:bg-[#352E58] text-lavender-600 dark:text-[#B7A5FF] flex items-center justify-center shadow-xs">
               <User className="w-5 h-5" />
             </div>
             <div>
               <h3 className="text-base font-bold text-slate-800 dark:text-[#F3F2F8]">
-                캐릭터 시트 사용 가이드
+                캐릭터 시트 템플릿 사용 가이드
               </h3>
               <p className="text-xs text-slate-400 dark:text-[#A5A3B5]">
-                인물의 프로필, 외형, 성격, 배경 스토리를 체계적으로 정리하세요.
+                캔버스 위에서 9종의 카드 요소를 자유롭게 배치하고 나만의 캐릭터 설정을 완성하세요.
               </p>
             </div>
           </div>
@@ -42,68 +58,100 @@ export const CharacterSheetHelpModal: React.FC<CharacterSheetHelpModalProps> = (
         </div>
 
         {/* Content Sections */}
-        <div className="space-y-4 text-xs leading-relaxed text-slate-600 dark:text-[#C5C3D4]">
-          {/* 1. 좌우 2단 분할 구조 */}
+        <div className="space-y-3.5 text-xs leading-relaxed text-slate-600 dark:text-[#C5C3D4]">
+          {/* 1. 보기 모드 vs 편집 모드 */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#262634] border border-slate-100 dark:border-[#3A3948] flex gap-3">
-            <User className="w-5 h-5 text-lavender-600 dark:text-[#B7A5FF] shrink-0 mt-0.5" />
+            <Shield className="w-5 h-5 text-emerald-500 shrink-0 mt-0.5" />
             <div>
-              <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1">
-                좌측 캐릭터 목록 & 우측 상세 프로필
+              <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1 flex items-center gap-2">
+                <span>보기 모드와 편집 모드 전환</span>
+                <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 font-mono">
+                  Ctrl + E
+                </span>
               </h4>
               <p>
-                왼쪽 사이드바에서 생성된 모든 캐릭터를 한눈에 탐색하고 검색할 수 있으며, 오른쪽에서는 선택한 캐릭터의 상세 프로필과 설정집을 열람하고 관리할 수 있습니다.
+                <b>기본 상태는 보기 모드</b>입니다. 오탈자나 불필요한 레이아웃 왜곡 없이 완성된 프로필을 열람할 수 있습니다. 상단의 <b>[편집 모드]</b> 버튼을 누르면 좌측 구성 요소 추가 패널과 우측 인스펙터가 활성화되어 자유롭게 배치하고 수정할 수 있습니다.
               </p>
             </div>
           </div>
 
-          {/* 2. 체계적인 5대 정보 섹션 */}
+          {/* 2. 캔버스 이동 및 확대/축소 (Pan & Zoom) */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#262634] border border-slate-100 dark:border-[#3A3948] flex gap-3">
-            <BookOpen className="w-5 h-5 text-indigo-500 dark:text-indigo-400 shrink-0 mt-0.5" />
+            <Move className="w-5 h-5 text-sky-500 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1">
-                기본 정보, 외형, 성격, 스토리의 명확한 구분
+                캔버스 이동 & 자유로운 확대/축소 (25% ~ 250%)
+              </h4>
+              <p className="mb-1.5">
+                대형 캐릭터 시트도 화면 어디든 자유롭게 탐색하고 확대할 수 있습니다:
+              </p>
+              <ul className="space-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+                <li>• <b>화면 이동(Pan)</b>: <kbd className="px-1 py-0.2 rounded bg-slate-200 dark:bg-[#3A3948] text-slate-700 dark:text-slate-200 font-mono">Space</kbd> + 마우스 드래그, 또는 마우스 휠 클릭(가운데 버튼) 드래그, 손 도구(<kbd className="px-1 py-0.2 rounded bg-slate-200 dark:bg-[#3A3948] text-slate-700 dark:text-slate-200 font-mono">H</kbd>) 활성화 후 드래그</li>
+                <li>• <b>화면 확대/축소(Zoom)</b>: <kbd className="px-1 py-0.2 rounded bg-slate-200 dark:bg-[#3A3948] text-slate-700 dark:text-slate-200 font-mono">Ctrl</kbd> + 마우스 휠 스크롤 또는 우측 하단 줌 컨트롤 버튼</li>
+                <li>• <b>화면 맞춤 & 리셋</b>: 우측 하단 또는 상단 툴바의 <b>화면 맞춤</b> 버튼을 누르면 캔버스가 화면 중앙에 한눈에 맞추어집니다 (<kbd className="px-1 py-0.2 rounded bg-slate-200 dark:bg-[#3A3948] text-slate-700 dark:text-slate-200 font-mono">Ctrl + 0</kbd>).</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* 2. 9종 의미 있는 단위의 구성 요소 */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#262634] border border-slate-100 dark:border-[#3A3948] flex gap-3">
+            <Layers className="w-5 h-5 text-lavender-600 dark:text-[#B7A5FF] shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1">
+                9종의 전문 캐릭터 구성 요소
+              </h4>
+              <p className="mb-2">
+                좌측 패널에서 원하는 카드를 클릭하여 캔버스에 즉시 추가할 수 있습니다:
+              </p>
+              <ul className="grid grid-cols-2 gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
+                <li>• <b>캐릭터 이미지</b>: 일러스트 삽입, 프레임, 자르기</li>
+                <li>• <b>이름 & 칭호</b>: 본명, 칭호, 코드명 복수 필드</li>
+                <li>• <b>대표 대사</b>: 명대사 및 말풍선/발언 상황</li>
+                <li>• <b>공통 정보 카드</b>: 기본/상세 정보 (2열 그리드, 표)</li>
+                <li>• <b>서술형 상세 카드</b>: 성격, 배경, 스토리 자유 서술</li>
+                <li>• <b>키워드 & 태그</b>: 속성 및 성향 칩 (자동 줄바꿈)</li>
+                <li>• <b>능력치 레이더 차트</b>: 3~8축 다각형 스탯 차트</li>
+                <li>• <b>관계 요약 카드</b>: 인물 관계 및 상태별 배지</li>
+                <li>• <b>자유 메모 카드</b>: 테마 색상이 연동되는 포스트잇</li>
+              </ul>
+            </div>
+          </div>
+
+          {/* 3. 자동 높이 조절 & 텍스트 오버플로 방지 */}
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#262634] border border-slate-100 dark:border-[#3A3948] flex gap-3">
+            <List className="w-5 h-5 text-indigo-500 shrink-0 mt-0.5" />
+            <div>
+              <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1">
+                스마트 높이 자동 확장 (내부 스크롤 방지)
               </h4>
               <p>
-                인적사항, 비주얼 디자인, 내면적 성격과 말투, 출신과 과거 배경 스토리, 능력 및 전용 소지품까지 분류별 전용 카드로 구성되어 있어 설정 충돌 없이 깔끔하게 정리됩니다.
+                공통 정보 카드, 서술형 상세 카드, 태그 카드, 관계 요약 카드는 내용이 길어지면 카드 높이가 <b>자동으로 자연스럽게 늘어나며</b> 내부 스크롤바가 생기지 않고 전체 텍스트가 시원하게 표시됩니다. 가로 너비는 좌우 핸들로 자유롭게 조절할 수 있습니다.
               </p>
             </div>
           </div>
 
-          {/* 3. 대표 이미지 중심 비주얼 설계 */}
+          {/* 4. 우측 인스펙터 & 속성 커스터마이징 */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#262634] border border-slate-100 dark:border-[#3A3948] flex gap-3">
-            <Image className="w-5 h-5 text-emerald-500 dark:text-emerald-400 shrink-0 mt-0.5" />
+            <Palette className="w-5 h-5 text-purple-500 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1">
-                눈에 띄는 프로필 이미지 & 디자인 갤러리
+                우측 속성 패널을 통한 완벽한 커스터마이징
               </h4>
               <p>
-                상단의 대형 대표 이미지와 외형 참고 갤러리를 통해 캐릭터의 시각적 인상을 가장 먼저 확인하고 몰입감을 극대화할 수 있습니다.
+                카드를 선택하면 우측 패널에서 <b>내부 항목 추가/삭제/순서 이동</b>, <b>배경색/테두리/폰트</b>를 세밀하게 조정할 수 있습니다. 카드를 선택하지 않았을 때는 <b>캔버스 크기, 배경색, 점무늬/격자무늬 패턴</b>을 변경할 수 있습니다.
               </p>
             </div>
           </div>
 
-          {/* 4. 보기 모드 vs 편집 모드 */}
+          {/* 5. 나만의 시트 템플릿 저장 & 추천 프리셋 */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#262634] border border-slate-100 dark:border-[#3A3948] flex gap-3">
-            <Shield className="w-5 h-5 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
+            <Sparkles className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
             <div>
               <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1">
-                오조작 방지 보기 모드 & 단축키 (Ctrl + E)
+                사용자 정의 템플릿 저장 및 프리셋
               </h4>
               <p>
-                <b>보기 모드</b>에서는 깔끔한 설정집처럼 오탈자 걱정 없이 감상할 수 있고, <b>편집 모드</b>로 전환하면 텍스트 필드와 이미지 변경 인터페이스가 즉시 활성화됩니다.
-              </p>
-            </div>
-          </div>
-
-          {/* 5. 다크 모드 */}
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#262634] border border-slate-100 dark:border-[#3A3948] flex gap-3">
-            <Moon className="w-5 h-5 text-purple-500 dark:text-purple-400 shrink-0 mt-0.5" />
-            <div>
-              <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1">
-                눈이 편안한 다크 모드 완벽 지원
-              </h4>
-              <p>
-                어두운 환경에서도 프로필 카드, 뱃지, 입력창, 이미지 대비가 선명하고 조화롭게 유지됩니다.
+                우측 패널의 [템플릿 & 프리셋] 탭에서 현재 구성한 멋진 캐릭터 시트 레이아웃을 <b>나만의 템플릿으로 영구 저장</b>하여 다른 캐릭터 시트에서도 바로 불러와 재사용할 수 있습니다. Blankspace에서 기본 제공하는 3종 프리셋(클래식 RPG, 모던 프로필, 미니멀 비주얼)도 원클릭으로 적용 가능합니다.
               </p>
             </div>
           </div>
@@ -122,4 +170,3 @@ export const CharacterSheetHelpModal: React.FC<CharacterSheetHelpModalProps> = (
     </div>
   );
 };
-

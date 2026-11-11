@@ -48,6 +48,16 @@ html.dark {
     scroll-behavior: smooth;
   }
 
+  /* 숫자 입력 필드 기본 브라우저 스피너 숨김 (커스텀 디자인 버튼 사용) */
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+
   /* 커스텀 스크롤바 */
   ::-webkit-scrollbar {
     width: 6px;

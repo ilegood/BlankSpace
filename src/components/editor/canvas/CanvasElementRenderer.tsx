@@ -72,6 +72,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
 }) => {
   // Elements that automatically adjust height based on content
   const isAutoHeightType = [
+    'name-badge',
     'info-card',
     'narrative-card',
     'keyword-card',
@@ -215,8 +216,8 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
             draggable={false}
           />
         ) : (
-          <div className="w-full h-full bg-slate-100 dark:bg-[#1E1E27] flex flex-col items-center justify-center gap-2 text-slate-400 dark:text-[#A5A3B5] p-4 text-center">
-            <ImageIcon className="w-10 h-10 text-slate-300 dark:text-[#525068]" />
+          <div className="w-full h-full bg-slate-100 flex flex-col items-center justify-center gap-2 text-slate-400 p-4 text-center">
+            <ImageIcon className="w-10 h-10 text-slate-300" />
             <span className="text-xs font-semibold">캐릭터 이미지 등록</span>
             <span className="text-[11px] text-slate-400">
               우측 패널에서 URL을 입력하거나 이미지를 업로드하세요
@@ -243,7 +244,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     ];
 
     return (
-      <div className="w-full h-full flex flex-col justify-center gap-1.5 overflow-hidden">
+      <div className="w-full flex flex-col justify-center gap-1.5 py-1">
         {fields.map((f) => {
           // Requirement 2: Clean up any prefix like "이름 : " and show ONLY the value
           const rawVal = f.value || '';
@@ -251,14 +252,14 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
           const displayColor = f.color || customTextColor || (f.isPrimary ? undefined : '#64748B');
 
           return (
-            <div key={f.id} className="flex items-baseline truncate">
+            <div key={f.id} className="flex items-baseline flex-wrap gap-1">
               <span
                 style={{
                   fontSize: f.fontSize ? `${f.fontSize}px` : f.isPrimary ? '24px' : '13px',
                   fontWeight: f.fontWeight || (f.isPrimary ? 'bold' : 'normal'),
                   color: displayColor,
                 }}
-                className={`truncate ${!displayColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                className={`truncate ${!displayColor ? 'text-slate-800' : ''}`}
               >
                 {cleanValue || (f.isPrimary ? '캐릭터 이름 입력' : '호칭 입력')}
               </span>
@@ -282,15 +283,15 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     return (
       <div className="w-full flex flex-col">
         {title && (
-          <div className="flex items-center gap-1.5 pb-2.5 mb-2 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
+          <div className="flex items-center gap-1.5 pb-2.5 mb-2 border-b border-slate-100 shrink-0">
             <div className="w-2 h-3.5 rounded-xs bg-lavender-500" />
             <h4
               style={{ color: customTextColor }}
-              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800' : ''}`}
             >
               {title}
             </h4>
-            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">
+            <span className="text-[10px] text-slate-400 ml-auto">
               {items.length}개
             </span>
           </div>
@@ -303,14 +304,14 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
               {items.map((it) => (
                 <div
                   key={it.id}
-                  className="flex flex-col bg-slate-50/70 dark:bg-[#1E1E27]/70 p-2 rounded-xl border border-slate-100 dark:border-[#3A3948] min-w-0"
+                  className="flex flex-col bg-slate-50/70 p-2 rounded-xl border border-slate-100 min-w-0"
                 >
-                  <span className="text-[10.5px] font-semibold text-slate-400 dark:text-[#A5A3B5] truncate">
+                  <span className="text-[10.5px] font-semibold text-slate-400 truncate">
                     {it.label}
                   </span>
                   <span
                     style={{ color: customTextColor }}
-                    className={`text-xs font-medium mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                    className={`text-xs font-medium mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800' : ''}`}
                   >
                     {it.value}
                   </span>
@@ -320,15 +321,15 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
           )}
 
           {mode === 'table' && (
-            <div className="border border-slate-200 dark:border-[#3A3948] rounded-xl overflow-hidden divide-y divide-slate-100 dark:divide-[#3A3948] text-xs">
+            <div className="border border-slate-200 rounded-xl overflow-hidden divide-y divide-slate-100 text-xs">
               {items.map((it) => (
                 <div key={it.id} className="flex items-stretch">
-                  <span className="w-24 shrink-0 px-3 py-1.5 font-semibold bg-slate-50 dark:bg-[#1E1E27] text-slate-500 dark:text-[#A5A3B5] border-r border-slate-100 dark:border-[#3A3948] truncate flex items-center">
+                  <span className="w-24 shrink-0 px-3 py-1.5 font-semibold bg-slate-50 text-slate-500 border-r border-slate-100 truncate flex items-center">
                     {it.label}
                   </span>
                   <span
                     style={{ color: customTextColor }}
-                    className={`flex-1 px-3 py-1.5 font-medium break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                    className={`flex-1 px-3 py-1.5 font-medium break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800' : ''}`}
                   >
                     {it.value}
                   </span>
@@ -342,14 +343,14 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
               {items.map((it) => (
                 <div
                   key={it.id}
-                  className="flex items-start justify-between gap-2 py-1 border-b border-dashed border-slate-100 dark:border-[#3A3948]"
+                  className="flex items-start justify-between gap-2 py-1 border-b border-dashed border-slate-100"
                 >
-                  <span className="text-slate-400 dark:text-[#A5A3B5] font-semibold truncate shrink-0">
+                  <span className="text-slate-400 font-semibold truncate shrink-0">
                     {it.label}
                   </span>
                   <span
                     style={{ color: customTextColor }}
-                    className={`font-medium text-right break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                    className={`font-medium text-right break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800' : ''}`}
                   >
                     {it.value}
                   </span>
@@ -363,14 +364,14 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
               {items.map((it) => (
                 <div
                   key={it.id}
-                  className="p-2 bg-slate-50 dark:bg-[#1E1E27] rounded-xl border border-slate-100 dark:border-[#3A3948]"
+                  className="p-2 bg-slate-50 rounded-xl border border-slate-100"
                 >
-                  <span className="text-[10px] font-bold text-slate-400 dark:text-[#A5A3B5] block uppercase">
+                  <span className="text-[10px] font-bold text-slate-400 block uppercase">
                     {it.label}
                   </span>
                   <span
                     style={{ color: customTextColor }}
-                    className={`font-semibold block mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                    className={`font-semibold block mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-800' : ''}`}
                   >
                     {it.value}
                   </span>
@@ -392,11 +393,11 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     return (
       <div className="w-full flex flex-col">
         {title && (
-          <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
-            <FileText className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
+          <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 shrink-0">
+            <FileText className="w-3.5 h-3.5 text-lavender-600" />
             <h4
               style={{ color: customTextColor }}
-              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800' : ''}`}
             >
               {title}
             </h4>
@@ -408,7 +409,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
             fontSize: style?.fontSize ? `${style.fontSize}px` : '12.5px',
             color: customTextColor,
           }}
-          className={`w-full leading-relaxed whitespace-pre-wrap break-words ${!customTextColor ? 'text-slate-700 dark:text-[#E8E7EF]' : ''}`}
+          className={`w-full leading-relaxed whitespace-pre-wrap break-words ${!customTextColor ? 'text-slate-700' : ''}`}
         >
           {text}
         </div>
@@ -428,15 +429,15 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     return (
       <div className="w-full flex flex-col">
         {title && (
-          <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
-            <Tag className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
+          <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 shrink-0">
+            <Tag className="w-3.5 h-3.5 text-lavender-600" />
             <h4
               style={{ color: customTextColor }}
-              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800' : ''}`}
             >
               {title}
             </h4>
-            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">
+            <span className="text-[10px] text-slate-400 ml-auto">
               {tags.length}개
             </span>
           </div>
@@ -456,7 +457,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
                 }}
                 className={`px-2.5 py-1 rounded-lg text-xs font-semibold border break-words ${
                   !tagColor
-                    ? 'bg-lavender-50 text-lavender-700 dark:bg-lavender-950/60 dark:text-lavender-300 border-lavender-200/60 dark:border-lavender-800/50'
+                    ? 'bg-lavender-50 text-lavender-700 border-lavender-200/60'
                     : ''
                 }`}
               >
@@ -514,11 +515,11 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     return (
       <div className="w-full h-full flex flex-col justify-between overflow-hidden">
         {title && (
-          <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
-            <Sparkles className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
+          <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100 shrink-0">
+            <Sparkles className="w-3.5 h-3.5 text-lavender-600" />
             <h4
               style={{ color: customTextColor }}
-              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800' : ''}`}
             >
               {title}
             </h4>
@@ -541,7 +542,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
                   stroke="#E2E8F0"
                   strokeWidth={lIdx === levels.length - 1 ? 1.5 : 1}
                   strokeDasharray={lIdx === levels.length - 1 ? 'none' : '3 3'}
-                  className="dark:stroke-[#3A3948]"
+                  className=""
                 />
               );
             })}
@@ -557,7 +558,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
                     y2={outer.y}
                     stroke="#E2E8F0"
                     strokeWidth="1"
-                    className="dark:stroke-[#3A3948]"
+                    className=""
                   />
                   <text
                     x={lblPt.x}
@@ -567,7 +568,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
                     fontSize="9.5"
                     fontWeight="600"
                     fill={customTextColor || '#64748B'}
-                    className={!customTextColor ? 'dark:fill-[#A5A3B5]' : ''}
+                    className={!customTextColor ? '' : ''}
                   >
                     {ax.label} ({ax.value})
                   </text>
@@ -613,15 +614,15 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     return (
       <div className="w-full flex flex-col">
         {title && (
-          <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
+          <div className="flex items-center gap-1.5 pb-2 mb-2 border-b border-slate-100 shrink-0">
             <Heart className="w-3.5 h-3.5 text-rose-500" />
             <h4
               style={{ color: customTextColor }}
-              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+              className={`text-xs font-bold truncate ${!customTextColor ? 'text-slate-800' : ''}`}
             >
               {title}
             </h4>
-            <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] ml-auto">
+            <span className="text-[10px] text-slate-400 ml-auto">
               {rels.length}명
             </span>
           </div>
@@ -636,7 +637,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
             return (
               <div
                 key={r.id}
-                className="p-2.5 rounded-xl bg-slate-50 dark:bg-[#1E1E27] border border-slate-100 dark:border-[#3A3948] flex items-start gap-2.5 text-xs"
+                className="p-2.5 rounded-xl bg-slate-50 border border-slate-100 flex items-start gap-2.5 text-xs"
               >
                 <div
                   style={{
@@ -651,7 +652,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span
                       style={{ color: customTextColor }}
-                      className={`font-bold truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+                      className={`font-bold truncate ${!customTextColor ? 'text-slate-800' : ''}`}
                     >
                       {r.name}
                     </span>
@@ -668,7 +669,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
                   </div>
                   <p
                     style={{ color: customTextColor }}
-                    className={`text-[11px] mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-500 dark:text-[#A5A3B5]' : ''}`}
+                    className={`text-[11px] mt-0.5 break-words whitespace-pre-wrap ${!customTextColor ? 'text-slate-500' : ''}`}
                   >
                     {r.description}
                   </p>
@@ -691,11 +692,11 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     return (
       <div className="w-full h-full flex flex-col justify-between overflow-hidden">
         {title && (
-          <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100 dark:border-[#3A3948] shrink-0">
-            <Quote className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
+          <div className="flex items-center gap-1.5 pb-1 border-b border-slate-100 shrink-0">
+            <Quote className="w-3.5 h-3.5 text-lavender-600" />
             <span
               style={{ color: customTextColor }}
-              className={`text-[11px] font-bold uppercase truncate ${!customTextColor ? 'text-slate-600 dark:text-[#A5A3B5]' : ''}`}
+              className={`text-[11px] font-bold uppercase truncate ${!customTextColor ? 'text-slate-600' : ''}`}
             >
               {title}
             </span>
@@ -708,12 +709,12 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
               fontStyle: 'italic',
               color: customTextColor,
             }}
-            className={`font-medium leading-relaxed break-words line-clamp-3 ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+            className={`font-medium leading-relaxed break-words line-clamp-3 ${!customTextColor ? 'text-slate-800' : ''}`}
           >
             "{quote}"
           </p>
           {situation && (
-            <span className="text-[10.5px] text-slate-400 dark:text-[#A5A3B5] mt-1 text-right truncate">
+            <span className="text-[10.5px] text-slate-400 mt-1 text-right truncate">
               — {situation}
             </span>
           )}
@@ -765,7 +766,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
       return (
         <div
           style={{ color: customTextColor }}
-          className={`w-full h-full flex items-center select-none font-bold text-lg truncate ${!customTextColor ? 'text-slate-800 dark:text-[#E8E7EF]' : ''}`}
+          className={`w-full h-full flex items-center select-none font-bold text-lg truncate ${!customTextColor ? 'text-slate-800' : ''}`}
         >
           {content.text || '제목'}
         </div>
@@ -775,7 +776,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
       return (
         <div
           style={{ color: customTextColor }}
-          className={`w-full h-full text-xs leading-relaxed whitespace-pre-wrap break-words overflow-y-auto ${!customTextColor ? 'text-slate-700 dark:text-[#E8E7EF]' : ''}`}
+          className={`w-full h-full text-xs leading-relaxed whitespace-pre-wrap break-words overflow-y-auto ${!customTextColor ? 'text-slate-700' : ''}`}
         >
           {content.text || '내용을 입력하세요.'}
         </div>
@@ -789,7 +790,7 @@ export const CanvasElementRenderer: React.FC<CanvasElementRendererProps> = ({
     if (type === 'divider') {
       return (
         <div className="w-full h-full flex items-center justify-center">
-          <hr className="w-full border-slate-300 dark:border-[#3A3948]" />
+          <hr className="w-full border-slate-300" />
         </div>
       );
     }

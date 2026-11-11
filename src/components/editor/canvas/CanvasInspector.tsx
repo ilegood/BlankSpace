@@ -41,6 +41,7 @@ import {
   MINIMAL_VISUAL_CANVAS,
 } from './defaultPresets';
 import { useToast } from '../../toast/ToastContext';
+import { NumberInput } from './NumberInput';
 
 interface CanvasInspectorProps {
   selectedElement: CanvasElement | null;
@@ -172,16 +173,16 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
   // ==========================================
   if (!selectedElement) {
     return (
-      <div className="w-80 bg-white dark:bg-dark-surface border-l border-slate-200 dark:border-dark-border flex flex-col shrink-0 select-none overflow-hidden h-full">
+      <div className="w-80 bg-white dark:bg-[#1E1E27] border-l border-slate-200 dark:border-[#3A3948] flex flex-col shrink-0 select-none overflow-hidden h-full">
         {/* Global Inspector Header Tabs */}
-        <div className="h-11 border-b border-slate-200 dark:border-dark-border flex items-center px-3 bg-slate-50 dark:bg-dark-elevated">
+        <div className="h-11 border-b border-slate-200 dark:border-[#3A3948] flex items-center px-3 bg-slate-50 dark:bg-[#292936]">
           <button
             type="button"
             onClick={() => setGlobalTab('canvas')}
             className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 ${
               globalTab === 'canvas'
-                ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-dark-text shadow-2xs'
-                : 'text-slate-500 dark:text-dark-textSecondary hover:text-slate-800'
+                ? 'bg-white dark:bg-[#1E1E27] text-slate-800 dark:text-[#E8E7EF] shadow-2xs'
+                : 'text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800'
             }`}
           >
             <Settings2 className="w-3.5 h-3.5 text-lavender-600" />
@@ -192,8 +193,8 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             onClick={() => setGlobalTab('templates')}
             className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1.5 ${
               globalTab === 'templates'
-                ? 'bg-white dark:bg-dark-surface text-slate-800 dark:text-dark-text shadow-2xs'
-                : 'text-slate-500 dark:text-dark-textSecondary hover:text-slate-800'
+                ? 'bg-white dark:bg-[#1E1E27] text-slate-800 dark:text-[#E8E7EF] shadow-2xs'
+                : 'text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800'
             }`}
           >
             <Bookmark className="w-3.5 h-3.5 text-lavender-600" />
@@ -207,36 +208,28 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             <>
               {/* Canvas Size */}
               <div className="flex flex-col gap-2">
-                <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                   캔버스 크기
                 </span>
                 <div className="grid grid-cols-2 gap-2">
                   <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-500 dark:text-dark-textSecondary">너비 (px)</span>
-                    <input
-                      type="number"
-                      step={20}
-                      min={600}
-                      max={1920}
+                    <span className="text-[10px] text-slate-500 dark:text-[#A5A3B5]">너비 (px)</span>
+                    <NumberInput
                       value={canvasData.canvasWidth}
-                      onChange={(e) =>
-                        onUpdateCanvas({ canvasWidth: Number(e.target.value) })
-                      }
-                      className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg font-mono text-slate-800 dark:text-dark-text focus:outline-none focus:border-lavender-500"
-                    />
-                  </div>
-                  <div className="flex flex-col gap-1">
-                    <span className="text-[10px] text-slate-500 dark:text-dark-textSecondary">높이 (px)</span>
-                    <input
-                      type="number"
                       step={20}
                       min={600}
                       max={3000}
+                      onChange={(val) => onUpdateCanvas({ canvasWidth: val })}
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    <span className="text-[10px] text-slate-500 dark:text-[#A5A3B5]">높이 (px)</span>
+                    <NumberInput
                       value={canvasData.canvasHeight}
-                      onChange={(e) =>
-                        onUpdateCanvas({ canvasHeight: Number(e.target.value) })
-                      }
-                      className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg font-mono text-slate-800 dark:text-dark-text focus:outline-none focus:border-lavender-500"
+                      step={20}
+                      min={400}
+                      max={4000}
+                      onChange={(val) => onUpdateCanvas({ canvasHeight: val })}
                     />
                   </div>
                 </div>
@@ -244,7 +237,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
 
               {/* Background Color & Gradient */}
               <div className="flex flex-col gap-2">
-                <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                   배경 색상
                 </span>
                 <div className="flex items-center gap-2">
@@ -254,7 +247,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     onChange={(e) =>
                       onUpdateCanvas({ backgroundColor: e.target.value })
                     }
-                    className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200 dark:border-dark-border shrink-0 bg-transparent"
+                    className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200 dark:border-[#3A3948] shrink-0 bg-transparent"
                   />
                   <input
                     type="text"
@@ -262,7 +255,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     onChange={(e) =>
                       onUpdateCanvas({ backgroundColor: e.target.value })
                     }
-                    className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg font-mono text-slate-800 dark:text-dark-text text-xs"
+                    className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg font-mono text-slate-800 dark:text-[#E8E7EF] text-xs"
                   />
                 </div>
 
@@ -278,7 +271,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       className={`w-6 h-6 rounded-md border transition-transform ${
                         canvasData.backgroundColor === bg
                           ? 'ring-2 ring-lavender-500 scale-110'
-                          : 'border-slate-300 dark:border-dark-border'
+                          : 'border-slate-300 dark:border-[#3A3948]'
                       }`}
                     />
                   ))}
@@ -286,8 +279,8 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
               </div>
 
               {/* Background Pattern */}
-              <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100 dark:border-dark-border">
-                <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+              <div className="flex flex-col gap-2.5 pt-3 border-t border-slate-100 dark:border-[#3A3948]">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                   배경 패턴
                 </span>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -299,7 +292,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         onUpdateCanvas({
                           pattern: {
                             type: patternType,
-                            color: canvasData.pattern?.color || '#CBD5E1',
+                            color: canvasData.pattern?.color || '#94A3B8',
                             size: canvasData.pattern?.size || 1,
                             gap: canvasData.pattern?.gap || 20,
                           },
@@ -308,7 +301,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       className={`py-1.5 px-2 rounded-lg border text-xs font-semibold capitalize transition-all ${
                         (canvasData.pattern?.type || 'none') === patternType
                           ? 'border-lavender-500 bg-lavender-50 dark:bg-lavender-900/30 text-lavender-700 dark:text-lavender-300'
-                          : 'border-slate-200 dark:border-dark-border text-slate-600 dark:text-dark-textSecondary'
+                          : 'border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#A5A3B5]'
                       }`}
                     >
                       {patternType === 'none' ? '없음' : patternType === 'dots' ? '도트 (점)' : '격자 (모눈)'}
@@ -317,9 +310,9 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                 </div>
 
                 {canvasData.pattern?.type && canvasData.pattern.type !== 'none' && (
-                  <div className="flex flex-col gap-2 mt-1 p-2.5 bg-slate-50 dark:bg-dark-elevated rounded-xl border border-slate-200/80 dark:border-dark-border">
+                  <div className="flex flex-col gap-2 mt-1 p-2.5 bg-slate-50 dark:bg-[#292936] rounded-xl border border-slate-200/80 dark:border-[#3A3948]">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-slate-500 dark:text-dark-textSecondary">패턴 색상</span>
+                      <span className="text-[11px] text-slate-500 dark:text-[#A5A3B5]">패턴 색상</span>
                       <div className="flex items-center gap-1.5">
                         <input
                           type="color"
@@ -334,13 +327,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                           }
                           className="w-5 h-5 rounded cursor-pointer bg-transparent border-0"
                         />
-                        <span className="font-mono text-[10px] text-slate-500 dark:text-dark-textSecondary">
+                        <span className="font-mono text-[10px] text-slate-500 dark:text-[#A5A3B5]">
                           {canvasData.pattern.color}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] text-slate-500 dark:text-dark-textSecondary">패턴 간격</span>
+                      <span className="text-[11px] text-slate-500 dark:text-[#A5A3B5]">패턴 간격</span>
                       <div className="flex items-center gap-1">
                         {[16, 20, 24, 32].map((gap) => (
                           <button
@@ -357,7 +350,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                             className={`px-2 py-0.5 text-[10px] font-mono rounded ${
                               canvasData.pattern?.gap === gap
                                 ? 'bg-lavender-500 text-white font-bold'
-                                : 'bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border text-slate-600 dark:text-dark-textSecondary'
+                                : 'bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#A5A3B5]'
                             }`}
                           >
                             {gap}
@@ -375,7 +368,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                   <Bookmark className="w-3.5 h-3.5" />
                   <span>현재 시트를 템플릿으로 저장</span>
                 </div>
-                <p className="text-[11px] text-slate-600 dark:text-dark-textSecondary leading-relaxed">
+                <p className="text-[11px] text-slate-600 dark:text-[#A5A3B5] leading-relaxed">
                   구성한 레이아웃과 카드 디자인을 저장해두고 언제든 다른 캐릭터 시트에 재사용할 수 있습니다.
                 </p>
                 <button
@@ -393,7 +386,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
               {/* Builtin Presets */}
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+                  <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                     추천 기본 프리셋 3종
                   </span>
                   <span className="text-[10px] text-lavender-600 font-medium">원클릭 적용</span>
@@ -403,10 +396,10 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                   {BUILTIN_TEMPLATES.map((tmpl) => (
                     <div
                       key={tmpl.id}
-                      className="p-3 bg-slate-50 dark:bg-dark-elevated rounded-xl border border-slate-200/80 dark:border-dark-border flex flex-col gap-1.5 hover:border-lavender-400 transition-colors"
+                      className="p-3 bg-slate-50 dark:bg-[#292936] rounded-xl border border-slate-200/80 dark:border-[#3A3948] flex flex-col gap-1.5 hover:border-lavender-400 transition-colors"
                     >
                       <div className="flex items-center justify-between">
-                        <span className="font-bold text-slate-800 dark:text-dark-text text-xs">
+                        <span className="font-bold text-slate-800 dark:text-[#E8E7EF] text-xs">
                           {tmpl.name}
                         </span>
                         <button
@@ -417,7 +410,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                           적용하기
                         </button>
                       </div>
-                      <p className="text-[11px] text-slate-500 dark:text-dark-textSecondary">
+                      <p className="text-[11px] text-slate-500 dark:text-[#A5A3B5]">
                         {tmpl.description}
                       </p>
                     </div>
@@ -426,9 +419,9 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
               </div>
 
               {/* Custom Templates */}
-              <div className="flex flex-col gap-2 pt-3 border-t border-slate-100 dark:border-dark-border">
+              <div className="flex flex-col gap-2 pt-3 border-t border-slate-100 dark:border-[#3A3948]">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+                  <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                     내가 저장한 템플릿 ({customTemplates.length})
                   </span>
                   <button
@@ -442,7 +435,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                 </div>
 
                 {customTemplates.length === 0 ? (
-                  <div className="p-4 bg-slate-50 dark:bg-dark-elevated border border-dashed border-slate-200 dark:border-dark-border rounded-xl text-center text-[11px] text-slate-400 dark:text-dark-textSecondary">
+                  <div className="p-4 bg-slate-50 dark:bg-[#292936] border border-dashed border-slate-200 dark:border-[#3A3948] rounded-xl text-center text-[11px] text-slate-400 dark:text-[#A5A3B5]">
                     저장된 커스텀 템플릿이 없습니다.<br />현재 레이아웃을 템플릿으로 저장해보세요.
                   </div>
                 ) : (
@@ -450,13 +443,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     {customTemplates.map((ct) => (
                       <div
                         key={ct.id}
-                        className="p-2.5 bg-slate-50 dark:bg-dark-elevated rounded-xl border border-slate-200/80 dark:border-dark-border flex items-center justify-between gap-2"
+                        className="p-2.5 bg-slate-50 dark:bg-[#292936] rounded-xl border border-slate-200/80 dark:border-[#3A3948] flex items-center justify-between gap-2"
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="font-semibold text-slate-800 dark:text-dark-text text-xs truncate">
+                          <div className="font-semibold text-slate-800 dark:text-[#E8E7EF] text-xs truncate">
                             {ct.name}
                           </div>
-                          <div className="text-[10px] text-slate-400 dark:text-dark-textSecondary">
+                          <div className="text-[10px] text-slate-400 dark:text-[#A5A3B5]">
                             요소 {ct.canvasData.elements?.length || 0}개 · {new Date(ct.createdAt).toLocaleDateString()}
                           </div>
                         </div>
@@ -465,7 +458,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                           <button
                             type="button"
                             onClick={() => handleApplyTemplate(ct.canvasData, ct.name)}
-                            className="px-2 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border hover:border-lavender-400 text-slate-700 dark:text-dark-text rounded-md text-[10px] font-medium"
+                            className="px-2 py-1 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] hover:border-lavender-400 text-slate-700 dark:text-[#E8E7EF] rounded-md text-[10px] font-medium"
                           >
                             적용
                           </button>
@@ -497,12 +490,12 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
   const style = selectedElement.style || {};
 
   return (
-    <div className="w-80 bg-white dark:bg-dark-surface border-l border-slate-200 dark:border-dark-border flex flex-col shrink-0 select-none overflow-hidden h-full">
+    <div className="w-80 bg-white dark:bg-[#1E1E27] border-l border-slate-200 dark:border-[#3A3948] flex flex-col shrink-0 select-none overflow-hidden h-full">
       {/* Element Header & Quick Actions */}
-      <div className="p-3 border-b border-slate-200 dark:border-dark-border bg-slate-50 dark:bg-dark-elevated flex items-center justify-between">
+      <div className="p-3 border-b border-slate-200 dark:border-[#3A3948] bg-slate-50 dark:bg-[#292936] flex items-center justify-between">
         <div className="flex items-center gap-1.5 min-w-0">
           <span className="w-2 h-2 rounded-full bg-lavender-500 shrink-0" />
-          <span className="text-xs font-bold text-slate-800 dark:text-dark-text truncate">
+          <span className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] truncate">
             {getElementTypeName(selectedElement.type)}
           </span>
         </div>
@@ -545,14 +538,14 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
       </div>
 
       {/* Tabs: Content vs Style */}
-      <div className="h-10 border-b border-slate-200 dark:border-dark-border flex items-center px-3 bg-white dark:bg-dark-surface">
+      <div className="h-10 border-b border-slate-200 dark:border-[#3A3948] flex items-center px-3 bg-white dark:bg-[#1E1E27]">
         <button
           type="button"
           onClick={() => setActiveTab('content')}
           className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
             activeTab === 'content'
               ? 'bg-lavender-50 dark:bg-lavender-900/30 text-lavender-700 dark:text-lavender-300'
-              : 'text-slate-500 dark:text-dark-textSecondary hover:text-slate-800'
+              : 'text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800'
           }`}
         >
           내용 편집
@@ -563,7 +556,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
           className={`flex-1 py-1.5 text-xs font-semibold rounded-lg transition-colors ${
             activeTab === 'style'
               ? 'bg-lavender-50 dark:bg-lavender-900/30 text-lavender-700 dark:text-lavender-300'
-              : 'text-slate-500 dark:text-dark-textSecondary hover:text-slate-800'
+              : 'text-slate-500 dark:text-[#A5A3B5] hover:text-slate-800'
           }`}
         >
           디자인 & 스타일
@@ -579,7 +572,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             {(selectedElement.type === 'character-image' || selectedElement.type === 'image') && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     이미지 URL
                   </span>
                   <input
@@ -591,13 +584,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       })
                     }
                     placeholder="https://..."
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg text-xs"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs"
                   />
                 </div>
 
                 {/* Local File Upload Button */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     또는 내 컴퓨터에서 파일 올리기
                   </span>
                   <label className="flex items-center justify-center gap-1.5 py-2 px-3 border border-dashed border-lavender-300 dark:border-lavender-700 bg-lavender-50/50 dark:bg-lavender-900/20 text-lavender-700 dark:text-lavender-300 rounded-xl cursor-pointer hover:bg-lavender-100/50 transition-colors">
@@ -614,7 +607,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
 
                 {/* Image Fit */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     이미지 비율 및 채우기
                   </span>
                   <div className="grid grid-cols-3 gap-1">
@@ -630,7 +623,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         className={`py-1 rounded-lg border text-[11px] font-medium capitalize ${
                           (style.objectFit || 'cover') === fit
                             ? 'border-lavender-500 bg-lavender-50 dark:bg-lavender-900/40 text-lavender-700 dark:text-lavender-300 font-bold'
-                            : 'border-slate-200 dark:border-dark-border text-slate-600 dark:text-dark-textSecondary'
+                            : 'border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#A5A3B5]'
                         }`}
                       >
                         {fit === 'cover' ? '자르기(채움)' : fit === 'contain' ? '전체표시' : '늘리기'}
@@ -645,7 +638,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             {selectedElement.type === 'name-badge' && (
               <div className="flex flex-col gap-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     이름 및 호칭 필드
                   </span>
                   <button
@@ -674,7 +667,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                   {(content.nameFields || []).map((field, idx) => (
                     <div
                       key={field.id}
-                      className="p-2.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-xl flex flex-col gap-2"
+                      className="p-2.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl flex flex-col gap-2"
                     >
                       <div className="flex items-center justify-between">
                         <span className="text-[10px] font-bold text-slate-400 uppercase">
@@ -710,7 +703,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                               content: { ...content, nameFields: next },
                             });
                           }}
-                          className="px-2 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-lg text-xs"
+                          className="px-2 py-1 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs"
                         />
                         <input
                           type="text"
@@ -724,29 +717,28 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                               content: { ...content, nameFields: next },
                             });
                           }}
-                          className="px-2 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-lg text-xs font-semibold"
+                          className="px-2 py-1 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs font-semibold"
                         />
                       </div>
 
                       {/* Font size & color for this field */}
-                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100 dark:border-dark-border">
-                        <span className="text-slate-400">크기</span>
-                        <input
-                          type="number"
+                      <div className="flex items-center justify-between text-[11px] pt-1 border-t border-slate-100 dark:border-[#3A3948]">
+                        <span className="text-slate-400 dark:text-[#A5A3B5]">크기</span>
+                        <NumberInput
+                          value={field.fontSize || 14}
                           min={10}
                           max={48}
-                          value={field.fontSize || 14}
-                          onChange={(e) => {
+                          step={1}
+                          suffix="px"
+                          onChange={(val) => {
                             const next = (content.nameFields || []).map((f) =>
-                              f.id === field.id
-                                ? { ...f, fontSize: Number(e.target.value) }
-                                : f
+                              f.id === field.id ? { ...f, fontSize: val } : f
                             );
                             onUpdateElement(selectedElement.id, {
                               content: { ...content, nameFields: next },
                             });
                           }}
-                          className="w-14 px-1.5 py-0.5 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-center font-mono"
+                          className="w-24"
                         />
                       </div>
                     </div>
@@ -760,7 +752,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
               <div className="flex flex-col gap-3">
                 {/* Title */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     카드 제목
                   </span>
                   <input
@@ -772,13 +764,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, title: e.target.value },
                       })
                     }
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg text-xs"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs"
                   />
                 </div>
 
                 {/* Display Mode 4 choices */}
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     표시 레이아웃 모드
                   </span>
                   <div className="grid grid-cols-2 gap-1.5">
@@ -802,7 +794,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         className={`py-1.5 px-2 rounded-lg border text-center text-xs font-medium ${
                           (content.infoDisplayMode || 'grid-2col') === mode.key
                             ? 'border-lavender-500 bg-lavender-50 dark:bg-lavender-900/30 text-lavender-700 dark:text-lavender-300 font-bold'
-                            : 'border-slate-200 dark:border-dark-border text-slate-600 dark:text-dark-textSecondary'
+                            : 'border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#A5A3B5]'
                         }`}
                       >
                         {mode.label}
@@ -812,9 +804,9 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                 </div>
 
                 {/* Items List */}
-                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-dark-border">
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-[#3A3948]">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                       항목 목록 ({(content.infoCardItems || []).length})
                     </span>
                     <button
@@ -841,7 +833,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     {(content.infoCardItems || []).map((item, index) => (
                       <div
                         key={item.id}
-                        className="p-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-xl flex items-center gap-1.5"
+                        className="p-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl flex items-center gap-1.5"
                       >
                         {/* Order buttons */}
                         <div className="flex flex-col gap-0.5 shrink-0">
@@ -894,7 +886,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                               content: { ...content, infoCardItems: items },
                             });
                           }}
-                          className="w-20 px-2 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-md text-xs"
+                          className="w-20 px-2 py-1 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-md text-xs"
                         />
                         <input
                           type="text"
@@ -908,7 +900,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                               content: { ...content, infoCardItems: items },
                             });
                           }}
-                          className="flex-1 px-2 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-md text-xs font-semibold"
+                          className="flex-1 px-2 py-1 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-md text-xs font-semibold"
                         />
 
                         {/* Delete item */}
@@ -938,7 +930,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             {selectedElement.type === 'narrative-card' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     카드 제목
                   </span>
                   <input
@@ -950,12 +942,12 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, title: e.target.value },
                       })
                     }
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg text-xs"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     서술 텍스트 내용
                   </span>
                   <textarea
@@ -967,15 +959,15 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, narrativeText: e.target.value },
                       })
                     }
-                    className="p-2.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-xl text-xs leading-relaxed resize-none focus:outline-none focus:border-lavender-500"
+                    className="p-2.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-xs leading-relaxed resize-none focus:outline-none focus:border-lavender-500"
                   />
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     텍스트 정렬
                   </span>
-                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-dark-elevated p-1 rounded-lg">
+                  <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#292936] p-1 rounded-lg">
                     {[
                       { align: 'left', icon: AlignLeft },
                       { align: 'center', icon: AlignCenter },
@@ -992,7 +984,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         }
                         className={`p-1.5 rounded ${
                           (style.textAlign || 'left') === align
-                            ? 'bg-white dark:bg-dark-surface shadow-2xs text-lavender-600'
+                            ? 'bg-white dark:bg-[#1E1E27] shadow-2xs text-lavender-600'
                             : 'text-slate-500 hover:text-slate-800'
                         }`}
                       >
@@ -1008,7 +1000,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             {selectedElement.type === 'keyword-card' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     카드 제목
                   </span>
                   <input
@@ -1020,14 +1012,14 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, title: e.target.value },
                       })
                     }
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg text-xs"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs"
                   />
                 </div>
 
                 {/* Tag List */}
-                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-dark-border">
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-[#3A3948]">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                       키워드 태그 ({(content.tags || []).length})
                     </span>
                     <button
@@ -1053,7 +1045,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     {(content.tags || []).map((tag) => (
                       <div
                         key={tag.id}
-                        className="flex items-center gap-2 p-1.5 bg-slate-50 dark:bg-dark-elevated rounded-xl border border-slate-200 dark:border-dark-border"
+                        className="flex items-center gap-2 p-1.5 bg-slate-50 dark:bg-[#292936] rounded-xl border border-slate-200 dark:border-[#3A3948]"
                       >
                         <span className="text-slate-400 text-xs font-bold pl-1">#</span>
                         <input
@@ -1067,7 +1059,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                               content: { ...content, tags: next },
                             });
                           }}
-                          className="flex-1 px-2 py-0.5 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded-md text-xs font-medium"
+                          className="flex-1 px-2 py-0.5 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-md text-xs font-medium"
                         />
                         <button
                           type="button"
@@ -1094,7 +1086,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             {selectedElement.type === 'radar-chart' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     차트 제목
                   </span>
                   <input
@@ -1106,13 +1098,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, title: e.target.value },
                       })
                     }
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg text-xs"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs"
                   />
                 </div>
 
                 {/* Radar Fill Color & Opacity */}
                 <div className="flex items-center justify-between">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     차트 색상
                   </span>
                   <div className="flex items-center gap-2">
@@ -1131,9 +1123,9 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                 </div>
 
                 {/* Axes Configuration (3 to 8 axes) */}
-                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-dark-border">
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-[#3A3948]">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                       능력치 축 목록 ({(content.radarAxes || []).length}개)
                     </span>
                     <button
@@ -1161,7 +1153,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     {(content.radarAxes || []).map((axis) => (
                       <div
                         key={axis.id}
-                        className="p-2 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-xl flex flex-col gap-1.5"
+                        className="p-2 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl flex flex-col gap-1.5"
                       >
                         <div className="flex items-center justify-between gap-2">
                           <input
@@ -1175,7 +1167,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                                 content: { ...content, radarAxes: axes },
                               });
                             }}
-                            className="w-24 px-1.5 py-0.5 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-semibold"
+                            className="w-24 px-1.5 py-0.5 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded text-xs font-semibold"
                           />
                           <span className="font-mono text-xs font-bold text-lavender-600">
                             {axis.value} / {content.radarMaxValue || 100}
@@ -1224,7 +1216,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             {selectedElement.type === 'relationship-card' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     카드 제목
                   </span>
                   <input
@@ -1236,13 +1228,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, title: e.target.value },
                       })
                     }
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg text-xs"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs"
                   />
                 </div>
 
-                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-dark-border">
+                <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-[#3A3948]">
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                    <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                       관계 목록 ({(content.relationships || []).length})
                     </span>
                     <button
@@ -1270,7 +1262,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     {(content.relationships || []).map((rel) => (
                       <div
                         key={rel.id}
-                        className="p-2 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-xl flex flex-col gap-1.5"
+                        className="p-2 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl flex flex-col gap-1.5"
                       >
                         <div className="flex items-center justify-between gap-1.5">
                           <input
@@ -1285,7 +1277,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                                 content: { ...content, relationships: list },
                               });
                             }}
-                            className="w-24 px-1.5 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-bold"
+                            className="w-24 px-1.5 py-1 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded text-xs font-bold"
                           />
                           <input
                             type="text"
@@ -1300,7 +1292,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                                 content: { ...content, relationships: list },
                               });
                             }}
-                            className="w-24 px-1.5 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs font-semibold"
+                            className="w-24 px-1.5 py-1 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded text-xs font-semibold"
                           />
                           <button
                             type="button"
@@ -1364,7 +1356,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                               content: { ...content, relationships: list },
                             });
                           }}
-                          className="w-full px-2 py-1 bg-white dark:bg-dark-surface border border-slate-200 dark:border-dark-border rounded text-xs text-slate-600 dark:text-dark-textSecondary"
+                          className="w-full px-2 py-1 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded text-xs text-slate-600 dark:text-[#A5A3B5]"
                         />
                       </div>
                     ))}
@@ -1377,7 +1369,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             {selectedElement.type === 'quote-card' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     대표 대사 내용
                   </span>
                   <textarea
@@ -1389,12 +1381,12 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, quoteText: e.target.value },
                       })
                     }
-                    className="p-2.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-xl text-xs italic leading-relaxed"
+                    className="p-2.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-xs italic leading-relaxed"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     화자 / 발언 상황 캡션
                   </span>
                   <input
@@ -1406,7 +1398,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, quoteSituation: e.target.value },
                       })
                     }
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg text-xs"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs"
                   />
                 </div>
               </div>
@@ -1416,7 +1408,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             {selectedElement.type === 'memo-card' && (
               <div className="flex flex-col gap-3">
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     메모 제목
                   </span>
                   <input
@@ -1428,12 +1420,12 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, title: e.target.value },
                       })
                     }
-                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg text-xs font-semibold"
+                    className="px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs font-semibold"
                   />
                 </div>
 
                 <div className="flex flex-col gap-1">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     메모 본문
                   </span>
                   <textarea
@@ -1445,13 +1437,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         content: { ...content, memoContent: e.target.value },
                       })
                     }
-                    className="p-2.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-xl text-xs leading-relaxed"
+                    className="p-2.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-xs leading-relaxed"
                   />
                 </div>
 
                 {/* Quick Post-It Color Presets */}
                 <div className="flex flex-col gap-1.5">
-                  <span className="text-[11px] font-bold text-slate-500 dark:text-dark-textSecondary">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
                     메모지 색상 테마 (테두리 및 제목 함께 반영)
                   </span>
                   <div className="flex items-center gap-2">
@@ -1480,7 +1472,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                         className={`w-6 h-6 rounded-lg border transition-transform ${
                           style.backgroundColor === theme.bg
                             ? 'ring-2 ring-lavender-500 scale-110'
-                            : 'border-slate-300 dark:border-dark-border'
+                            : 'border-slate-300 dark:border-[#3A3948]'
                         }`}
                       />
                     ))}
@@ -1494,69 +1486,54 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
           <div className="flex flex-col gap-4">
             {/* Coordinates & Dimensions */}
             <div className="flex flex-col gap-2">
-              <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                 위치 및 크기
               </span>
               <div className="grid grid-cols-2 gap-2 font-mono">
-                <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-dark-elevated p-1.5 rounded-lg border border-slate-200 dark:border-dark-border">
-                  <span className="text-slate-400 text-[10px]">X</span>
-                  <input
-                    type="number"
-                    value={Math.round(selectedElement.x)}
-                    onChange={(e) =>
-                      onUpdateElement(selectedElement.id, { x: Number(e.target.value) })
-                    }
-                    className="w-full bg-transparent text-xs text-slate-800 dark:text-dark-text focus:outline-none"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-dark-elevated p-1.5 rounded-lg border border-slate-200 dark:border-dark-border">
-                  <span className="text-slate-400 text-[10px]">Y</span>
-                  <input
-                    type="number"
-                    value={Math.round(selectedElement.y)}
-                    onChange={(e) =>
-                      onUpdateElement(selectedElement.id, { y: Number(e.target.value) })
-                    }
-                    className="w-full bg-transparent text-xs text-slate-800 dark:text-dark-text focus:outline-none"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-dark-elevated p-1.5 rounded-lg border border-slate-200 dark:border-dark-border">
-                  <span className="text-slate-400 text-[10px]">W</span>
-                  <input
-                    type="number"
-                    value={Math.round(selectedElement.width)}
-                    onChange={(e) =>
-                      onUpdateElement(selectedElement.id, { width: Number(e.target.value) })
-                    }
-                    className="w-full bg-transparent text-xs text-slate-800 dark:text-dark-text focus:outline-none"
-                  />
-                </div>
-                <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-dark-elevated p-1.5 rounded-lg border border-slate-200 dark:border-dark-border">
-                  <span className="text-slate-400 text-[10px]">H</span>
-                  {['info-card', 'narrative-card', 'keyword-card', 'relationship-card'].includes(
-                    selectedElement.type
-                  ) ? (
+                <NumberInput
+                  prefix="X"
+                  value={Math.round(selectedElement.x)}
+                  step={5}
+                  onChange={(val) => onUpdateElement(selectedElement.id, { x: val })}
+                />
+                <NumberInput
+                  prefix="Y"
+                  value={Math.round(selectedElement.y)}
+                  step={5}
+                  onChange={(val) => onUpdateElement(selectedElement.id, { y: val })}
+                />
+                <NumberInput
+                  prefix="W"
+                  value={Math.round(selectedElement.width)}
+                  step={10}
+                  min={100}
+                  onChange={(val) => onUpdateElement(selectedElement.id, { width: val })}
+                />
+                {['name-badge', 'info-card', 'narrative-card', 'keyword-card', 'relationship-card'].includes(
+                  selectedElement.type
+                ) ? (
+                  <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-[#292936] p-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948]">
+                    <span className="text-slate-400 text-[10px] dark:text-[#A5A3B5] font-bold">H</span>
                     <span className="text-[10px] text-lavender-600 dark:text-lavender-400 font-sans font-semibold">
                       자동 조절됨
                     </span>
-                  ) : (
-                    <input
-                      type="number"
-                      value={Math.round(selectedElement.height)}
-                      onChange={(e) =>
-                        onUpdateElement(selectedElement.id, { height: Number(e.target.value) })
-                      }
-                      className="w-full bg-transparent text-xs text-slate-800 dark:text-dark-text focus:outline-none"
-                    />
-                  )}
-                </div>
+                  </div>
+                ) : (
+                  <NumberInput
+                    prefix="H"
+                    value={Math.round(selectedElement.height)}
+                    step={10}
+                    min={40}
+                    onChange={(val) => onUpdateElement(selectedElement.id, { height: val })}
+                  />
+                )}
               </div>
             </div>
 
             {/* Requirement 3: Text Color Option for All Elements */}
-            <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-dark-border">
+            <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-[#3A3948]">
               <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                   글자 색상 (텍스트)
                 </span>
                 {style.color && (
@@ -1583,7 +1560,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       style: { ...style, color: e.target.value },
                     })
                   }
-                  className="w-7 h-7 rounded-lg cursor-pointer border border-slate-200 dark:border-dark-border shrink-0 bg-transparent"
+                  className="w-7 h-7 rounded-lg cursor-pointer border border-slate-200 dark:border-[#3A3948] shrink-0 bg-transparent"
                 />
                 <input
                   type="text"
@@ -1594,7 +1571,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       style: { ...style, color: e.target.value },
                     })
                   }
-                  className="flex-1 px-2.5 py-1 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg font-mono text-slate-800 dark:text-dark-text text-xs"
+                  className="flex-1 px-2.5 py-1 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg font-mono text-slate-800 dark:text-[#E8E7EF] text-xs"
                 />
               </div>
 
@@ -1623,7 +1600,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     className={`w-5 h-5 rounded-md border transition-transform ${
                       style.color === col
                         ? 'ring-2 ring-lavender-500 scale-110'
-                        : 'border-slate-300 dark:border-dark-border'
+                        : 'border-slate-300 dark:border-[#3A3948]'
                     }`}
                   />
                 ))}
@@ -1631,8 +1608,8 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             </div>
 
             {/* Background Style: Solid vs Gradient vs Transparent */}
-            <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-dark-border">
-              <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+            <div className="flex flex-col gap-2 pt-2 border-t border-slate-100 dark:border-[#3A3948]">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                 배경 채우기
               </span>
 
@@ -1645,7 +1622,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       style: { ...style, backgroundColor: e.target.value, gradient: undefined },
                     })
                   }
-                  className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200 dark:border-dark-border shrink-0 bg-transparent"
+                  className="w-8 h-8 rounded-lg cursor-pointer border border-slate-200 dark:border-[#3A3948] shrink-0 bg-transparent"
                 />
                 <input
                   type="text"
@@ -1655,7 +1632,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       style: { ...style, backgroundColor: e.target.value },
                     })
                   }
-                  className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-dark-elevated border border-slate-200 dark:border-dark-border rounded-lg font-mono text-slate-800 dark:text-dark-text text-xs"
+                  className="flex-1 px-2.5 py-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-lg font-mono text-slate-800 dark:text-[#E8E7EF] text-xs"
                 />
               </div>
 
@@ -1684,16 +1661,16 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                     className={`w-5 h-5 rounded-md border transition-transform ${
                       style.backgroundColor === col
                         ? 'ring-2 ring-lavender-500 scale-110'
-                        : 'border-slate-300 dark:border-dark-border'
+                        : 'border-slate-300 dark:border-[#3A3948]'
                     }`}
                   />
                 ))}
               </div>
 
               {/* Gradient Toggle */}
-              <div className="mt-2 p-2.5 bg-slate-50 dark:bg-dark-elevated rounded-xl border border-slate-200/80 dark:border-dark-border flex flex-col gap-2">
+              <div className="mt-2 p-2.5 bg-slate-50 dark:bg-[#292936] rounded-xl border border-slate-200/80 dark:border-[#3A3948] flex flex-col gap-2">
                 <label className="flex items-center justify-between cursor-pointer">
-                  <span className="text-[11px] font-semibold text-slate-700 dark:text-dark-text">그라데이션 효과</span>
+                  <span className="text-[11px] font-semibold text-slate-700 dark:text-[#E8E7EF]">그라데이션 효과</span>
                   <input
                     type="checkbox"
                     checked={!!style.gradient?.enabled}
@@ -1721,7 +1698,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                 </label>
 
                 {style.gradient?.enabled && (
-                  <div className="flex flex-col gap-2 pt-1 border-t border-slate-200/60 dark:border-dark-border">
+                  <div className="flex flex-col gap-2 pt-1 border-t border-slate-200/60 dark:border-[#3A3948]">
                     <div className="flex items-center justify-between">
                       <span className="text-[10px] text-slate-500">시작 / 끝 색상</span>
                       <div className="flex items-center gap-1.5">
@@ -1766,14 +1743,14 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
             </div>
 
             {/* Borders & Radius */}
-            <div className="flex flex-col gap-2.5 pt-2 border-t border-slate-100 dark:border-dark-border">
-              <span className="text-[11px] font-bold text-slate-400 dark:text-dark-textSecondary tracking-wider uppercase">
+            <div className="flex flex-col gap-2.5 pt-2 border-t border-slate-100 dark:border-[#3A3948]">
+              <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
                 테두리 & 둥근 모서리
               </span>
 
               {/* Border Width */}
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-600 dark:text-dark-textSecondary">테두리 두께</span>
+                <span className="text-[11px] text-slate-600 dark:text-[#A5A3B5]">테두리 두께</span>
                 <div className="flex items-center gap-1">
                   {[0, 1, 2, 4].map((bw) => (
                     <button
@@ -1787,7 +1764,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       className={`px-2 py-0.5 text-[10px] font-mono rounded ${
                         (style.borderWidth ?? 1) === bw
                           ? 'bg-lavender-500 text-white font-bold'
-                          : 'bg-slate-100 dark:bg-dark-elevated text-slate-600 dark:text-dark-textSecondary'
+                          : 'bg-slate-100 dark:bg-[#292936] text-slate-600 dark:text-[#A5A3B5]'
                       }`}
                     >
                       {bw}px
@@ -1798,7 +1775,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
 
               {/* Border Color */}
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-600 dark:text-dark-textSecondary">테두리 색상</span>
+                <span className="text-[11px] text-slate-600 dark:text-[#A5A3B5]">테두리 색상</span>
                 <input
                   type="color"
                   value={style.borderColor || '#E2E8F0'}
@@ -1813,7 +1790,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
 
               {/* Border Radius */}
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-600 dark:text-dark-textSecondary">모서리 곡률</span>
+                <span className="text-[11px] text-slate-600 dark:text-[#A5A3B5]">모서리 곡률</span>
                 <div className="flex items-center gap-1">
                   {[0, 8, 16, 24, 999].map((br) => (
                     <button
@@ -1827,7 +1804,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       className={`px-1.5 py-0.5 text-[10px] font-mono rounded ${
                         (style.borderRadius ?? 16) === br
                           ? 'bg-lavender-500 text-white font-bold'
-                          : 'bg-slate-100 dark:bg-dark-elevated text-slate-600 dark:text-dark-textSecondary'
+                          : 'bg-slate-100 dark:bg-[#292936] text-slate-600 dark:text-[#A5A3B5]'
                       }`}
                     >
                       {br === 999 ? '원형' : `${br}px`}
@@ -1838,7 +1815,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
 
               {/* Padding */}
               <div className="flex items-center justify-between">
-                <span className="text-[11px] text-slate-600 dark:text-dark-textSecondary">내부 여백</span>
+                <span className="text-[11px] text-slate-600 dark:text-[#A5A3B5]">내부 여백</span>
                 <div className="flex items-center gap-1">
                   {[8, 12, 16, 20, 24].map((pad) => (
                     <button
@@ -1852,7 +1829,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                       className={`px-1.5 py-0.5 text-[10px] font-mono rounded ${
                         (style.padding ?? 16) === pad
                           ? 'bg-lavender-500 text-white font-bold'
-                          : 'bg-slate-100 dark:bg-dark-elevated text-slate-600 dark:text-dark-textSecondary'
+                          : 'bg-slate-100 dark:bg-[#292936] text-slate-600 dark:text-[#A5A3B5]'
                       }`}
                     >
                       {pad}

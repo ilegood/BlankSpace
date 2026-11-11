@@ -11,9 +11,12 @@ export default {
         dark: {
           bg: '#17171D',
           sidebar: '#1E1E27',
+          surface: '#1E1E27',
+          elevated: '#292936',
           document: '#22222C',
           card: '#292936',
           text: '#E8E7EF',
+          textSecondary: '#A5A3B5',
           subtext: '#A5A3B5',
           border: '#3A3948',
           accent: '#A995F5',

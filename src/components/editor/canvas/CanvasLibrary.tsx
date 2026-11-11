@@ -104,18 +104,18 @@ export const CanvasLibrary: React.FC<CanvasLibraryProps> = ({
   );
 
   return (
-    <div className="w-64 bg-white dark:bg-dark-surface border-r border-slate-200 dark:border-dark-border flex flex-col shrink-0 overflow-y-auto select-none">
+    <div className="w-64 bg-white dark:bg-[#1E1E27] border-r border-slate-200 dark:border-[#3A3948] flex flex-col shrink-0 overflow-y-auto select-none custom-scrollbar transition-colors">
       {/* Library Header */}
-      <div className="p-4 border-b border-slate-100 dark:border-dark-border flex items-center justify-between">
+      <div className="p-4 border-b border-slate-100 dark:border-[#3A3948] flex items-center justify-between">
         <div>
-          <h2 className="text-xs font-bold text-slate-800 dark:text-dark-text tracking-wide">
+          <h2 className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] tracking-wide">
             컴포넌트 라이브러리
           </h2>
-          <p className="text-[11px] text-slate-400 dark:text-dark-textSecondary mt-0.5">
+          <p className="text-[11px] text-slate-400 dark:text-[#A5A3B5] mt-0.5">
             클릭하여 캔버스에 추가하세요
           </p>
         </div>
-        <span className="px-2 py-0.5 bg-lavender-50 dark:bg-lavender-900/40 text-lavender-700 dark:text-lavender-300 text-[10px] font-bold rounded-full">
+        <span className="px-2 py-0.5 bg-lavender-50 dark:bg-lavender-950/60 text-lavender-700 dark:text-[#B7A5FF] border border-lavender-200/60 dark:border-lavender-800/50 text-[10px] font-bold rounded-full">
           9종
         </span>
       </div>
@@ -124,7 +124,7 @@ export const CanvasLibrary: React.FC<CanvasLibraryProps> = ({
       <div className="p-3 flex flex-col gap-4">
         {categories.map((category) => (
           <div key={category} className="flex flex-col gap-1.5">
-            <span className="text-[10px] font-bold text-slate-400 dark:text-dark-textSecondary px-1.5 tracking-wider uppercase">
+            <span className="text-[10px] font-bold text-slate-400 dark:text-[#8E8B9E] px-1.5 tracking-wider uppercase">
               {category}
             </span>
             <div className="flex flex-col gap-1">
@@ -135,17 +135,17 @@ export const CanvasLibrary: React.FC<CanvasLibraryProps> = ({
                     key={item.type}
                     type="button"
                     onClick={() => onAddElement(item.type)}
-                    className="group relative flex items-start gap-2.5 p-2 rounded-xl text-left border border-slate-100 dark:border-dark-border/60 hover:border-lavender-300 dark:hover:border-lavender-600 bg-white dark:bg-dark-elevated hover:bg-lavender-50/50 dark:hover:bg-dark-surface transition-all duration-150 shadow-2xs hover:shadow-xs active:scale-[0.98]"
+                    className="group relative flex items-start gap-2.5 p-2 rounded-xl text-left border border-slate-100 dark:border-[#3A3948] hover:border-lavender-300 dark:hover:border-lavender-500 bg-white dark:bg-[#262634] hover:bg-lavender-50/50 dark:hover:bg-[#2F2F40] transition-all duration-150 shadow-2xs hover:shadow-xs active:scale-[0.98]"
                   >
-                    <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-dark-surface border border-slate-200/80 dark:border-dark-border flex items-center justify-center shrink-0 group-hover:bg-lavender-100 dark:group-hover:bg-lavender-900/50 transition-colors">
-                      <IconComponent className="w-4 h-4 text-slate-600 dark:text-dark-text group-hover:text-lavender-600 dark:group-hover:text-lavender-400 transition-colors" />
+                    <div className="w-8 h-8 rounded-lg bg-slate-50 dark:bg-[#1E1E27] border border-slate-200/80 dark:border-[#3A3948] flex items-center justify-center shrink-0 group-hover:bg-lavender-100 dark:group-hover:bg-lavender-900/50 transition-colors">
+                      <IconComponent className="w-4 h-4 text-slate-600 dark:text-[#A5A3B5] group-hover:text-lavender-600 dark:group-hover:text-lavender-400 transition-colors" />
                     </div>
 
                     <div className="flex-1 min-w-0 pr-5">
-                      <div className="text-xs font-semibold text-slate-700 dark:text-dark-text group-hover:text-lavender-700 dark:group-hover:text-lavender-300 truncate">
+                      <div className="text-xs font-semibold text-slate-700 dark:text-[#E8E7EF] group-hover:text-lavender-700 dark:group-hover:text-lavender-300 truncate">
                         {item.name}
                       </div>
-                      <div className="text-[10px] text-slate-400 dark:text-dark-textSecondary truncate mt-0.5">
+                      <div className="text-[10px] text-slate-400 dark:text-[#8E8B9E] truncate mt-0.5">
                         {item.description}
                       </div>
                     </div>
@@ -162,8 +162,8 @@ export const CanvasLibrary: React.FC<CanvasLibraryProps> = ({
       </div>
 
       {/* Footer Quick Guide */}
-      <div className="mt-auto p-3 m-3 bg-slate-50 dark:bg-dark-surface border border-slate-200/70 dark:border-dark-border rounded-xl text-[11px] text-slate-500 dark:text-dark-textSecondary leading-relaxed">
-        💡 <strong className="text-slate-700 dark:text-dark-text">팁:</strong> 요소를 추가한 후 드래그하여 이동하고 모서리 핸들로 크기를 조절할 수 있습니다.
+      <div className="mt-auto p-3 m-3 bg-slate-50 dark:bg-[#262634] border border-slate-200/70 dark:border-[#3A3948] rounded-xl text-[11px] text-slate-500 dark:text-[#A5A3B5] leading-relaxed">
+        💡 <strong className="text-slate-700 dark:text-[#E8E7EF]">팁:</strong> 요소를 추가한 후 드래그하여 이동하고 모서리 핸들로 크기를 조절할 수 있습니다.
       </div>
     </div>
   );
