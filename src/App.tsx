@@ -1,6 +1,7 @@
 import React from 'react';
 import { ThemeProvider } from './store/ThemeContext';
 import { ToastProvider } from './components/toast/ToastContext';
+import { AuthProvider } from './store/AuthContext';
 import { WorkspaceProvider, useWorkspace } from './store/WorkspaceContext';
 import { Sidebar } from './components/layout/Sidebar';
 import { Header } from './components/layout/Header';
@@ -44,9 +45,11 @@ export const App: React.FC = () => {
   return (
     <ThemeProvider>
       <ToastProvider>
-        <WorkspaceProvider>
-          <AppContent />
-        </WorkspaceProvider>
+        <AuthProvider>
+          <WorkspaceProvider>
+            <AppContent />
+          </WorkspaceProvider>
+        </AuthProvider>
       </ToastProvider>
     </ThemeProvider>
   );
