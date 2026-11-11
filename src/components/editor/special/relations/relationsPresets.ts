@@ -3,160 +3,335 @@ import {
   RelationCharacter,
   RelationItem,
   AnchorPosition,
+  DEFAULT_RELATION_LEGENDS,
 } from '../../../../types/relations';
 
 export const INITIAL_CHARACTERS: RelationCharacter[] = [
   {
-    id: 'char-arzen',
-    name: '아르젠',
-    role: '신입 기사',
+    id: 'char-tanjiro',
+    name: '탄지로',
     imageUrl:
       'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=300&auto=format&fit=crop',
-    description: '빛의 검술을 계승한 청년 기사. 동료를 위해 목숨을 건다.',
-    color: '#8B5CF6',
+    color: '#EF4444',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#DC2626',
+    showName: true,
   },
   {
-    id: 'char-kyle',
-    name: '카일',
-    role: '천재 마법사',
+    id: 'char-nezuko',
+    name: '네즈코',
     imageUrl:
       'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=300&auto=format&fit=crop',
-    description: '고대 비전 마법을 연구하는 냉철한 지략가.',
-    color: '#0EA5E9',
+    color: '#EC4899',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#DB2777',
+    showName: true,
   },
   {
-    id: 'char-seira',
-    name: '세이라',
-    role: '성역의 사제',
+    id: 'char-zenitsu',
+    name: '젠이츠',
     imageUrl:
       'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=300&auto=format&fit=crop',
-    description: '자비로운 마음 뒤에 숨겨진 비밀을 간직한 사제.',
-    color: '#EC4899',
+    color: '#F59E0B',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#D97706',
+    showName: true,
   },
   {
-    id: 'char-ruin',
-    name: '루인',
-    role: '그림자 암살자',
+    id: 'char-inosuke',
+    name: '이노스케',
     imageUrl:
       'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=300&auto=format&fit=crop',
-    description: '어둠의 길드 출신이지만 아르젠에게 빚을 졌다.',
-    color: '#EF4444',
+    color: '#0EA5E9',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#0284C7',
+    showName: true,
+  },
+  {
+    id: 'char-giyu',
+    name: '기유',
+    imageUrl:
+      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?q=80&w=300&auto=format&fit=crop',
+    color: '#3B82F6',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#2563EB',
+    showName: true,
+  },
+  {
+    id: 'char-shinobu',
+    name: '시노부',
+    imageUrl:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?q=80&w=300&auto=format&fit=crop',
+    color: '#8B5CF6',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#7C3AED',
+    showName: true,
+  },
+  {
+    id: 'char-rengoku',
+    name: '렌고쿠',
+    imageUrl:
+      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?q=80&w=300&auto=format&fit=crop',
+    color: '#EA580C',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#C2410C',
+    showName: true,
+  },
+  {
+    id: 'char-mitsuri',
+    name: '미츠리',
+    imageUrl:
+      'https://images.unsplash.com/photo-1517841905240-472988babdf9?q=80&w=300&auto=format&fit=crop',
+    color: '#F43F5E',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#E11D48',
+    showName: true,
+  },
+  {
+    id: 'char-muichiro',
+    name: '무이치로',
+    imageUrl:
+      'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?q=80&w=300&auto=format&fit=crop',
+    color: '#14B8A6',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#0D9488',
+    showName: true,
+  },
+  {
+    id: 'char-sanemi',
+    name: '사네미',
+    imageUrl:
+      'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?q=80&w=300&auto=format&fit=crop',
+    color: '#10B981',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#059669',
+    showName: true,
+  },
+  {
+    id: 'char-obanai',
+    name: '오바나이',
+    imageUrl:
+      'https://images.unsplash.com/photo-1501196354995-cbb51c65aaea?q=80&w=300&auto=format&fit=crop',
+    color: '#6366F1',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#4F46E5',
+    showName: true,
+  },
+  {
+    id: 'char-gyomei',
+    name: '교메이',
+    imageUrl:
+      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?q=80&w=300&auto=format&fit=crop',
+    color: '#78350F',
+    shape: 'circle',
+    size: 88,
+    borderWidth: 4,
+    borderColor: '#92400E',
+    showName: true,
   },
 ];
 
 export const INITIAL_RELATIONS: RelationItem[] = [
   {
-    id: 'rel-arzen-seira',
-    sourceId: 'char-arzen',
-    targetId: 'char-seira',
-    relationType: '호감 및 애정',
-    color: '#EC4899',
+    id: 'rel-tanjiro-nezuko',
+    sourceId: 'char-tanjiro',
+    targetId: 'char-nezuko',
+    relationType: '가족 및 보호',
+    label: '가족',
+    direction: 'bidirectional',
+    color: '#F43F5E',
+    emotionAtoB: '무조건적인 보호와 신뢰',
+    colorAtoB: '#F43F5E',
+    emotionBtoA: '가장 의지하는 가족',
+    colorBtoA: '#F43F5E',
+    style: 'solid',
+    strokeWidth: 3.5,
+    curvature: -15,
+    legendId: 'leg-affection',
+    showLabel: false,
+  },
+  {
+    id: 'rel-tanjiro-zenitsu',
+    sourceId: 'char-tanjiro',
+    targetId: 'char-zenitsu',
+    relationType: '동료',
+    label: '동료',
+    direction: 'bidirectional',
+    color: '#10B981',
+    emotionAtoB: '믿을 수 있는 동료',
+    colorAtoB: '#10B981',
+    emotionBtoA: '항상 의지하는 친구',
+    colorBtoA: '#3B82F6',
+    gradient: { fromColor: '#10B981', toColor: '#3B82F6' }, // 생각이 다를 때 그라데이션
     style: 'solid',
     strokeWidth: 3,
-    emotionAtoB: '깊은 신뢰와 호감, 지켜주고 싶은 마음',
-    emotionBtoA: '유일하게 마음을 기댈 수 있는 안식처',
-    memo: '과거 사원 붕괴 사건 때 아르젠이 세이라를 구출하며 싹튼 감정.',
-    sourceAnchor: 'east',
-    targetAnchor: 'west',
+    curvature: 20,
+    legendId: 'leg-friendly',
+    showLabel: false,
   },
   {
-    id: 'rel-arzen-kyle',
-    sourceId: 'char-arzen',
-    targetId: 'char-kyle',
-    relationType: '신뢰 및 우호',
-    color: '#8B5CF6',
+    id: 'rel-tanjiro-inosuke',
+    sourceId: 'char-tanjiro',
+    targetId: 'char-inosuke',
+    relationType: '라이벌',
+    label: '라이벌',
+    direction: 'bidirectional',
+    color: '#F97316',
+    emotionAtoB: '함께 성장하는 좋은 라이벌',
+    colorAtoB: '#10B981',
+    emotionBtoA: '넘어서고 싶은 상대',
+    colorBtoA: '#F97316',
+    gradient: { fromColor: '#10B981', toColor: '#F97316' }, // 생각이 다를 때 그라데이션
     style: 'solid',
-    strokeWidth: 2.5,
-    emotionAtoB: '믿음직한 참모이자 전우',
-    emotionBtoA: '생각보다 행동이 앞서지만 등을 맡길 수 있는 동료',
-    memo: '전술적인 이견으로 자주 다투지만 결과적으로 항상 뜻을 모은다.',
-    sourceAnchor: 'north',
-    targetAnchor: 'south',
+    strokeWidth: 3,
+    curvature: 15,
+    legendId: 'leg-rival',
+    showLabel: false,
   },
   {
-    id: 'rel-kyle-seira',
-    sourceId: 'char-kyle',
-    targetId: 'char-seira',
-    relationType: '관심 및 호기심',
-    color: '#0EA5E9',
+    id: 'rel-tanjiro-giyu',
+    sourceId: 'char-tanjiro',
+    targetId: 'char-giyu',
+    relationType: '신뢰',
+    label: '신뢰',
+    direction: 'bidirectional',
+    color: '#3B82F6',
+    emotionAtoB: '깊은 존경과 감사',
+    colorAtoB: '#3B82F6',
+    emotionBtoA: '촉망받는 후배',
+    colorBtoA: '#10B981',
+    gradient: { fromColor: '#3B82F6', toColor: '#10B981' },
     style: 'solid',
-    strokeWidth: 2.5,
-    emotionAtoB: '그녀가 숨기고 있는 성역의 고대 기록에 대한 호기심',
-    emotionBtoA: '지나치게 파고들지 않기를 바라는 조심스러움',
-    memo: '고대 마법서 해독 작업을 함께 진행 중.',
-    sourceAnchor: 'east',
-    targetAnchor: 'north',
+    strokeWidth: 3,
+    curvature: 10,
+    legendId: 'leg-trust',
+    showLabel: false,
   },
   {
-    id: 'rel-arzen-ruin',
-    sourceId: 'char-arzen',
-    targetId: 'char-ruin',
-    relationType: '갈등 및 대립',
-    color: '#EF4444',
+    id: 'rel-tanjiro-shinobu',
+    sourceId: 'char-tanjiro',
+    targetId: 'char-shinobu',
+    relationType: '우호',
+    label: '우호',
+    direction: 'bidirectional',
+    color: '#10B981',
+    style: 'solid',
+    strokeWidth: 3,
+    curvature: -15,
+    legendId: 'leg-friendly',
+    showLabel: false,
+  },
+  {
+    id: 'rel-tanjiro-gyomei',
+    sourceId: 'char-tanjiro',
+    targetId: 'char-gyomei',
+    relationType: '복잡한 관계',
+    label: '복잡한 관계',
+    direction: 'bidirectional',
+    color: '#6B7280',
     style: 'dashed',
     strokeWidth: 2.5,
-    emotionAtoB: '방심할 수 없지만 과거의 은혜로 감싸는 중',
-    emotionBtoA: '위선자라고 비난하면서도 눈을 뗄 수 없는 상대',
-    memo: '길드의 암살 타겟이었으나 실패 후 기사단에 합류.',
-    sourceAnchor: 'south',
-    targetAnchor: 'west',
+    curvature: 0,
+    legendId: 'leg-complex',
+    showLabel: false,
   },
 ];
 
 export const INITIAL_RELATIONS_DATA: CharacterRelationsDocData = {
   characters: INITIAL_CHARACTERS,
   relations: INITIAL_RELATIONS,
+  legends: DEFAULT_RELATION_LEGENDS,
+  legendSettings: {
+    visible: true,
+    x: 28,
+    y: 28,
+    orientation: 'vertical',
+  },
   settings: {
-    canvasBackground: '#17171D',
+    canvasBackground: '#FAFAFD',
     showGrid: true,
     zoom: 100,
+    defaultNodeShape: 'circle',
   },
 };
 
-// 원형 프로필 반지름 (픽셀)
-export const PROFILE_RADIUS = 36; // 직경 72px
+export const PROFILE_RADIUS = 44; // 88px 기준
 
-// 캐릭터 원형 배치 좌표 계산 유틸리티
+export function getNodeDimensions(shape?: string, size?: number) {
+  const s = size || 88;
+  return { width: s, height: s, radius: s / 2 };
+}
+
 export interface NodePosition {
   x: number;
   y: number;
-  angle: number; // radian
+  angle: number;
 }
 
-export function calculateCircularPositions(
+/**
+ * 캐릭터 목록이 늘어나거나 줄어들 때 완벽한 도넛 형태로 자동 균등 배치
+ */
+export function calculateDonutPositions(
   characters: RelationCharacter[],
   centerX: number,
-  centerY: number
+  centerY: number,
+  radiusOverride?: number
 ): Map<string, NodePosition> {
   const map = new Map<string, NodePosition>();
   const count = characters.length;
   if (count === 0) return map;
 
-  // 캐릭터 수에 따른 원의 반지름 계산 (도넛 직경 최적화)
-  let radius = 220;
-  if (count <= 3) radius = 180;
-  else if (count <= 5) radius = 220;
-  else if (count <= 7) radius = 260;
-  else if (count <= 9) radius = 300;
-  else radius = Math.min(420, 320 + (count - 9) * 16);
+  if (count === 1) {
+    map.set(characters[0].id, { x: centerX, y: centerY, angle: 0 });
+    return map;
+  }
+
+  const nodeSize = 88;
+  const desiredArcSpacing = nodeSize + 48;
+  const computedRadius = Math.round((count * desiredArcSpacing) / (2 * Math.PI));
+  const radius = radiusOverride || Math.max(220, Math.min(520, computedRadius));
 
   characters.forEach((char, index) => {
-    // 12시 방향(-PI/2)부터 시작하여 시계 방향으로 균등 배치
     const angle = -Math.PI / 2 + (2 * Math.PI * index) / count;
-    const x = centerX + radius * Math.cos(angle);
-    const y = centerY + radius * Math.sin(angle);
+    const x = Math.round(centerX + radius * Math.cos(angle));
+    const y = Math.round(centerY + radius * Math.sin(angle));
     map.set(char.id, { x, y, angle });
   });
 
   return map;
 }
 
-// 4개 앵커 지점 좌표 계산
+export const calculateCircularPositions = calculateDonutPositions;
+
 export function getAnchorCoordinates(
   pos: { x: number; y: number },
   anchor: AnchorPosition,
-  radius: number = PROFILE_RADIUS
+  shape?: string,
+  size?: number
 ): { x: number; y: number } {
+  const { radius } = getNodeDimensions(shape, size);
   switch (anchor) {
     case 'north':
       return { x: pos.x, y: pos.y - radius };
@@ -169,13 +344,22 @@ export function getAnchorCoordinates(
   }
 }
 
-// 두 프로필 사이의 최적 연결점 계산 (선분이 원형 테두리와 만나는 점)
 export function getProfileEdgePoints(
   fromPos: { x: number; y: number },
   toPos: { x: number; y: number },
   fromAnchor?: AnchorPosition,
-  toAnchor?: AnchorPosition
-): { start: { x: number; y: number }; end: { x: number; y: number }; ctrl: { x: number; y: number }; mid: { x: number; y: number } } {
+  toAnchor?: AnchorPosition,
+  fromShape?: string,
+  toShape?: string,
+  customCurvature?: number,
+  fromSize?: number,
+  toSize?: number
+): {
+  start: { x: number; y: number };
+  end: { x: number; y: number };
+  ctrl: { x: number; y: number };
+  mid: { x: number; y: number };
+} {
   let startX = fromPos.x;
   let startY = fromPos.y;
   let endX = toPos.x;
@@ -185,37 +369,40 @@ export function getProfileEdgePoints(
   const dy = toPos.y - fromPos.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
 
+  const fromDims = getNodeDimensions(fromShape, fromSize);
+  const toDims = getNodeDimensions(toShape, toSize);
+
   if (fromAnchor) {
-    const pt = getAnchorCoordinates(fromPos, fromAnchor);
+    const pt = getAnchorCoordinates(fromPos, fromAnchor, fromShape, fromSize);
     startX = pt.x;
     startY = pt.y;
   } else if (dist > 0) {
-    startX = fromPos.x + (dx / dist) * PROFILE_RADIUS;
-    startY = fromPos.y + (dy / dist) * PROFILE_RADIUS;
+    startX = fromPos.x + (dx / dist) * fromDims.radius;
+    startY = fromPos.y + (dy / dist) * fromDims.radius;
   }
 
   if (toAnchor) {
-    const pt = getAnchorCoordinates(toPos, toAnchor);
+    const pt = getAnchorCoordinates(toPos, toAnchor, toShape, toSize);
     endX = pt.x;
     endY = pt.y;
   } else if (dist > 0) {
-    endX = toPos.x - (dx / dist) * PROFILE_RADIUS;
-    endY = toPos.y - (dy / dist) * PROFILE_RADIUS;
+    endX = toPos.x - (dx / dist) * toDims.radius;
+    endY = toPos.y - (dy / dist) * toDims.radius;
   }
 
-  // 부드러운 곡선 처리를 위한 컨트롤 포인트 (중심점 방향으로 살짝 곡률 적용)
   const midX = (startX + endX) / 2;
   const midY = (startY + endY) / 2;
 
-  // 두 프로필의 수직 벡터로 완만한 곡선 생성 (거리가 가까울수록 더 완만하게)
   const normX = -dy / (dist || 1);
   const normY = dx / (dist || 1);
-  const curveAmount = Math.min(30, Math.max(12, dist * 0.08));
+  const curveAmount =
+    customCurvature !== undefined
+      ? customCurvature
+      : Math.min(28, Math.max(12, dist * 0.06));
 
   const ctrlX = midX + normX * curveAmount;
   const ctrlY = midY + normY * curveAmount;
 
-  // 2차 베지어 곡선의 중간 지점 (t=0.5)
   const curveMidX = 0.25 * startX + 0.5 * ctrlX + 0.25 * endX;
   const curveMidY = 0.25 * startY + 0.5 * ctrlY + 0.25 * endY;
 
@@ -227,52 +414,21 @@ export function getProfileEdgePoints(
   };
 }
 
-// 구버전 ReactFlow 데이터 호환 마이그레이션 함수
 export function convertLegacyToRelations(raw: any): CharacterRelationsDocData {
   if (!raw) return INITIAL_RELATIONS_DATA;
 
-  // 이미 신규 포맷인 경우
   if (Array.isArray(raw.characters) && Array.isArray(raw.relations)) {
-    return raw as CharacterRelationsDocData;
-  }
-
-  // 구버전 ReactFlow { nodes, edges } 포맷 변환
-  if (Array.isArray(raw.nodes)) {
-    const characters: RelationCharacter[] = raw.nodes.map((n: any, idx: number) => ({
-      id: n.id || `char-${idx + 1}`,
-      name: n.data?.name || `캐릭터 ${idx + 1}`,
-      role: n.data?.role || '',
-      imageUrl: n.data?.imageUrl || '',
-      description: '',
-      color: '#8B5CF6',
-    }));
-
-    const relations: RelationItem[] = Array.isArray(raw.edges)
-      ? raw.edges.map((e: any, idx: number) => ({
-          id: e.id || `rel-${idx + 1}`,
-          sourceId: e.source,
-          targetId: e.target,
-          relationType: e.data?.relationType || e.data?.label || '동료',
-          color: e.data?.sourceEmotion === 'love' ? '#EC4899' : '#8B5CF6',
-          style: (e.data?.dashed ? 'dashed' : 'solid') as 'solid' | 'dashed',
-          strokeWidth: Number(e.data?.strokeWidth) || 2.5,
-          emotionAtoB: e.data?.emotionAtoB || '호감',
-          emotionBtoA: e.data?.emotionBtoA || '신뢰',
-          memo: e.data?.memo || '',
-        }))
-      : [];
-
     return {
-      characters,
-      relations,
-      settings: {
-        canvasBackground: '#17171D',
-        showGrid: true,
-        zoom: 100,
+      ...raw,
+      legends: raw.legends || DEFAULT_RELATION_LEGENDS,
+      legendSettings: raw.legendSettings || {
+        visible: true,
+        x: 28,
+        y: 28,
+        orientation: 'vertical',
       },
-    };
+    } as CharacterRelationsDocData;
   }
 
   return INITIAL_RELATIONS_DATA;
 }
-

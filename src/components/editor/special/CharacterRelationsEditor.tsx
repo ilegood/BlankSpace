@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
-import { SpecialEditorHeader } from './SpecialEditorHeader';
 import { exportElementAsPng } from '../../../utils/exportImage';
 import {
   CharacterRelationsDocData,
   RelationCharacter,
   RelationItem,
+  RelationGroup,
+  RelationLegendItem,
   AnchorPosition,
+  DEFAULT_RELATION_LEGENDS,
 } from '../../../types/relations';
 import {
   INITIAL_RELATIONS_DATA,
@@ -16,42 +18,80 @@ import { RelationCanvas } from './relations/RelationCanvas';
 import { RelationSidebar } from './relations/RelationSidebar';
 import { RelationInspector } from './relations/RelationInspector';
 import { RelationListView } from './relations/RelationListView';
+import { AddRelationCharacterModal } from './relations/AddRelationCharacterModal';
+import { CharacterRelationsHelpModal } from './relations/CharacterRelationsHelpModal';
 import { useToast } from '../../toast/ToastContext';
 import {
-  Share2,
-  List,
+  ChevronLeft,
+  Eye,
   Edit3,
-  Check,
+  Download,
+  Star,
+  HelpCircle,
+  Save,
   Undo2,
   Redo2,
-  Download,
-  Maximize,
-  Minimize,
+  Share2,
+  List,
+  UserPlus,
+  Layers,
+  MousePointer2,
+  Hand,
+  Maximize2,
+  RotateCcw,
+  Sparkles,
 } from 'lucide-react';
 
 export const CharacterRelationsEditor: React.FC = () => {
-  const { activeDocument, activePage, updatePageContent } = useWorkspace();
+  const {
+    activeDocument,
+    activePage,
+    setActiveDocument,
+    updateDocumentTitle,
+    toggleFavoriteDocument,
+    updatePageContent,
+  } = useWorkspace();
   const { toast } = useToast();
   const printRef = useRef<HTMLDivElement>(null);
+
+  // Document Title & Autosave Status
+  const [docTitle, setDocTitle] = useState<string>('');
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
+  const [isExporting, setIsExporting] = useState<boolean>(false);
 
   // Main Relations Document State
   const [docData, setDocData] = useState<CharacterRelationsDocData>(
     INITIAL_RELATIONS_DATA
   );
 
-  // View / Mode States
+  // View / Mode States (Requirement 15: Default is VIEW mode)
   const [viewTab, setViewTab] = useState<'graph' | 'list'>('graph');
-  const [isEditMode, setIsEditMode] = useState<boolean>(false); // Requirement 3: default is VIEW mode
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [isEditMode, setIsEditMode] = useState<boolean>(false);
+  const [activeTool, setActiveTool] = useState<'pointer' | 'connect' | 'hand'>('pointer');
 
   // Selection States
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [selectedRelationId, setSelectedRelationId] = useState<string | null>(null);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+
+  // Legend Highlight Filter State
+  const [highlightedLegendId, setHighlightedLegendId] = useState<string | null>(null);
+
+  // Modal States
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   // Undo / Redo History
   const [history, setHistory] = useState<CharacterRelationsDocData[]>([]);
   const [historyIdx, setHistoryIdx] = useState<number>(-1);
   const isUndoRedoAction = useRef(false);
+
+  // Sync title
+  useEffect(() => {
+    if (activeDocument) {
+      setDocTitle(activeDocument.title);
+    }
+  }, [activeDocument]);
 
   // Load from Page Content or Initial
   useEffect(() => {
@@ -65,58 +105,110 @@ export const CharacterRelationsEditor: React.FC = () => {
         setHistoryIdx(0);
         return;
       }
-    } catch {}
+    } catch (err) {
+      console.warn('Failed to parse relations page content:', err);
+    }
+
+    // Default Fallback
     setDocData(INITIAL_RELATIONS_DATA);
     setHistory([INITIAL_RELATIONS_DATA]);
     setHistoryIdx(0);
   }, [activePage?.id]);
 
-  // Push State & Autosave
+  // Push new state to undo/redo history
   const pushState = useCallback(
     (nextData: CharacterRelationsDocData) => {
       setDocData(nextData);
 
-      if (!isUndoRedoAction.current) {
-        setHistory((prev) => {
-          const sliced = prev.slice(0, historyIdx + 1);
-          return [...sliced, nextData];
-        });
-        setHistoryIdx((prev) => prev + 1);
+      if (isUndoRedoAction.current) {
+        isUndoRedoAction.current = false;
+        return;
       }
-      isUndoRedoAction.current = false;
 
-      if (!activePage) return;
-      updatePageContent(activePage.id, JSON.stringify(nextData));
+      setHistory((prev) => {
+        const sliced = prev.slice(0, historyIdx + 1);
+        return [...sliced, nextData];
+      });
+      setHistoryIdx((prev) => prev + 1);
     },
-    [activePage, historyIdx, updatePageContent]
+    [historyIdx]
   );
 
-  // Undo / Redo
-  const handleUndo = () => {
+  // Autosave to Page content with debounce
+  useEffect(() => {
+    if (!activePage) return;
+    setSaveStatus('saving');
+    const timer = setTimeout(() => {
+      try {
+        const json = JSON.stringify(docData);
+        updatePageContent(activePage.id, json);
+        setSaveStatus('saved');
+      } catch (e) {
+        console.error('Failed to autosave relations:', e);
+        setSaveStatus('saved');
+      }
+    }, 600);
+
+    return () => clearTimeout(timer);
+  }, [docData, activePage?.id]);
+
+  // Undo
+  const handleUndo = useCallback(() => {
     if (historyIdx > 0) {
       isUndoRedoAction.current = true;
-      const prev = history[historyIdx - 1];
-      setHistoryIdx(historyIdx - 1);
-      setDocData(prev);
-      if (activePage) updatePageContent(activePage.id, JSON.stringify(prev));
+      const nextIdx = historyIdx - 1;
+      setHistoryIdx(nextIdx);
+      setDocData(history[nextIdx]);
+      toast.info('실행 취소되었습니다.');
     }
-  };
+  }, [historyIdx, history, toast]);
 
-  const handleRedo = () => {
+  // Redo
+  const handleRedo = useCallback(() => {
     if (historyIdx < history.length - 1) {
       isUndoRedoAction.current = true;
-      const next = history[historyIdx + 1];
-      setHistoryIdx(historyIdx + 1);
-      setDocData(next);
-      if (activePage) updatePageContent(activePage.id, JSON.stringify(next));
+      const nextIdx = historyIdx + 1;
+      setHistoryIdx(nextIdx);
+      setDocData(history[nextIdx]);
+      toast.info('다시 실행되었습니다.');
+    }
+  }, [historyIdx, history, toast]);
+
+  // Title Save
+  const handleTitleBlurOrEnter = () => {
+    if (activeDocument && docTitle.trim() && docTitle !== activeDocument.title) {
+      updateDocumentTitle(activeDocument.id, docTitle.trim());
+      toast.success('제목이 변경되었습니다.');
     }
   };
 
-  // Keyboard Shortcuts (Delete, Undo, Redo)
+  // Keyboard Shortcuts (Delete, Undo, Redo, Mode Toggle Ctrl+E)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
-      if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
+      const isInput =
+        target.tagName === 'INPUT' ||
+        target.tagName === 'TEXTAREA' ||
+        target.isContentEditable ||
+        target.closest('input, textarea, [contenteditable="true"]');
+
+      // Mode Toggle Shortcut: Ctrl+E (or Cmd+E)
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
+        e.preventDefault();
+        setIsEditMode((prev) => {
+          const next = !prev;
+          if (!next) {
+            setSelectedCharacterId(null);
+            setSelectedRelationId(null);
+            setSelectedGroupId(null);
+          }
+          toast.info(next ? '편집 모드로 진입했습니다.' : '보기 모드로 전환되었습니다.');
+          return next;
+        });
+        return;
+      }
+
+      if (isInput) return;
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
         e.preventDefault();
@@ -126,25 +218,52 @@ export const CharacterRelationsEditor: React.FC = () => {
         e.preventDefault();
         handleRedo();
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
-        if (isEditMode && selectedRelationId) {
+        if (!isEditMode) return;
+        if (selectedRelationId) {
           e.preventDefault();
           handleDeleteRelation(selectedRelationId);
+        } else if (selectedCharacterId) {
+          e.preventDefault();
+          handleDeleteCharacter(selectedCharacterId);
+        } else if (selectedGroupId) {
+          e.preventDefault();
+          handleDeleteGroup(selectedGroupId);
         }
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [selectedRelationId, isEditMode, historyIdx, history]);
+  }, [
+    isEditMode,
+    selectedRelationId,
+    selectedCharacterId,
+    selectedGroupId,
+    handleUndo,
+    handleRedo,
+    toast,
+  ]);
 
   // ------------------------------------------------------------------
   // Character Actions
   // ------------------------------------------------------------------
   const handleAddCharacter = (charData: Omit<RelationCharacter, 'id'>) => {
+    const count = docData.characters.length;
+    const defaultX = 380 + (count % 4) * 160;
+    const defaultY = 280 + Math.floor(count / 4) * 140;
+
     const newChar: RelationCharacter = {
       ...charData,
       id: `char-${Date.now()}`,
+      x: charData.x || defaultX,
+      y: charData.y || defaultY,
+      shape: charData.shape || 'circle',
+      size: charData.size || 84,
+      borderWidth: charData.borderWidth ?? 3,
+      borderColor: charData.borderColor || charData.color || '#8B5CF6',
+      showName: charData.showName !== false,
     };
+
     const nextChars = [...docData.characters, newChar];
     pushState({
       ...docData,
@@ -152,29 +271,46 @@ export const CharacterRelationsEditor: React.FC = () => {
     });
     setSelectedCharacterId(newChar.id);
     setSelectedRelationId(null);
-    toast.success(`'${newChar.name}' 캐릭터가 추가되었습니다.`);
+    setSelectedGroupId(null);
+    toast.success(`'${newChar.name}' 캐릭터가 관계도에 추가되었습니다.`);
   };
 
   const handleDeleteCharacter = (id: string) => {
     const nextChars = docData.characters.filter((c) => c.id !== id);
-    // Also remove any relations connected to this character
-    const nextRelations = docData.relations.filter(
+    const nextRels = docData.relations.filter(
       (r) => r.sourceId !== id && r.targetId !== id
     );
-    if (selectedCharacterId === id) setSelectedCharacterId(null);
+    const nextGroups = (docData.groups || []).map((g) => ({
+      ...g,
+      characterIds: g.characterIds?.filter((cid) => cid !== id) || [],
+    }));
+
     pushState({
       ...docData,
       characters: nextChars,
-      relations: nextRelations,
+      relations: nextRels,
+      groups: nextGroups,
     });
-    toast.info('캐릭터가 삭제되었습니다.');
+
+    if (selectedCharacterId === id) setSelectedCharacterId(null);
+    toast.info('캐릭터 및 연결된 관계선이 삭제되었습니다.');
   };
 
   const handleUpdateCharacter = (id: string, updates: Partial<RelationCharacter>) => {
     const nextChars = docData.characters.map((c) =>
       c.id === id ? { ...c, ...updates } : c
     );
-    pushState({ ...docData, characters: nextChars });
+    pushState({
+      ...docData,
+      characters: nextChars,
+    });
+  };
+
+  const handleUpdateCharacterPosition = (id: string, x: number, y: number) => {
+    setDocData((prev) => ({
+      ...prev,
+      characters: prev.characters.map((c) => (c.id === id ? { ...c, x, y } : c)),
+    }));
   };
 
   // ------------------------------------------------------------------
@@ -187,110 +323,419 @@ export const CharacterRelationsEditor: React.FC = () => {
     targetAnchor?: AnchorPosition
   ) => {
     if (sourceId === targetId) {
-      toast.warning('자기 자신과는 관계를 맺을 수 없습니다.');
+      toast.warning('동일한 캐릭터끼리는 관계선을 연결할 수 없습니다.');
       return;
     }
 
-    // Check duplicate relation between these two
-    const existing = docData.relations.find(
-      (r) =>
-        (r.sourceId === sourceId && r.targetId === targetId) ||
-        (r.sourceId === targetId && r.targetId === sourceId)
-    );
-
-    if (existing) {
-      toast.warning('이미 두 캐릭터 사이에 연결된 관계선이 존재합니다.');
-      setSelectedRelationId(existing.id);
-      setSelectedCharacterId(null);
-      return;
-    }
-
-    const charA = docData.characters.find((c) => c.id === sourceId);
-    const charB = docData.characters.find((c) => c.id === targetId);
+    const defaultLegend = (docData.legends || DEFAULT_RELATION_LEGENDS)[0];
 
     const newRel: RelationItem = {
       id: `rel-${Date.now()}`,
       sourceId,
       targetId,
-      relationType: '신뢰 및 우호',
-      color: '#8B5CF6',
-      style: 'solid',
-      strokeWidth: 2.5,
-      emotionAtoB: `${charB?.name || '상대'}에 대한 신뢰`,
-      emotionBtoA: `${charA?.name || '상대'}에 대한 우호적 감정`,
-      memo: '',
+      relationType: defaultLegend?.name || '새로운 관계',
+      label: defaultLegend?.name || '새로운 관계',
+      color: defaultLegend?.color || '#EF4444',
+      gradient: defaultLegend?.gradient,
+      style: defaultLegend?.style || 'solid',
+      strokeWidth: 3,
+      direction: 'bidirectional',
       sourceAnchor,
       targetAnchor,
+      legendId: defaultLegend?.id,
+      curvature: 20,
+      showLabel: true,
     };
 
+    const nextRels = [...docData.relations, newRel];
     pushState({
       ...docData,
-      relations: [...docData.relations, newRel],
+      relations: nextRels,
     });
-
     setSelectedRelationId(newRel.id);
     setSelectedCharacterId(null);
-    toast.success('새 관계선이 생성되었습니다.');
+    setSelectedGroupId(null);
+    toast.success('두 캐릭터 사이에 관계선이 연결되었습니다.');
+  };
+
+  const handleUpdateRelation = (id: string, updates: Partial<RelationItem>) => {
+    const nextRels = docData.relations.map((r) =>
+      r.id === id ? { ...r, ...updates } : r
+    );
+    pushState({
+      ...docData,
+      relations: nextRels,
+    });
   };
 
   const handleDeleteRelation = (id: string) => {
-    const nextRelations = docData.relations.filter((r) => r.id !== id);
-    if (selectedRelationId === id) setSelectedRelationId(null);
+    const nextRels = docData.relations.filter((r) => r.id !== id);
     pushState({
       ...docData,
+      relations: nextRels,
+    });
+    if (selectedRelationId === id) setSelectedRelationId(null);
+    toast.info('관계선이 삭제되었습니다.');
+  };
+
+  // ------------------------------------------------------------------
+  // Group Actions
+  // ------------------------------------------------------------------
+  const handleAddGroup = () => {
+    const newGroup: RelationGroup = {
+      id: `grp-${Date.now()}`,
+      name: '새 세력/소속',
+      color: '#8B5CF6',
+      x: 300,
+      y: 200,
+      width: 480,
+      height: 320,
+      characterIds: [],
+    };
+    const nextGroups = [...(docData.groups || []), newGroup];
+    pushState({
+      ...docData,
+      groups: nextGroups,
+    });
+    setSelectedGroupId(newGroup.id);
+    setSelectedCharacterId(null);
+    setSelectedRelationId(null);
+    toast.success('새 그룹 영역이 추가되었습니다.');
+  };
+
+  const handleUpdateGroup = (id: string, updates: Partial<RelationGroup>) => {
+    const nextGroups = (docData.groups || []).map((g) =>
+      g.id === id ? { ...g, ...updates } : g
+    );
+    pushState({
+      ...docData,
+      groups: nextGroups,
+    });
+  };
+
+  const handleDeleteGroup = (id: string) => {
+    const nextGroups = (docData.groups || []).filter((g) => g.id !== id);
+    const nextChars = docData.characters.map((c) =>
+      c.groupId === id ? { ...c, groupId: undefined } : c
+    );
+    pushState({
+      ...docData,
+      groups: nextGroups,
+      characters: nextChars,
+    });
+    if (selectedGroupId === id) setSelectedGroupId(null);
+    toast.info('그룹 영역이 삭제되었습니다.');
+  };
+
+  // ------------------------------------------------------------------
+  // Legend Actions (사양서 핵심: 관계 범례 관리)
+  // ------------------------------------------------------------------
+  const handleToggleLegendHighlight = (legendId: string | null) => {
+    setHighlightedLegendId(legendId);
+    if (legendId) {
+      toast.info('선택한 범례의 관계선이 강조 표시됩니다.');
+    }
+  };
+
+  const handleUpdateLegendSettings = (
+    settings: Partial<NonNullable<CharacterRelationsDocData['legendSettings']>>
+  ) => {
+    const current = docData.legendSettings || {
+      visible: true,
+      x: 28,
+      y: 28,
+      orientation: 'vertical',
+    };
+    pushState({
+      ...docData,
+      legendSettings: { ...current, ...settings },
+    });
+  };
+
+  const handleUpdateLegend = (id: string, updates: Partial<RelationLegendItem>) => {
+    const currentLegends = docData.legends || DEFAULT_RELATION_LEGENDS;
+    const nextLegends = currentLegends.map((l) =>
+      l.id === id ? { ...l, ...updates } : l
+    );
+
+    // Sync relation line colors if legend color changed
+    const nextRelations = docData.relations.map((r) => {
+      if (r.legendId === id) {
+        return {
+          ...r,
+          ...(updates.color ? { color: updates.color } : {}),
+          ...(updates.gradient !== undefined ? { gradient: updates.gradient } : {}),
+          ...(updates.style ? { style: updates.style } : {}),
+          ...(updates.name ? { relationType: updates.name } : {}),
+        };
+      }
+      return r;
+    });
+
+    pushState({
+      ...docData,
+      legends: nextLegends,
       relations: nextRelations,
     });
   };
 
-  const handleUpdateRelation = (id: string, updates: Partial<RelationItem>) => {
-    const nextRelations = docData.relations.map((r) =>
-      r.id === id ? { ...r, ...updates } : r
-    );
-    pushState({ ...docData, relations: nextRelations });
+  const handleAddLegend = (newLegend: RelationLegendItem) => {
+    const currentLegends = docData.legends || DEFAULT_RELATION_LEGENDS;
+    pushState({
+      ...docData,
+      legends: [...currentLegends, newLegend],
+    });
   };
 
-  // Export as PNG
+  const handleDeleteLegend = (id: string) => {
+    const currentLegends = docData.legends || DEFAULT_RELATION_LEGENDS;
+    const nextLegends = currentLegends.filter((l) => l.id !== id);
+    pushState({
+      ...docData,
+      legends: nextLegends,
+    });
+    if (highlightedLegendId === id) setHighlightedLegendId(null);
+    toast.info('범례 항목이 삭제되었습니다.');
+  };
+
+  // ------------------------------------------------------------------
+  // Auto-Layout Algorithms
+  // ------------------------------------------------------------------
+  const handleAutoLayoutCircular = () => {
+    const count = docData.characters.length;
+    if (count === 0) return;
+
+    const centerX = 640;
+    const centerY = 460;
+    const radius = Math.max(220, count * 45);
+
+    const nextChars = docData.characters.map((char, index) => {
+      const angle = -Math.PI / 2 + (2 * Math.PI * index) / count;
+      const x = Math.round(centerX + radius * Math.cos(angle));
+      const y = Math.round(centerY + radius * Math.sin(angle));
+      return { ...char, x, y };
+    });
+
+    pushState({
+      ...docData,
+      characters: nextChars,
+    });
+    toast.success('캐릭터들이 원형 둘레로 균등하게 배치되었습니다.');
+  };
+
+  const handleAutoLayoutGrid = () => {
+    const count = docData.characters.length;
+    if (count === 0) return;
+
+    const cols = Math.ceil(Math.sqrt(count * 1.4));
+    const startX = 360;
+    const startY = 260;
+    const gapX = 220;
+    const gapY = 180;
+
+    const nextChars = docData.characters.map((char, index) => {
+      const row = Math.floor(index / cols);
+      const col = index % cols;
+      return {
+        ...char,
+        x: startX + col * gapX,
+        y: startY + row * gapY,
+      };
+    });
+
+    pushState({
+      ...docData,
+      characters: nextChars,
+    });
+    toast.success('캐릭터들이 격자 행렬에 맞춰 정돈되었습니다.');
+  };
+
+  // ------------------------------------------------------------------
+  // Export as Image
+  // ------------------------------------------------------------------
   const handleExportImage = async () => {
-    if (!printRef.current || !activeDocument) return;
+    if (!printRef.current) return;
+    setIsExporting(true);
+    toast.info('관계도 이미지를 생성하는 중입니다...');
     try {
       await exportElementAsPng(printRef.current, {
-        fileName: `${activeDocument.title || '캐릭터관계도'}-관계도`,
+        fileName: `${docTitle.trim() || '캐릭터_관계도'}_${new Date().toISOString().slice(0, 10)}`,
+        backgroundColor: '#17171D',
       });
-      toast.success('관계도 이미지가 저장되었습니다.');
-    } catch {
-      toast.error('이미지 저장에 실패했습니다.');
+      toast.success('관계도가 고해상도 PNG 이미지로 저장되었습니다.');
+    } catch (e) {
+      console.error(e);
+      toast.error('이미지 저장 중 오류가 발생했습니다.');
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const selectedRelation =
-    docData.relations.find((r) => r.id === selectedRelationId) || null;
+  // Find Selected Items
   const selectedCharacter =
     docData.characters.find((c) => c.id === selectedCharacterId) || null;
+  const selectedRelation =
+    docData.relations.find((r) => r.id === selectedRelationId) || null;
+  const selectedGroup =
+    (docData.groups || []).find((g) => g.id === selectedGroupId) || null;
 
   return (
-    <div
-      ref={printRef}
-      className={`flex-1 flex flex-col h-full bg-[#17171D] text-[#E8E7EF] relative overflow-hidden select-none ${
-        isFullscreen ? 'fixed inset-0 z-50' : ''
-      }`}
-    >
-      {/* Top Main Header */}
-      <SpecialEditorHeader
-        onExportImage={handleExportImage}
-      />
+    <div className="w-full h-full flex flex-col bg-[#121217] text-slate-100 overflow-hidden font-sans">
+      {/* ================================================================= */}
+      {/* 1. TOP HEADER (h-14, 빈 문서/캐릭터 시트와 정확히 일치하는 표준 상단바) */}
+      {/* ================================================================= */}
+      <header className="h-14 bg-white dark:bg-[#1E1E27] border-b border-slate-200 dark:border-[#3A3948] px-4 flex items-center justify-between shrink-0 shadow-2xs z-30 transition-colors">
+        {/* Left: Back Button & Editable Title */}
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          <button
+            onClick={() => setActiveDocument(null)}
+            title="문서 목록으로 돌아가기"
+            className="p-1.5 -ml-1 text-slate-400 dark:text-[#A5A3B5] hover:text-slate-700 dark:hover:text-[#E8E7EF] hover:bg-slate-100 dark:hover:bg-[#292936] rounded-xl transition-colors"
+          >
+            <ChevronLeft className="w-5 h-5" />
+          </button>
 
-      {/* Sub Toolbar: View Switcher, Edit Mode Toggle, Undo/Redo */}
-      <div className="h-11 bg-[#1E1E27] border-b border-[#3A3948] px-4 flex items-center justify-between shrink-0 shadow-xs z-20">
-        {/* Left: View Tabs (Graph vs List) */}
+          <input
+            type="text"
+            value={docTitle}
+            onChange={(e) => setDocTitle(e.target.value)}
+            onBlur={handleTitleBlurOrEnter}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.currentTarget.blur();
+              }
+            }}
+            placeholder="캐릭터 관계도 제목"
+            className="text-sm md:text-base font-bold text-slate-800 dark:text-[#F3F2F8] bg-transparent border-none outline-none focus:ring-2 focus:ring-lavender-500/30 rounded-lg px-2 py-1 truncate max-w-xs md:max-w-md transition-all"
+          />
+        </div>
+
+        {/* Right Action Buttons */}
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* 1. 보기 / 편집 모드 토글 (Ctrl+E) */}
+          <div className="flex bg-slate-100 dark:bg-[#262634] p-0.5 rounded-xl border border-slate-200 dark:border-[#3A3948]">
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditMode(false);
+                setSelectedCharacterId(null);
+                setSelectedRelationId(null);
+                setSelectedGroupId(null);
+                toast.info('보기 모드로 전환되었습니다.');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                !isEditMode
+                  ? 'bg-white dark:bg-[#1E1E27] text-slate-800 dark:text-[#E8E7EF] shadow-2xs'
+                  : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-700 dark:hover:text-[#E8E7EF]'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>보기</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setIsEditMode(true);
+                toast.info('편집 모드로 진입했습니다.');
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
+                isEditMode
+                  ? 'bg-lavender-600 text-white shadow-xs'
+                  : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-700 dark:hover:text-[#E8E7EF]'
+              }`}
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>편집</span>
+            </button>
+          </div>
+
+          <span className="text-slate-200 dark:text-[#3A3948]">|</span>
+
+          {/* 2. 자동 저장됨 배지 */}
+          <div className="flex items-center gap-1.5 text-[11.5px]">
+            <Save
+              className={`w-3.5 h-3.5 ${
+                saveStatus === 'saving'
+                  ? 'text-amber-500 animate-pulse'
+                  : 'text-slate-400 dark:text-[#A5A3B5]'
+              }`}
+            />
+            <span
+              className={
+                saveStatus === 'saving'
+                  ? 'text-amber-600 dark:text-amber-400 font-medium'
+                  : 'text-slate-400 dark:text-[#A5A3B5]'
+              }
+            >
+              {saveStatus === 'saving' ? '저장 중...' : '자동 저장됨'}
+            </span>
+          </div>
+
+          <span className="text-slate-200 dark:text-[#3A3948]">|</span>
+
+          {/* 3. 이미지 저장 버튼 */}
+          <button
+            onClick={handleExportImage}
+            disabled={isExporting}
+            title="관계도 이미지로 저장 (PNG)"
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#E8E7EF] hover:text-lavender-700 dark:hover:text-[#B7A5FF] hover:bg-lavender-50 dark:hover:bg-[#292936] hover:border-lavender-200 transition-colors text-xs font-medium"
+          >
+            <Download
+              className={`w-3.5 h-3.5 ${
+                isExporting
+                  ? 'animate-bounce text-lavender-600'
+                  : 'text-slate-400 dark:text-[#A5A3B5]'
+              }`}
+            />
+            <span>{isExporting ? '저장 중...' : '이미지 저장'}</span>
+          </button>
+
+          {/* 4. 즐겨찾기 버튼 */}
+          {activeDocument && (
+            <button
+              onClick={() => toggleFavoriteDocument(activeDocument.id)}
+              title="즐겨찾기 토글"
+              className={`p-1.5 rounded-lg border transition-colors ${
+                activeDocument.isFavorite
+                  ? 'border-lavender-200 dark:border-[#554884] bg-lavender-50 dark:bg-[#352E58] text-lavender-600 dark:text-[#A995F5]'
+                  : 'border-slate-200 dark:border-[#3A3948] text-slate-400 dark:text-[#A5A3B5] hover:text-slate-600 dark:hover:text-[#E8E7EF]'
+              }`}
+            >
+              <Star
+                className={`w-3.5 h-3.5 ${
+                  activeDocument.isFavorite ? 'fill-lavender-600 dark:fill-[#A995F5]' : ''
+                }`}
+              />
+            </button>
+          )}
+
+          {/* 5. 도움말 버튼 */}
+          <button
+            type="button"
+            onClick={() => setIsHelpOpen(true)}
+            title="캐릭터 관계도 가이드 및 도움말"
+            className="p-1.5 rounded-lg border border-slate-200 dark:border-[#3A3948] hover:bg-lavender-50 dark:hover:bg-[#292936] text-slate-500 hover:text-lavender-600 dark:text-[#A5A3B5] transition-colors"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </header>
+
+      {/* ================================================================= */}
+      {/* 2. SUB TOOLBAR: View Switcher, Add Character/Group, Undo/Redo      */}
+      {/* ================================================================= */}
+      <div className="h-11 bg-white dark:bg-[#1E1E27] border-b border-slate-200 dark:border-[#3A3948] px-4 flex items-center justify-between shrink-0 shadow-2xs z-20 transition-colors">
+        {/* Left: View Tabs, Add Actions, Undo/Redo */}
         <div className="flex items-center gap-1.5">
-          <div className="flex bg-[#292936] p-0.5 rounded-xl border border-[#3A3948]">
+          {/* View Tab Toggle */}
+          <div className="flex bg-slate-100 dark:bg-[#262634] p-0.5 rounded-xl border border-slate-200 dark:border-[#3A3948]">
             <button
               type="button"
               onClick={() => setViewTab('graph')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                 viewTab === 'graph'
-                  ? 'bg-lavender-600 text-white shadow-2xs'
-                  : 'text-[#A5A3B5] hover:text-[#E8E7EF]'
+                  ? 'bg-white dark:bg-[#1E1E27] text-lavender-600 dark:text-[#B7A5FF] shadow-2xs'
+                  : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-800 dark:hover:text-[#E8E7EF]'
               }`}
             >
               <Share2 className="w-3.5 h-3.5" />
@@ -301,8 +746,8 @@ export const CharacterRelationsEditor: React.FC = () => {
               onClick={() => setViewTab('list')}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold transition-all ${
                 viewTab === 'list'
-                  ? 'bg-lavender-600 text-white shadow-2xs'
-                  : 'text-[#A5A3B5] hover:text-[#E8E7EF]'
+                  ? 'bg-white dark:bg-[#1E1E27] text-lavender-600 dark:text-[#B7A5FF] shadow-2xs'
+                  : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-800 dark:hover:text-[#E8E7EF]'
               }`}
             >
               <List className="w-3.5 h-3.5" />
@@ -310,91 +755,116 @@ export const CharacterRelationsEditor: React.FC = () => {
             </button>
           </div>
 
-          <div className="h-4 w-px bg-[#3A3948] mx-1" />
+          {/* Edit Mode Add Actions */}
+          {isEditMode && (
+            <>
+              <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] mx-1" />
+
+              <button
+                type="button"
+                onClick={() => setIsAddModalOpen(true)}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-lavender-50 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] border border-lavender-200/80 dark:border-[#524580] hover:bg-lavender-100 rounded-lg text-xs font-bold transition-colors shadow-2xs"
+                title="캐릭터 추가 (시트 연동 / 직접 생성)"
+              >
+                <UserPlus className="w-3.5 h-3.5" />
+                <span>캐릭터 추가</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAddGroup}
+                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-[#262634] text-slate-700 dark:text-[#E8E7EF] border border-slate-200 dark:border-[#3A3948] hover:bg-slate-200/70 rounded-lg text-xs font-semibold transition-colors"
+                title="세력 / 소속 그룹 영역 추가"
+              >
+                <Layers className="w-3.5 h-3.5" />
+                <span>그룹 추가</span>
+              </button>
+            </>
+          )}
+
+          <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] mx-1" />
 
           {/* Undo / Redo */}
           <button
             type="button"
             title="실행 취소 (Ctrl+Z)"
-            disabled={historyIdx <= 0}
+            disabled={!isEditMode || historyIdx <= 0}
             onClick={handleUndo}
-            className="p-1.5 text-[#A5A3B5] hover:text-[#E8E7EF] hover:bg-[#292936] rounded-lg transition-colors disabled:opacity-25"
+            className="p-1.5 text-slate-500 hover:text-slate-800 dark:text-[#A5A3B5] dark:hover:text-[#E8E7EF] hover:bg-slate-100 dark:hover:bg-[#292936] rounded-lg transition-colors disabled:opacity-25"
           >
             <Undo2 className="w-4 h-4" />
           </button>
           <button
             type="button"
             title="다시 실행 (Ctrl+Y)"
-            disabled={historyIdx >= history.length - 1}
+            disabled={!isEditMode || historyIdx >= history.length - 1}
             onClick={handleRedo}
-            className="p-1.5 text-[#A5A3B5] hover:text-[#E8E7EF] hover:bg-[#292936] rounded-lg transition-colors disabled:opacity-25"
+            className="p-1.5 text-slate-500 hover:text-slate-800 dark:text-[#A5A3B5] dark:hover:text-[#E8E7EF] hover:bg-slate-100 dark:hover:bg-[#292936] rounded-lg transition-colors disabled:opacity-25"
           >
             <Redo2 className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Center: Mode Indicator & Toggle (Requirement 3: View Mode vs Edit Mode) */}
+        {/* Right: Tool Selector & Legend Quick Toggle */}
         <div className="flex items-center gap-2">
-          {isEditMode ? (
-            <div className="flex items-center gap-2 bg-emerald-950/40 border border-emerald-500/40 px-3 py-1 rounded-full text-xs animate-in fade-in">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              <span className="font-bold text-emerald-300">편집 모드 활성</span>
+          {/* Quick Legend Box Visibility Toggle */}
+          <button
+            type="button"
+            onClick={() => {
+              const currentVisible = docData.legendSettings?.visible !== false;
+              handleUpdateLegendSettings({ visible: !currentVisible });
+            }}
+            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold border transition-all ${
+              docData.legendSettings?.visible !== false
+                ? 'bg-lavender-50 dark:bg-lavender-900/30 text-lavender-700 dark:text-lavender-300 border-lavender-300 dark:border-lavender-700'
+                : 'bg-slate-100 dark:bg-[#262634] text-slate-400 dark:text-[#7D7B90] border-slate-200 dark:border-[#3A3948]'
+            }`}
+            title="캔버스 관계 범례 보이기/숨기기"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>범례 {docData.legendSettings?.visible !== false ? 'ON' : 'OFF'}</span>
+          </button>
+
+          {/* Tool selector */}
+          {isEditMode && (
+            <div className="flex items-center p-0.5 rounded-lg bg-slate-100 dark:bg-[#292936] border border-slate-200/80 dark:border-[#3A3948]">
               <button
                 type="button"
-                onClick={() => {
-                  setIsEditMode(false);
-                  toast.success('보기 모드로 전환되었습니다.');
-                }}
-                className="ml-1.5 px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-lg text-[11px] shadow-2xs flex items-center gap-1 transition-colors"
+                onClick={() => setActiveTool('pointer')}
+                title="선택/편집 도구 (V)"
+                className={`p-1.5 rounded-md transition-all ${
+                  activeTool === 'pointer'
+                    ? 'bg-white dark:bg-[#1E1E27] text-lavender-600 dark:text-[#B7A5FF] shadow-xs'
+                    : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-700 dark:hover:text-[#E8E7EF]'
+                }`}
               >
-                <Check className="w-3 h-3" />
-                <span>완료</span>
+                <MousePointer2 className="w-3.5 h-3.5" />
               </button>
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="text-[11px] text-[#A5A3B5] font-medium hidden sm:inline">
-                읽기 전용 상태
-              </span>
               <button
                 type="button"
-                onClick={() => {
-                  setIsEditMode(true);
-                  toast.info('편집 모드로 진입했습니다. 캐릭터를 드래그하여 연결하세요.');
-                }}
-                className="flex items-center gap-1.5 px-3 py-1 bg-lavender-600 hover:bg-lavender-500 text-white font-bold rounded-xl text-xs shadow-xs transition-colors"
+                onClick={() => setActiveTool('hand')}
+                title="손 도구 / 화면 이동 (H / Space+드래그)"
+                className={`p-1.5 rounded-md transition-all ${
+                  activeTool === 'hand'
+                    ? 'bg-white dark:bg-[#1E1E27] text-lavender-600 dark:text-[#B7A5FF] shadow-xs'
+                    : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-700 dark:hover:text-[#E8E7EF]'
+                }`}
               >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>편집 모드</span>
+                <Hand className="w-3.5 h-3.5" />
               </button>
             </div>
           )}
-        </div>
 
-        {/* Right: Export Image & Fullscreen */}
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={handleExportImage}
-            className="flex items-center gap-1 px-2.5 py-1 bg-[#292936] hover:bg-[#323242] border border-[#3A3948] text-xs font-semibold rounded-xl text-[#E8E7EF] transition-colors"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">이미지 저장</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setIsFullscreen(!isFullscreen)}
-            className="p-1.5 text-[#A5A3B5] hover:text-[#E8E7EF] hover:bg-[#292936] rounded-xl transition-colors"
-            title={isFullscreen ? '전체화면 종료' : '전체화면'}
-          >
-            {isFullscreen ? <Minimize className="w-4 h-4" /> : <Maximize className="w-4 h-4" />}
-          </button>
+          <span className="text-[11px] font-medium text-slate-400 dark:text-[#8E8B9E] hidden md:inline">
+            인물 {docData.characters.length}명 • 관계 {docData.relations.length}개
+          </span>
         </div>
       </div>
 
-      {/* Main Workspace Body: 3-Column Layout */}
-      <div className="flex-1 flex overflow-hidden">
+      {/* ================================================================= */}
+      {/* 3. MAIN WORKSPACE: Sidebar + Canvas + Inspector                   */}
+      {/* ================================================================= */}
+      <div ref={printRef} className="flex-1 flex overflow-hidden">
         {/* 1. Left Character List Panel */}
         <RelationSidebar
           characters={docData.characters}
@@ -402,29 +872,62 @@ export const CharacterRelationsEditor: React.FC = () => {
           isEditMode={isEditMode}
           onSelectCharacter={(id) => {
             setSelectedCharacterId(id);
-            if (id) setSelectedRelationId(null);
+            if (id) {
+              setSelectedRelationId(null);
+              setSelectedGroupId(null);
+            }
           }}
-          onAddCharacter={handleAddCharacter}
+          onOpenAddModal={() => setIsAddModalOpen(true)}
           onDeleteCharacter={handleDeleteCharacter}
         />
 
-        {/* 2. Center: Graph View OR List View */}
+        {/* 2. Center: Graph Canvas View OR List View */}
         {viewTab === 'graph' ? (
           <RelationCanvas
             characters={docData.characters}
             relations={docData.relations}
+            groups={docData.groups || []}
+            legends={docData.legends || DEFAULT_RELATION_LEGENDS}
+            legendSettings={
+              docData.legendSettings || {
+                visible: true,
+                x: 28,
+                y: 28,
+                orientation: 'vertical',
+              }
+            }
             selectedCharacterId={selectedCharacterId}
             selectedRelationId={selectedRelationId}
+            selectedGroupId={selectedGroupId}
+            highlightedLegendId={highlightedLegendId}
             isEditMode={isEditMode}
+            activeTool={activeTool}
             onSelectCharacter={(id) => {
               setSelectedCharacterId(id);
-              if (id) setSelectedRelationId(null);
+              if (id) {
+                setSelectedRelationId(null);
+                setSelectedGroupId(null);
+              }
             }}
             onSelectRelation={(id) => {
               setSelectedRelationId(id);
-              if (id) setSelectedCharacterId(null);
+              if (id) {
+                setSelectedCharacterId(null);
+                setSelectedGroupId(null);
+              }
             }}
+            onSelectGroup={(id) => {
+              setSelectedGroupId(id);
+              if (id) {
+                setSelectedCharacterId(null);
+                setSelectedRelationId(null);
+              }
+            }}
+            onToggleLegendHighlight={handleToggleLegendHighlight}
+            onUpdateLegendSettings={handleUpdateLegendSettings}
             onCreateRelation={handleCreateRelation}
+            onUpdateCharacterPosition={handleUpdateCharacterPosition}
+            onUpdateGroupPosition={handleUpdateGroup}
           />
         ) : (
           <RelationListView
@@ -435,6 +938,7 @@ export const CharacterRelationsEditor: React.FC = () => {
             onSelectRelation={(id) => {
               setSelectedRelationId(id);
               setSelectedCharacterId(null);
+              setSelectedGroupId(null);
             }}
             onDeleteRelation={handleDeleteRelation}
           />
@@ -444,23 +948,71 @@ export const CharacterRelationsEditor: React.FC = () => {
         <RelationInspector
           selectedRelation={selectedRelation}
           selectedCharacter={selectedCharacter}
+          selectedGroup={selectedGroup}
           characters={docData.characters}
           relations={docData.relations}
+          groups={docData.groups || []}
+          legends={docData.legends || DEFAULT_RELATION_LEGENDS}
+          legendSettings={
+            docData.legendSettings || {
+              visible: true,
+              x: 28,
+              y: 28,
+              orientation: 'vertical',
+            }
+          }
           isEditMode={isEditMode}
           onUpdateRelation={handleUpdateRelation}
           onDeleteRelation={handleDeleteRelation}
           onUpdateCharacter={handleUpdateCharacter}
           onDeleteCharacter={handleDeleteCharacter}
+          onUpdateGroup={handleUpdateGroup}
+          onDeleteGroup={handleDeleteGroup}
+          onUpdateLegend={handleUpdateLegend}
+          onAddLegend={handleAddLegend}
+          onDeleteLegend={handleDeleteLegend}
+          onUpdateLegendSettings={handleUpdateLegendSettings}
           onSelectRelation={(id) => {
             setSelectedRelationId(id);
-            if (id) setSelectedCharacterId(null);
+            if (id) {
+              setSelectedCharacterId(null);
+              setSelectedGroupId(null);
+            }
           }}
           onSelectCharacter={(id) => {
             setSelectedCharacterId(id);
-            if (id) setSelectedRelationId(null);
+            if (id) {
+              setSelectedRelationId(null);
+              setSelectedGroupId(null);
+            }
           }}
+          onSelectGroup={(id) => {
+            setSelectedGroupId(id);
+            if (id) {
+              setSelectedCharacterId(null);
+              setSelectedRelationId(null);
+            }
+          }}
+          onOpenAddCharacterModal={() => setIsAddModalOpen(true)}
+          onAutoLayoutCircular={handleAutoLayoutCircular}
+          onAutoLayoutGrid={handleAutoLayoutGrid}
         />
       </div>
+
+      {/* 4. Add Character Modal (Tab 1: 직접 생성, Tab 2: 시트에서 가져오기) */}
+      <AddRelationCharacterModal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        existingCharacters={docData.characters}
+        groups={docData.groups || []}
+        onAddCharacter={handleAddCharacter}
+      />
+
+      {/* 5. Help Modal */}
+      <CharacterRelationsHelpModal
+        isOpen={isHelpOpen}
+        onClose={() => setIsHelpOpen(false)}
+      />
     </div>
   );
 };
