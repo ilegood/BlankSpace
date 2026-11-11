@@ -1,19 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Save, Star, Download, Sun, Moon } from 'lucide-react';
-import { useWorkspace } from '../../../store/WorkspaceContext';
+import { ChevronLeft, Save, Star, Download, Sun, Moon, AlertCircle, RefreshCw } from 'lucide-react';
+import { useWorkspace, SaveStatus } from '../../../store/WorkspaceContext';
 import { useTheme } from '../../../store/ThemeContext';
 import { TEMPLATES } from '../../../templates/templateList';
 import { toast } from '../../toast/ToastContext';
 
 interface SpecialEditorHeaderProps {
-  saveStatus: 'saved' | 'saving';
+  saveStatus?: SaveStatus;
   onBeforeBack?: () => void;
   extraControls?: React.ReactNode;
   onExportImage?: () => Promise<void> | void;
 }
 
 export const SpecialEditorHeader: React.FC<SpecialEditorHeaderProps> = ({
-  saveStatus,
+  saveStatus: propSaveStatus,
   onBeforeBack,
   extraControls,
   onExportImage,
@@ -23,12 +23,18 @@ export const SpecialEditorHeader: React.FC<SpecialEditorHeaderProps> = ({
     setActiveDocument,
     updateDocumentTitle,
     toggleFavoriteDocument,
+    saveStatus: contextSaveStatus,
+    lastSaveError,
+    retryLastSave,
   } = useWorkspace();
 
-  const { isDark, toggleTheme, theme } = useTheme();
+  const effectiveSaveStatus: SaveStatus = propSaveStatus ?? contextSaveStatus;
+
+  const { isDark, toggleTheme } = useTheme();
 
   const [docTitle, setDocTitle] = useState('');
   const [isExporting, setIsExporting] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
 
   useEffect(() => {
     if (activeDocument) {
@@ -50,6 +56,18 @@ export const SpecialEditorHeader: React.FC<SpecialEditorHeaderProps> = ({
   const handleBack = () => {
     onBeforeBack?.();
     setActiveDocument(null);
+  };
+
+  const handleRetrySave = async () => {
+    setIsRetrying(true);
+    try {
+      await retryLastSave();
+      toast.success('저장 완료', '변경 사항이 정상적으로 저장되었습니다.');
+    } catch {
+      toast.error('저장 실패', lastSaveError || '저장에 실패했습니다. 다시 시도해 주세요.');
+    } finally {
+      setIsRetrying(false);
+    }
   };
 
   return (
@@ -91,15 +109,39 @@ export const SpecialEditorHeader: React.FC<SpecialEditorHeaderProps> = ({
 
       {/* Right: Autosave status & Theme & Favorite */}
       <div className="flex items-center gap-3 text-xs text-slate-400 dark:text-[#A5A3B5] shrink-0">
+        {/* Autosave status indicator */}
         <div className="flex items-center gap-1.5 text-[11.5px]">
-          <Save
-            className={`w-3.5 h-3.5 ${
-              saveStatus === 'saving' ? 'text-amber-500 animate-pulse' : 'text-slate-400 dark:text-[#A5A3B5]'
-            }`}
-          />
-          <span className={saveStatus === 'saving' ? 'text-amber-600 font-medium' : 'text-slate-400 dark:text-[#A5A3B5]'}>
-            {saveStatus === 'saving' ? '저장 중...' : '자동 저장됨'}
-          </span>
+          {effectiveSaveStatus === 'error' ? (
+            <button
+              onClick={handleRetrySave}
+              disabled={isRetrying}
+              title={`저장 오류: ${lastSaveError || '클릭하여 재시도'}`}
+              className="flex items-center gap-1 px-2 py-0.5 rounded bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 font-medium hover:bg-red-100 dark:hover:bg-red-900/50 transition-colors"
+            >
+              <AlertCircle className="w-3.5 h-3.5" />
+              <span>{isRetrying ? '재시도 중...' : '저장 실패 (재시도)'}</span>
+              <RefreshCw className={`w-3 h-3 ml-0.5 ${isRetrying ? 'animate-spin' : ''}`} />
+            </button>
+          ) : (
+            <>
+              <Save
+                className={`w-3.5 h-3.5 ${
+                  effectiveSaveStatus === 'saving'
+                    ? 'text-amber-500 animate-pulse'
+                    : 'text-slate-400 dark:text-[#A5A3B5]'
+                }`}
+              />
+              <span
+                className={
+                  effectiveSaveStatus === 'saving'
+                    ? 'text-amber-600 dark:text-amber-400 font-medium'
+                    : 'text-slate-400 dark:text-[#A5A3B5]'
+                }
+              >
+                {effectiveSaveStatus === 'saving' ? '저장 중...' : '자동 저장됨'}
+              </span>
+            </>
+          )}
         </div>
 
         <span className="text-slate-200 dark:text-[#3A3948]">|</span>
@@ -127,7 +169,7 @@ export const SpecialEditorHeader: React.FC<SpecialEditorHeaderProps> = ({
                   setIsExporting(true);
                   await onExportImage();
                   toast.success('이미지 저장 완료', '편집 결과가 PNG 이미지로 저장되었습니다.');
-                } catch (err) {
+                } catch {
                   toast.error('이미지 저장 실패', '이미지 내보내기 중 오류가 발생했습니다.');
                 } finally {
                   setIsExporting(false);
@@ -137,7 +179,11 @@ export const SpecialEditorHeader: React.FC<SpecialEditorHeaderProps> = ({
               title="편집 결과 이미지로 저장 (PNG)"
               className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#A5A3B5] hover:text-lavender-700 dark:hover:text-[#B7A5FF] hover:bg-lavender-50 dark:hover:bg-[#292936] hover:border-lavender-200 transition-colors text-xs font-medium"
             >
-              <Download className={`w-3.5 h-3.5 ${isExporting ? 'animate-bounce text-lavender-600' : 'text-slate-400 dark:text-[#A5A3B5]'}`} />
+              <Download
+                className={`w-3.5 h-3.5 ${
+                  isExporting ? 'animate-bounce text-lavender-600' : 'text-slate-400 dark:text-[#A5A3B5]'
+                }`}
+              />
               <span>{isExporting ? '저장 중...' : '이미지 저장'}</span>
             </button>
             <span className="text-slate-200 dark:text-[#3A3948]">|</span>

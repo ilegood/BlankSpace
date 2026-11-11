@@ -16,7 +16,7 @@ export const CreateDocumentModal: React.FC = () => {
   if (!isCreateDocumentOpen) return null;
 
   const currentCategoryInfo = TEMPLATE_CATEGORIES.find((c) => c.id === selectedCategory);
-  const filteredTemplates = TEMPLATES.filter((t) => t.category === selectedCategory);
+  const filteredTemplates = TEMPLATES.filter((t) => t.category === selectedCategory && !t.hidden);
 
   const handleSelectTemplate = async (templateId: string) => {
     if (isSubmitting) return;

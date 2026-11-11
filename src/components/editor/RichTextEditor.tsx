@@ -9,8 +9,9 @@ import { TableRow } from '@tiptap/extension-table-row';
 import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TaskList } from '@tiptap/extension-task-list';
-import { TaskItem } from '@tiptap/extension-task-item';
+import { InteractiveTaskItem } from './extensions/InteractiveTaskItem';
 import { Youtube } from '@tiptap/extension-youtube';
+import { VideoExtension, AudioExtension, LinkCardExtension } from './extensions/MediaExtensions';
 import { EditorToolbar } from './EditorToolbar';
 import { Unlink, ExternalLink, ArrowRight, Bookmark } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
@@ -20,7 +21,11 @@ interface RichTextEditorProps {
   onChange: (html: string) => void;
   onBlur?: (html: string) => void;
   onNavigateInternalLink?: (docId: string, pageId?: string) => void;
+  onEditorReady?: (editor: any) => void;
   placeholder?: string;
+  isReadOnly?: boolean;
+  preset?: 'modern' | 'minimal' | 'novel' | 'compact';
+  showInternalToolbar?: boolean;
 }
 
 interface ActiveLinkPopup {
@@ -35,15 +40,35 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   onChange,
   onBlur,
   onNavigateInternalLink,
+  onEditorReady,
   placeholder = '여기에 자유롭게 내용을 작성하세요...',
+  isReadOnly = false,
+  preset = 'modern',
+  showInternalToolbar = false,
 }) => {
   const { documents } = useWorkspace();
   const isUpdatingFromProp = useRef(false);
   const [activeLinkPopup, setActiveLinkPopup] = useState<ActiveLinkPopup | null>(null);
 
+  const getEditorFontClass = () => {
+    switch (preset) {
+      case 'novel':
+        return 'font-serif text-[15.5px] leading-[2.1]';
+      case 'minimal':
+        return 'font-sans text-[14px] leading-relaxed';
+      case 'compact':
+        return 'font-sans text-[13px] leading-normal';
+      case 'modern':
+      default:
+        return 'font-sans text-[14.5px] leading-relaxed';
+    }
+  };
+
   const editor = useEditor({
+    editable: !isReadOnly,
     extensions: [
       StarterKit.configure({
+        link: false, // StarterKit 내장 link 확장을 비활성화하여 중복 등록 방지
         heading: {
           levels: [1, 2, 3],
         },
@@ -71,7 +96,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       TableHeader,
       TableCell,
       TaskList,
-      TaskItem.configure({
+      InteractiveTaskItem.configure({
         nested: true,
       }),
       Youtube.configure({
@@ -80,12 +105,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           class: 'aspect-video w-full max-w-2xl mx-auto rounded-2xl shadow-soft border border-slate-200 my-4 block',
         },
       }),
+      VideoExtension,
+      AudioExtension,
+      LinkCardExtension,
     ],
     content,
     editorProps: {
       attributes: {
-        class:
-          'focus:outline-none min-h-[460px] p-8 text-[14px] leading-relaxed text-slate-800 dark:text-[#E8E7EF] bg-white dark:bg-[#22222C]',
+        class: `focus:outline-none min-h-[460px] p-6 text-slate-800 dark:text-[#E8E7EF] bg-transparent ${getEditorFontClass()}`,
       },
       handleClick: (_view, _pos, event) => {
         const target = event.target as HTMLElement;
@@ -93,6 +120,22 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         if (anchor) {
           const href = anchor.getAttribute('href');
           if (href) {
+            // View Mode: Instant direct navigation
+            if (isReadOnly) {
+              if (href.startsWith('#blankspace-doc:')) {
+                const parts = href.replace('#blankspace-doc:', '').split(':');
+                const targetDocId = parts[0];
+                const targetPageId = parts[1];
+                if (onNavigateInternalLink) {
+                  onNavigateInternalLink(targetDocId, targetPageId);
+                }
+              } else {
+                window.open(href, '_blank', 'noopener,noreferrer');
+              }
+              return true;
+            }
+
+            // Edit Mode: Action Popup
             const rect = anchor.getBoundingClientRect();
             setActiveLinkPopup({
               href,
@@ -135,6 +178,20 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   }, [content, editor]);
 
+  // Sync editable state when mode changes
+  useEffect(() => {
+    if (editor) {
+      editor.setEditable(!isReadOnly);
+    }
+  }, [isReadOnly, editor]);
+
+  // Expose editor instance to parent (e.g. for fixed top toolbar)
+  useEffect(() => {
+    if (onEditorReady) {
+      onEditorReady(editor);
+    }
+  }, [editor, onEditorReady]);
+
   // Handle Unlink from floating popup (Keeps text intact!)
   const handleUnlink = () => {
     if (!editor) return;
@@ -171,14 +228,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
 
   return (
-    <div className="flex flex-col flex-1 bg-white dark:bg-[#22222C] border border-[#ECEEF3] dark:border-[#3A3948] rounded-2xl shadow-soft overflow-hidden relative">
-      {/* Rich Text Toolbar */}
-      <EditorToolbar editor={editor} />
+    <div className={`flex flex-col flex-1 bg-white dark:bg-[#22222C] border border-[#ECEEF3] dark:border-[#3A3948] rounded-2xl shadow-soft overflow-hidden relative ${isReadOnly ? 'border-transparent shadow-none bg-transparent dark:bg-transparent' : ''}`}>
+      {/* Rich Text Toolbar (Shown only if showInternalToolbar is true) */}
+      {showInternalToolbar && !isReadOnly && <EditorToolbar editor={editor} />}
 
       {/* Editable Area */}
       <div
-        className="flex-1 overflow-y-auto cursor-text bg-white dark:bg-[#22222C] p-2"
-        onClick={() => editor?.commands.focus()}
+        className={`flex-1 overflow-y-auto p-2 ${isReadOnly ? 'cursor-default' : 'cursor-text'}`}
+        onClick={() => !isReadOnly && editor?.commands.focus()}
       >
         <EditorContent editor={editor} />
       </div>

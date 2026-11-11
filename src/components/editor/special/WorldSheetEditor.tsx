@@ -31,7 +31,6 @@ import {
 export const WorldSheetEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { toast, customPrompt } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   // 1. Core World Sheet Document State
@@ -83,9 +82,7 @@ export const WorldSheetEditor: React.FC = () => {
       isUndoRedoAction.current = false;
 
       if (!activePage) return;
-      setSaveStatus('saving');
       updatePageContent(activePage.id, JSON.stringify(nextData));
-      setTimeout(() => setSaveStatus('saved'), 300);
     },
     [activePage, historyIdx, updatePageContent]
   );
@@ -342,7 +339,6 @@ export const WorldSheetEditor: React.FC = () => {
     >
       {/* 1. Global Header */}
       <SpecialEditorHeader
-        saveStatus={saveStatus}
         onExportImage={handleExportImage}
       />
 

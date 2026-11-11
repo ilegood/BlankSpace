@@ -54,6 +54,7 @@ export interface TemplateDefinition {
   iconName: string;
   defaultTitle: string;
   defaultContent?: string;
+  hidden?: boolean;
 }
 
 export type FilterType = 'all' | 'folder' | 'document';

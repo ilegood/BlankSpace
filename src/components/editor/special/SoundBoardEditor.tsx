@@ -90,7 +90,6 @@ const WAVEFORM_BARS = [
 export const SoundBoardEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { customPrompt, success } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   const [activeCategory, setActiveCategory] = useState('bgm');
@@ -129,12 +128,10 @@ export const SoundBoardEditor: React.FC = () => {
     setTracks(newTracks);
     setCategories(newCats);
     if (!activePage) return;
-    setSaveStatus('saving');
     updatePageContent(
       activePage.id,
       JSON.stringify({ tracks: newTracks, categories: newCats })
     );
-    setTimeout(() => setSaveStatus('saved'), 300);
   };
 
   // Playback timer simulation
@@ -234,7 +231,6 @@ export const SoundBoardEditor: React.FC = () => {
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
-        saveStatus={saveStatus}
         onExportImage={handleExportImage}
         extraControls={
           <button

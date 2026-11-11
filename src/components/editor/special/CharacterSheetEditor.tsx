@@ -28,7 +28,6 @@ import { useToast } from '../../toast/ToastContext';
 export const CharacterSheetEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { toast } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   // Canvas State
@@ -75,9 +74,7 @@ export const CharacterSheetEditor: React.FC = () => {
       isUndoRedoAction.current = false;
 
       if (!activePage) return;
-      setSaveStatus('saving');
       updatePageContent(activePage.id, JSON.stringify(nextData));
-      setTimeout(() => setSaveStatus('saved'), 300);
     },
     [activePage, historyIdx, updatePageContent]
   );
@@ -526,7 +523,6 @@ export const CharacterSheetEditor: React.FC = () => {
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-dark-bg relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
-        saveStatus={saveStatus}
         onExportImage={handleExportImage}
       />
 

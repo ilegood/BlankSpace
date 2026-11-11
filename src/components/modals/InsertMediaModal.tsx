@@ -181,7 +181,7 @@ export const InsertMediaModal: React.FC<InsertMediaModalProps> = ({
             }`}
           >
             <Bookmark className="w-4 h-4" />
-            <span>외부 링크 카드</span>
+            <span>외부 링크 (카드)</span>
           </button>
         </div>
 
@@ -381,20 +381,20 @@ export const InsertMediaModal: React.FC<InsertMediaModalProps> = ({
               {linkUrl && (
                 <div className="mt-1">
                   <span className="text-[10px] text-slate-400 dark:text-[#A5A3B5] mb-1 block">링크 카드 미리보기:</span>
-                  <div className="bg-slate-50 dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-2xl p-3 flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                      <LinkIcon className="w-4 h-4" />
+                  <div className="bg-slate-50 dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-2xl p-3.5 flex flex-col gap-1.5 shadow-2xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 font-bold text-slate-800 dark:text-[#E8E7EF] text-xs truncate">
+                        <span>🔗</span>
+                        <span className="truncate">{linkTitle || linkUrl}</span>
+                      </div>
+                      <span className="text-[11px] text-slate-400 dark:text-[#7262A8] font-bold">↗</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-bold text-slate-800 dark:text-[#E8E7EF] text-xs truncate">
-                        {linkTitle || linkUrl}
-                      </h4>
-                      {linkDesc && (
-                        <p className="text-[11px] text-slate-500 dark:text-[#A5A3B5] line-clamp-1 mt-0.5">{linkDesc}</p>
-                      )}
-                      <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium truncate block mt-1">
-                        {linkUrl}
-                      </span>
+                    {linkDesc && (
+                      <p className="text-[11px] text-slate-500 dark:text-[#A5A3B5] line-clamp-2 pl-5.5">{linkDesc}</p>
+                    )}
+                    <div className="text-[10px] text-slate-400 dark:text-[#8E8B9E] font-medium truncate pl-5.5 flex items-center gap-1">
+                      <span>🌐</span>
+                      <span className="text-lavender-600 dark:text-[#B7A5FF] font-mono truncate">{linkUrl}</span>
                     </div>
                   </div>
                 </div>

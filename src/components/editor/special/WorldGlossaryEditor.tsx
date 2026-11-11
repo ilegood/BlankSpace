@@ -122,7 +122,6 @@ const CATEGORIES = [
 export const WorldGlossaryEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { customPrompt, success } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   const [activeSidebar, setActiveSidebar] = useState<'all' | 'category' | 'tags'>('all');
@@ -148,9 +147,7 @@ export const WorldGlossaryEditor: React.FC = () => {
   const persistData = (newTerms: GlossaryTerm[]) => {
     setTerms(newTerms);
     if (!activePage) return;
-    setSaveStatus('saving');
     updatePageContent(activePage.id, JSON.stringify({ terms: newTerms }));
-    setTimeout(() => setSaveStatus('saved'), 300);
   };
 
   const handleExportImage = async () => {
@@ -206,7 +203,6 @@ export const WorldGlossaryEditor: React.FC = () => {
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
-        saveStatus={saveStatus}
         onExportImage={handleExportImage}
       />
 

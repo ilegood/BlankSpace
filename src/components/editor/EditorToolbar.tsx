@@ -14,7 +14,6 @@ import {
   Minus,
   Table as TableIcon,
   Image as ImageIcon,
-  Link as LinkIcon,
   Undo2,
   Redo2,
   Trash2,
@@ -23,14 +22,12 @@ import {
 } from 'lucide-react';
 import { InsertInternalLinkModal } from '../modals/InsertInternalLinkModal';
 import { InsertMediaModal } from '../modals/InsertMediaModal';
-import { useToast } from '../toast/ToastContext';
 
 interface EditorToolbarProps {
   editor: Editor | null;
 }
 
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
-  const { customPrompt } = useToast();
   const [isInternalModalOpen, setIsInternalModalOpen] = useState(false);
   const [isMediaModalOpen, setIsMediaModalOpen] = useState(false);
   const [selectedText, setSelectedText] = useState('');
@@ -47,57 +44,14 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
 
   const handleInsertVideoAudio = (type: 'video' | 'audio', src: string) => {
     if (type === 'video') {
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          `<div class="my-4 max-w-2xl mx-auto"><video controls src="${src}" class="w-full rounded-2xl shadow-soft border border-slate-200 aspect-video"></video></div><p></p>`
-        )
-        .run();
+      editor.chain().focus().setVideo({ src }).run();
     } else {
-      editor
-        .chain()
-        .focus()
-        .insertContent(
-          `<div class="my-3 max-w-md mx-auto p-3 rounded-2xl bg-slate-50 border border-slate-200 shadow-2xs"><audio controls src="${src}" class="w-full"></audio></div><p></p>`
-        )
-        .run();
+      editor.chain().focus().setAudio({ src }).run();
     }
   };
 
   const handleInsertLinkCard = (card: { url: string; title: string; description?: string }) => {
-    const cardHtml = `
-      <div class="blankspace-link-card my-4 p-4 rounded-2xl border border-slate-200 bg-slate-50/70 hover:bg-slate-100/70 transition-all shadow-2xs flex items-center justify-between gap-4 select-none">
-        <div class="flex-1 min-w-0">
-          <a href="${card.url}" target="_blank" rel="noopener noreferrer" class="font-bold text-slate-800 text-sm hover:text-lavender-600 block truncate underline">${card.title}</a>
-          ${card.description ? `<p class="text-xs text-slate-500 mt-1 line-clamp-2">${card.description}</p>` : ''}
-          <span class="text-[11px] text-lavender-600 font-medium block mt-1 truncate">${card.url}</span>
-        </div>
-      </div>
-      <p></p>
-    `;
-    editor.chain().focus().insertContent(cardHtml).run();
-  };
-
-  const setExternalLink = async () => {
-    const previousUrl = editor.getAttributes('link').href || '';
-    const cleanUrl = previousUrl.startsWith('#blankspace-doc:') ? '' : previousUrl;
-    const url = await customPrompt({
-      title: '외부 링크 삽입 / 변경',
-      message: '연결할 외부 링크 URL을 입력하세요:',
-      placeholder: 'https://...',
-      defaultValue: cleanUrl,
-      confirmText: '확인',
-    });
-
-    if (url === null) return;
-
-    if (url.trim() === '') {
-      editor.chain().focus().extendMarkRange('link').unsetLink().run();
-      return;
-    }
-
-    editor.chain().focus().extendMarkRange('link').setLink({ href: url.trim() }).run();
+    editor.chain().focus().setLinkCard(card).run();
   };
 
   // 링크 해제 (텍스트는 그대로 유지하고 링크만 해제)
@@ -146,9 +100,14 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
     editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
   };
 
+  const activeBtnClass =
+    'bg-lavender-100 dark:bg-[#43376E] text-lavender-700 dark:text-white font-bold shadow-2xs';
+  const inactiveBtnClass =
+    'hover:bg-slate-200/60 dark:hover:bg-[#2A2938] text-slate-600 dark:text-[#A5A3B5] dark:hover:text-white';
+
   return (
     <>
-      <div className="flex flex-wrap items-center gap-1 px-4 py-2 border-b border-[#ECEEF3] dark:border-[#3A3948] bg-[#FCFCFD] dark:bg-[#1E1E27] text-slate-600 dark:text-[#E8E7EF] select-none">
+      <div className="w-full flex flex-wrap items-center gap-1 px-6 py-2 border-b border-[#ECEEF3] dark:border-[#3A3948] bg-white dark:bg-[#1E1E27] text-slate-600 dark:text-[#E8E7EF] select-none shadow-2xs">
         {/* Undo / Redo */}
         <div className="flex items-center border-r border-slate-200/80 dark:border-[#3A3948] pr-1.5 mr-1.5 gap-0.5">
           <button
@@ -157,7 +116,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onClick={() => editor.chain().focus().undo().run()}
             disabled={!editor.can().undo()}
             title="실행 취소 (Ctrl+Z)"
-            className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-[#292936] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-[#2A2938] text-slate-600 dark:text-[#A5A3B5] dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <Undo2 className="w-3.5 h-3.5" />
           </button>
@@ -167,7 +126,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onClick={() => editor.chain().focus().redo().run()}
             disabled={!editor.can().redo()}
             title="다시 실행 (Ctrl+Y)"
-            className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-[#292936] disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-[#2A2938] text-slate-600 dark:text-[#A5A3B5] dark:hover:text-white disabled:opacity-30 disabled:hover:bg-transparent transition-colors"
           >
             <Redo2 className="w-3.5 h-3.5" />
           </button>
@@ -180,9 +139,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('heading', { level: 1 })
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('heading', { level: 1 }) ? activeBtnClass : inactiveBtnClass
             }`}
             title="제목 1 (H1)"
           >
@@ -193,9 +150,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('heading', { level: 2 })
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('heading', { level: 2 }) ? activeBtnClass : inactiveBtnClass
             }`}
             title="제목 2 (H2)"
           >
@@ -206,9 +161,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('heading', { level: 3 })
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('heading', { level: 3 }) ? activeBtnClass : inactiveBtnClass
             }`}
             title="제목 3 (H3)"
           >
@@ -223,9 +176,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleBold().run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('bold')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('bold') ? activeBtnClass : inactiveBtnClass
             }`}
             title="굵게 (Ctrl+B)"
           >
@@ -236,9 +187,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleItalic().run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('italic')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('italic') ? activeBtnClass : inactiveBtnClass
             }`}
             title="기울임 (Ctrl+I)"
           >
@@ -249,9 +198,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleStrike().run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('strike')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('strike') ? activeBtnClass : inactiveBtnClass
             }`}
             title="취소선"
           >
@@ -266,9 +213,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('bulletList')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('bulletList') ? activeBtnClass : inactiveBtnClass
             }`}
             title="글머리 기호 목록"
           >
@@ -279,9 +224,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('orderedList')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('orderedList') ? activeBtnClass : inactiveBtnClass
             }`}
             title="번호 매기기 목록"
           >
@@ -292,9 +235,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleTaskList().run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('taskList')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('taskList') ? activeBtnClass : inactiveBtnClass
             }`}
             title="할 일 체크리스트"
           >
@@ -309,9 +250,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('blockquote')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('blockquote') ? activeBtnClass : inactiveBtnClass
             }`}
             title="인용문"
           >
@@ -321,14 +260,14 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             type="button"
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().setHorizontalRule().run()}
-            className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-[#292936] transition-colors"
+            className="p-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-[#292936] text-slate-600 dark:text-[#A5A3B5] transition-colors"
             title="구분선 삽입"
           >
             <Minus className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Insert: Internal Link (Phase 4), External Link, Unlink, Image, Table */}
+        {/* Insert: Internal Link (Phase 4), Unlink, Image, Table */}
         <div className="flex items-center gap-1">
           {/* Phase 4: Internal Document Link */}
           <button
@@ -337,27 +276,13 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onClick={handleOpenInternalLink}
             className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-colors ${
               editor.isActive('link') && editor.getAttributes('link').href?.startsWith('#blankspace-doc:')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-800 dark:text-lavender-200 border-lavender-300 dark:border-lavender-800 shadow-xs'
-                : 'text-lavender-700 dark:text-lavender-300 bg-lavender-50 dark:bg-lavender-950/30 hover:bg-lavender-100/90 dark:hover:bg-lavender-950/50 border-lavender-200/80 dark:border-lavender-800/40'
+                ? 'bg-lavender-100 dark:bg-[#43376E] text-lavender-800 dark:text-white border-lavender-300 dark:border-[#6B5A9E] shadow-xs'
+                : 'text-lavender-700 dark:text-[#D1C6FF] bg-lavender-50 dark:bg-[#28243C] hover:bg-lavender-100 dark:hover:bg-[#383154] border-lavender-200/80 dark:border-[#463D6C]'
             }`}
             title={editor.isActive('link') ? '내부 링크 대상 문서 변경 (기존 텍스트 유지)' : '다른 문서나 페이지로 연결되는 내부 링크 삽입'}
           >
-            <Bookmark className="w-3.5 h-3.5 fill-lavender-300" />
+            <Bookmark className="w-3.5 h-3.5 fill-lavender-300 dark:fill-[#A594E0]" />
             <span>{editor.isActive('link') ? '링크 변경' : '내부 링크'}</span>
-          </button>
-
-          <button
-            type="button"
-            onMouseDown={(e) => e.preventDefault()}
-            onClick={setExternalLink}
-            className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('link') && !editor.getAttributes('link').href?.startsWith('#blankspace-doc:')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
-            }`}
-            title="외부 URL 링크 삽입 / 변경"
-          >
-            <LinkIcon className="w-3.5 h-3.5" />
           </button>
 
           {/* 링크 해제 버튼 (텍스트는 그대로 남기고 링크만 해제) */}
@@ -366,7 +291,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
               type="button"
               onMouseDown={(e) => e.preventDefault()}
               onClick={unsetCurrentLink}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-950/50 border border-rose-200 dark:border-rose-900/40 transition-colors animate-in fade-in"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/30 hover:bg-rose-100 dark:hover:bg-rose-900/40 border border-rose-200 dark:border-rose-900/50 transition-colors animate-in fade-in"
               title="텍스트는 유지하고 링크만 해제하여 일반 텍스트로 전환합니다"
             >
               <Unlink className="w-3.5 h-3.5" />
@@ -381,7 +306,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-slate-700 dark:text-[#E8E7EF] bg-slate-100 dark:bg-[#292936] hover:bg-slate-200 dark:hover:bg-[#3A3948] transition-colors"
             title="미디어 (이미지, GIF, YouTube, 영상, 오디오, 링크 카드) 삽입"
           >
-            <ImageIcon className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400" />
+            <ImageIcon className="w-3.5 h-3.5 text-lavender-600 dark:text-[#B7A5FF]" />
             <span>미디어 첨부</span>
           </button>
 
@@ -390,9 +315,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
             onMouseDown={(e) => e.preventDefault()}
             onClick={insertTable}
             className={`p-1.5 rounded-lg transition-colors ${
-              editor.isActive('table')
-                ? 'bg-lavender-100 dark:bg-lavender-950/60 text-lavender-700 dark:text-lavender-300 font-bold'
-                : 'hover:bg-slate-200/60 dark:hover:bg-[#292936]'
+              editor.isActive('table') ? activeBtnClass : inactiveBtnClass
             }`}
             title="표 삽입 (3x3)"
           >
@@ -401,13 +324,13 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
 
           {/* Quick controls when cursor is inside a table */}
           {editor.isActive('table') && (
-            <div className="flex items-center gap-1 bg-lavender-100/70 dark:bg-lavender-950/60 border border-lavender-200 dark:border-lavender-800 px-1.5 py-0.5 rounded-lg text-[11px] font-medium text-lavender-800 dark:text-lavender-200">
+            <div className="flex items-center gap-1 bg-lavender-100/70 dark:bg-[#26213B] border border-lavender-200 dark:border-[#413868] px-1.5 py-0.5 rounded-lg text-[11px] font-medium text-lavender-800 dark:text-[#D1C6FF]">
               <button
                 type="button"
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => editor.chain().focus().addRowAfter().run()}
                 title="아래에 행 추가"
-                className="px-1 py-0.5 hover:bg-white dark:hover:bg-[#292936] rounded transition-colors"
+                className="px-1.5 py-0.5 hover:bg-lavender-200 dark:hover:bg-[#43376E] dark:hover:text-white rounded transition-colors"
               >
                 +행
               </button>
@@ -416,7 +339,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => editor.chain().focus().addColumnAfter().run()}
                 title="오른쪽에 열 추가"
-                className="px-1 py-0.5 hover:bg-white dark:hover:bg-[#292936] rounded transition-colors"
+                className="px-1.5 py-0.5 hover:bg-lavender-200 dark:hover:bg-[#43376E] dark:hover:text-white rounded transition-colors"
               >
                 +열
               </button>
@@ -425,7 +348,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => editor.chain().focus().deleteRow().run()}
                 title="행 삭제"
-                className="px-1 py-0.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded transition-colors"
+                className="px-1.5 py-0.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded transition-colors"
               >
                 -행
               </button>
@@ -434,7 +357,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({ editor }) => {
                 onMouseDown={(e) => e.preventDefault()}
                 onClick={() => editor.chain().focus().deleteColumn().run()}
                 title="열 삭제"
-                className="px-1 py-0.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded transition-colors"
+                className="px-1.5 py-0.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 text-rose-600 dark:text-rose-400 rounded transition-colors"
               >
                 -열
               </button>

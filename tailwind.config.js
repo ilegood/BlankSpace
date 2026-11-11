@@ -30,6 +30,7 @@ export default {
           700: '#6845DB',
           800: '#5638B8',
           900: '#462E94',
+          950: '#2C1D5E',
         },
         workspace: {
           bg: '#F9FAFD',

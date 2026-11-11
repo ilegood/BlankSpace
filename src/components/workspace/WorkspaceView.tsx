@@ -12,7 +12,6 @@ import { CharacterRelationsEditor } from '../editor/special/CharacterRelationsEd
 import { CharacterDialogueEditor } from '../editor/special/CharacterDialogueEditor';
 import { WorldSheetEditor } from '../editor/special/WorldSheetEditor';
 import { WorldMapEditor } from '../editor/special/WorldMapEditor';
-import { WorldRegionFactionsEditor } from '../editor/special/WorldRegionFactionsEditor';
 import { WorldChronicleEditor } from '../editor/special/WorldChronicleEditor';
 import { WorldGlossaryEditor } from '../editor/special/WorldGlossaryEditor';
 import { GameDesignSystemEditor } from '../editor/special/GameDesignSystemEditor';
@@ -65,13 +64,12 @@ export const WorkspaceView: React.FC = () => {
         return <CharacterSheetEditor />;
       case 'character-relations':
         return <CharacterRelationsEditor />;
-      case 'character-dialogue':
-        return <CharacterDialogueEditor />;
 
       // 2. 세계관 카테고리
       case 'world-sheet':
         return <WorldSheetEditor />;
       case 'world-map-factions':
+      case 'world-region-factions':
         return <WorldMapEditor />;
       case 'world-chronicle':
         return <WorldChronicleEditor />;
@@ -79,6 +77,8 @@ export const WorkspaceView: React.FC = () => {
         return <WorldGlossaryEditor />;
 
       // 3. 게임 기획 카테고리
+      case 'character-dialogue':
+        return <CharacterDialogueEditor />;
       case 'game-design-system':
         return <GameDesignSystemEditor />;
       case 'game-flow':

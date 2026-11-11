@@ -91,7 +91,6 @@ const DEFAULT_CHRONICLE_DATA: ChronicleData = {
 export const WorldChronicleEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { customPrompt, success } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   const [activeTab, setActiveTab] = useState<'timeline' | 'eraSummary' | 'events' | 'detail'>('timeline');
@@ -113,9 +112,7 @@ export const WorldChronicleEditor: React.FC = () => {
   const persistData = (next: ChronicleData) => {
     setData(next);
     if (!activePage) return;
-    setSaveStatus('saving');
     updatePageContent(activePage.id, JSON.stringify(next));
-    setTimeout(() => setSaveStatus('saved'), 300);
   };
 
   const handleExportImage = async () => {
@@ -148,7 +145,6 @@ export const WorldChronicleEditor: React.FC = () => {
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Top Header */}
       <SpecialEditorHeader
-        saveStatus={saveStatus}
         onExportImage={handleExportImage}
       />
 

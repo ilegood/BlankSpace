@@ -23,7 +23,6 @@ import { ChangeMapImageModal } from './map/ChangeMapImageModal';
 export const WorldMapEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent, setActiveDocument } = useWorkspace();
   const { toast } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   // 1. Core Document State
@@ -87,9 +86,7 @@ export const WorldMapEditor: React.FC = () => {
       isUndoRedoAction.current = false;
 
       if (!activePage) return;
-      setSaveStatus('saving');
       updatePageContent(activePage.id, JSON.stringify(nextData));
-      setTimeout(() => setSaveStatus('saved'), 300);
     },
     [activePage, historyIdx, updatePageContent]
   );
@@ -412,7 +409,6 @@ export const WorldMapEditor: React.FC = () => {
     >
       {/* 1. Global Header */}
       <SpecialEditorHeader
-        saveStatus={saveStatus}
         onExportImage={handleExportImage}
       />
 

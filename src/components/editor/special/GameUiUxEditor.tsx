@@ -43,7 +43,6 @@ const DEFAULT_UI_DATA = {
 export const GameUiUxEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { success } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   const [activeScreen, setActiveScreen] = useState('hud');
@@ -64,9 +63,7 @@ export const GameUiUxEditor: React.FC = () => {
   const persistData = (next: typeof DEFAULT_UI_DATA) => {
     setData(next);
     if (!activePage) return;
-    setSaveStatus('saving');
     updatePageContent(activePage.id, JSON.stringify(next));
-    setTimeout(() => setSaveStatus('saved'), 300);
   };
 
   const handleExportImage = async () => {
@@ -79,7 +76,7 @@ export const GameUiUxEditor: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Header */}
-      <SpecialEditorHeader saveStatus={saveStatus} onExportImage={handleExportImage} />
+      <SpecialEditorHeader onExportImage={handleExportImage} />
 
       {/* Main 3-Column Layout: Left Screen List + Center Canvas + Right Description */}
       <div className="flex-1 flex overflow-hidden">

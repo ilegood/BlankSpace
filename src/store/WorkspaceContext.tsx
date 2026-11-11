@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Project, Folder, Document, DocumentPage, FilterType, ViewMode, SortOption, TemplateCategoryType } from '../types';
-import { StorageService } from '../storage';
+import { StorageService, BackupService, CURRENT_SCHEMA_VERSION } from '../storage';
 import { generateId } from '../utils/id';
 import { TEMPLATES } from '../templates/templateList';
 
 export type MainView = 'projects' | 'recent' | 'favorites' | 'trash' | 'settings';
+export type SaveStatus = 'saved' | 'saving' | 'error';
 
 interface WorkspaceContextType {
   // State
@@ -24,6 +25,16 @@ interface WorkspaceContextType {
   mainView: MainView;
   setMainView: (view: MainView) => void;
   recentDocumentIds: string[];
+
+  // Save State & Reliability
+  saveStatus: SaveStatus;
+  lastSaveError: string | null;
+  retryLastSave: () => Promise<void>;
+
+  // Backup & Schema Version (Phase 2)
+  schemaVersion: number;
+  exportBackup: (customFileName?: string) => void;
+  importBackup: (jsonString: string) => Promise<{ success: boolean; error?: string }>;
 
   // Active getters & Breadcrumbs (Phase 3)
   activeProject: Project | null;
@@ -80,7 +91,7 @@ interface WorkspaceContextType {
   createPage: (title?: string) => Promise<DocumentPage>;
   renamePage: (pageId: string, newTitle: string) => Promise<void>;
   deletePage: (pageId: string) => Promise<{ success: boolean; message?: string }>;
-  updatePageContent: (pageId: string, content: string) => void;
+  updatePageContent: (pageId: string, content: string) => Promise<{ success: boolean; error?: string }>;
 
   // Drag and Drop & Hierarchy Management (Phase 3)
   moveItem: (type: 'folder' | 'document', itemId: string, targetFolderId: string | null) => Promise<{ success: boolean; message?: string }>;
@@ -109,6 +120,163 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [activeDocumentId, setActiveDocumentIdState] = useState<string | null>(null);
   const [activePageId, setActivePageId] = useState<string | null>(null);
+
+  // Sync refs to guarantee always-latest data access and eliminate stale closure bugs
+  const projectsRef = useRef<Project[]>([]);
+  const foldersRef = useRef<Folder[]>([]);
+  const documentsRef = useRef<Document[]>([]);
+  const pagesRef = useRef<DocumentPage[]>([]);
+
+  // Reliable Save Status Management
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const [lastSaveError, setLastSaveError] = useState<string | null>(null);
+
+  // Serialized persistence queues to prevent race conditions & out-of-order writes
+  const isSavingPagesRef = useRef(false);
+  const hasPendingPagesSaveRef = useRef(false);
+
+  const isSavingDocsRef = useRef(false);
+  const hasPendingDocsSaveRef = useRef(false);
+
+  const isSavingFoldersRef = useRef(false);
+  const hasPendingFoldersSaveRef = useRef(false);
+
+  const isSavingProjectsRef = useRef(false);
+  const hasPendingProjectsSaveRef = useRef(false);
+
+  // Process Pages Queue
+  const processPagesQueue = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
+    if (isSavingPagesRef.current) {
+      hasPendingPagesSaveRef.current = true;
+      return { success: true };
+    }
+
+    isSavingPagesRef.current = true;
+    setSaveStatus('saving');
+
+    let finalError: string | null = null;
+    try {
+      do {
+        hasPendingPagesSaveRef.current = false;
+        const currentPages = [...pagesRef.current];
+        const res = await StorageService.savePages(currentPages);
+        if (!res.success) {
+          throw new Error(res.error || '페이지 저장에 실패했습니다.');
+        }
+      } while (hasPendingPagesSaveRef.current);
+
+      setSaveStatus('saved');
+      setLastSaveError(null);
+      return { success: true };
+    } catch (err: any) {
+      finalError = err?.message || '저장 중 오류가 발생했습니다.';
+      console.error('Save pages error:', err);
+      setSaveStatus('error');
+      setLastSaveError(finalError);
+      return { success: false, error: finalError || undefined };
+    } finally {
+      isSavingPagesRef.current = false;
+    }
+  }, []);
+
+  // Process Docs Queue
+  const processDocsQueue = useCallback(async () => {
+    if (isSavingDocsRef.current) {
+      hasPendingDocsSaveRef.current = true;
+      return;
+    }
+
+    isSavingDocsRef.current = true;
+    try {
+      do {
+        hasPendingDocsSaveRef.current = false;
+        const currentDocs = [...documentsRef.current];
+        const res = await StorageService.saveDocuments(currentDocs);
+        if (!res.success) {
+          throw new Error(res.error || '문서 목록 저장에 실패했습니다.');
+        }
+      } while (hasPendingDocsSaveRef.current);
+    } catch (err: any) {
+      console.error('Save docs error:', err);
+      setSaveStatus('error');
+      setLastSaveError(err?.message || '문서 저장에 실패했습니다.');
+    } finally {
+      isSavingDocsRef.current = false;
+    }
+  }, []);
+
+  // Process Folders Queue
+  const processFoldersQueue = useCallback(async () => {
+    if (isSavingFoldersRef.current) {
+      hasPendingFoldersSaveRef.current = true;
+      return;
+    }
+    isSavingFoldersRef.current = true;
+    try {
+      do {
+        hasPendingFoldersSaveRef.current = false;
+        const currentFolders = [...foldersRef.current];
+        const res = await StorageService.saveFolders(currentFolders);
+        if (!res.success) {
+          throw new Error(res.error || '폴더 목록 저장에 실패했습니다.');
+        }
+      } while (hasPendingFoldersSaveRef.current);
+    } catch (err: any) {
+      console.error('Save folders error:', err);
+      setSaveStatus('error');
+      setLastSaveError(err?.message || '폴더 저장에 실패했습니다.');
+    } finally {
+      isSavingFoldersRef.current = false;
+    }
+  }, []);
+
+  // Process Projects Queue
+  const processProjectsQueue = useCallback(async () => {
+    if (isSavingProjectsRef.current) {
+      hasPendingProjectsSaveRef.current = true;
+      return;
+    }
+    isSavingProjectsRef.current = true;
+    try {
+      do {
+        hasPendingProjectsSaveRef.current = false;
+        const currentProjects = [...projectsRef.current];
+        const res = await StorageService.saveProjects(currentProjects);
+        if (!res.success) {
+          throw new Error(res.error || '프로젝트 저장에 실패했습니다.');
+        }
+      } while (hasPendingProjectsSaveRef.current);
+    } catch (err: any) {
+      console.error('Save projects error:', err);
+      setSaveStatus('error');
+      setLastSaveError(err?.message || '프로젝트 저장에 실패했습니다.');
+    } finally {
+      isSavingProjectsRef.current = false;
+    }
+  }, []);
+
+  // Retry failed saves manually
+  const retryLastSave = useCallback(async () => {
+    setSaveStatus('saving');
+    setLastSaveError(null);
+    try {
+      const pRes = await StorageService.savePages(pagesRef.current);
+      const dRes = await StorageService.saveDocuments(documentsRef.current);
+      const fRes = await StorageService.saveFolders(foldersRef.current);
+      const prRes = await StorageService.saveProjects(projectsRef.current);
+
+      if (pRes.success && dRes.success && fRes.success && prRes.success) {
+        setSaveStatus('saved');
+      } else {
+        const errorMsg = pRes.error || dRes.error || fRes.error || prRes.error || '저장 재시도 실패';
+        setSaveStatus('error');
+        setLastSaveError(errorMsg);
+      }
+    } catch (err: any) {
+      setSaveStatus('error');
+      setLastSaveError(err?.message || '저장 재시도 중 오류가 발생했습니다.');
+    }
+  }, []);
 
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
@@ -149,17 +317,77 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [isCreateDocumentOpen, setIsCreateDocumentOpen] = useState(false);
   const [isFabOpen, setIsFabOpen] = useState(false);
 
+  // Backup & Schema Version State (Phase 2)
+  const [schemaVersion, setSchemaVersion] = useState<number>(CURRENT_SCHEMA_VERSION);
+
   // Load from Storage
   useEffect(() => {
     StorageService.init().then((data) => {
+      projectsRef.current = data.projects;
+      foldersRef.current = data.folders;
+      documentsRef.current = data.documents;
+      pagesRef.current = data.pages;
+
       setProjects(data.projects);
       setFolders(data.folders);
       setDocuments(data.documents);
       setPages(data.pages);
       setActiveProjectIdState(data.activeProjectId);
+      setSchemaVersion(data.schemaVersion || CURRENT_SCHEMA_VERSION);
       setIsLoaded(true);
     });
   }, []);
+
+  // Export workspace backup as JSON
+  const exportBackup = useCallback((customFileName?: string) => {
+    const snapshot = BackupService.createSnapshot(
+      projectsRef.current,
+      foldersRef.current,
+      documentsRef.current,
+      pagesRef.current,
+      activeProjectId,
+      schemaVersion
+    );
+    BackupService.exportToFile(snapshot, customFileName);
+  }, [activeProjectId, schemaVersion]);
+
+  // Import and restore workspace from JSON
+  const importBackup = useCallback(
+    async (jsonString: string): Promise<{ success: boolean; error?: string }> => {
+      const valResult = BackupService.validateBackupData(jsonString);
+      if (!valResult.isValid || !valResult.snapshot) {
+        return { success: false, error: valResult.error || '유효하지 않은 백업 데이터입니다.' };
+      }
+
+      const restoreRes = await BackupService.restoreFromSnapshot(
+        valResult.snapshot,
+        projectsRef.current,
+        foldersRef.current,
+        documentsRef.current,
+        pagesRef.current
+      );
+
+      if (!restoreRes.success) {
+        return restoreRes;
+      }
+
+      // Refresh memory & state
+      projectsRef.current = valResult.snapshot.projects;
+      foldersRef.current = valResult.snapshot.folders;
+      documentsRef.current = valResult.snapshot.documents;
+      pagesRef.current = valResult.snapshot.pages;
+
+      setProjects(valResult.snapshot.projects);
+      setFolders(valResult.snapshot.folders);
+      setDocuments(valResult.snapshot.documents);
+      setPages(valResult.snapshot.pages);
+      setActiveProjectIdState(valResult.snapshot.activeProjectId);
+      setSchemaVersion(valResult.snapshot.schemaVersion || CURRENT_SCHEMA_VERSION);
+
+      return { success: true };
+    },
+    []
+  );
 
   const setActiveProject = (id: string | null) => {
     setMainViewState('projects');
@@ -184,7 +412,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         try { localStorage.setItem('blankspace_recent_documents', JSON.stringify(next)); } catch {}
         return next;
       });
-      const docPages = pages.filter((p) => p.documentId === id).sort((a, b) => a.order - b.order);
+      const docPages = pagesRef.current.filter((p) => p.documentId === id).sort((a, b) => a.order - b.order);
       if (docPages.length > 0) {
         setActivePageId(docPages[0].id);
       } else {
@@ -197,9 +425,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           createdAt: Date.now(),
           updatedAt: Date.now(),
         };
-        const updatedPages = [...pages, fallbackPage];
+        const updatedPages = [...pagesRef.current, fallbackPage];
+        pagesRef.current = updatedPages;
         setPages(updatedPages);
-        StorageService.savePages(updatedPages);
+        processPagesQueue();
         setActivePageId(fallbackPage.id);
       }
     } else {
@@ -293,29 +522,35 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: Date.now(),
     };
 
-    const updated = [newProject, ...projects];
+    const updated = [newProject, ...projectsRef.current];
+    projectsRef.current = updated;
     setProjects(updated);
-    await StorageService.saveProjects(updated);
+    processProjectsQueue();
     setActiveProject(newProject.id);
     return newProject;
   };
 
   const deleteProject = async (id: string) => {
-    const updatedProjects = projects.filter((p) => p.id !== id);
-    const updatedFolders = folders.filter((f) => f.projectId !== id);
-    const updatedDocs = documents.filter((d) => d.projectId !== id);
-    const docIdsToRemove = new Set(documents.filter((d) => d.projectId === id).map((d) => d.id));
-    const updatedPages = pages.filter((p) => !docIdsToRemove.has(p.documentId));
+    const updatedProjects = projectsRef.current.filter((p) => p.id !== id);
+    const updatedFolders = foldersRef.current.filter((f) => f.projectId !== id);
+    const updatedDocs = documentsRef.current.filter((d) => d.projectId !== id);
+    const docIdsToRemove = new Set(documentsRef.current.filter((d) => d.projectId === id).map((d) => d.id));
+    const updatedPages = pagesRef.current.filter((p) => !docIdsToRemove.has(p.documentId));
+
+    projectsRef.current = updatedProjects;
+    foldersRef.current = updatedFolders;
+    documentsRef.current = updatedDocs;
+    pagesRef.current = updatedPages;
 
     setProjects(updatedProjects);
     setFolders(updatedFolders);
     setDocuments(updatedDocs);
     setPages(updatedPages);
 
-    await StorageService.saveProjects(updatedProjects);
-    await StorageService.saveFolders(updatedFolders);
-    await StorageService.saveDocuments(updatedDocs);
-    await StorageService.savePages(updatedPages);
+    processProjectsQueue();
+    processFoldersQueue();
+    processDocsQueue();
+    processPagesQueue();
 
     if (activeProjectId === id) {
       setActiveProject(updatedProjects.length > 0 ? updatedProjects[0].id : null);
@@ -324,11 +559,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const renameProject = async (id: string, name: string) => {
     if (!name.trim()) return;
-    const updated = projects.map((p) =>
+    const updated = projectsRef.current.map((p) =>
       p.id === id ? { ...p, name: name.trim(), updatedAt: Date.now() } : p
     );
+    projectsRef.current = updated;
     setProjects(updated);
-    await StorageService.saveProjects(updated);
+    processProjectsQueue();
   };
 
   // Folder Actions (Phase 3)
@@ -345,9 +581,10 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: Date.now(),
     };
 
-    const updated = [...folders, newFolder];
+    const updated = [...foldersRef.current, newFolder];
+    foldersRef.current = updated;
     setFolders(updated);
-    await StorageService.saveFolders(updated);
+    processFoldersQueue();
     return newFolder;
   };
 
@@ -357,7 +594,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     let added = true;
     while (added) {
       added = false;
-      for (const f of folders) {
+      for (const f of foldersRef.current) {
         if (f.parentFolderId && folderIdsToDelete.has(f.parentFolderId) && !folderIdsToDelete.has(f.id)) {
           folderIdsToDelete.add(f.id);
           added = true;
@@ -365,34 +602,39 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       }
     }
 
-    const updatedFolders = folders.filter((f) => !folderIdsToDelete.has(f.id));
-    const docsToDelete = documents.filter((d) => d.folderId && folderIdsToDelete.has(d.folderId));
+    const updatedFolders = foldersRef.current.filter((f) => !folderIdsToDelete.has(f.id));
+    const docsToDelete = documentsRef.current.filter((d) => d.folderId && folderIdsToDelete.has(d.folderId));
     const docIdsToDelete = new Set(docsToDelete.map((d) => d.id));
-    const updatedDocs = documents.filter((d) => !docIdsToDelete.has(d.id));
-    const updatedPages = pages.filter((p) => !docIdsToDelete.has(p.documentId));
+    const updatedDocs = documentsRef.current.filter((d) => !docIdsToDelete.has(d.id));
+    const updatedPages = pagesRef.current.filter((p) => !docIdsToDelete.has(p.documentId));
+
+    foldersRef.current = updatedFolders;
+    documentsRef.current = updatedDocs;
+    pagesRef.current = updatedPages;
 
     setFolders(updatedFolders);
     setDocuments(updatedDocs);
     setPages(updatedPages);
 
-    await StorageService.saveFolders(updatedFolders);
-    await StorageService.saveDocuments(updatedDocs);
-    await StorageService.savePages(updatedPages);
+    processFoldersQueue();
+    processDocsQueue();
+    processPagesQueue();
 
     // If currently inside deleted folder, navigate to parent or root
     if (activeFolderId && folderIdsToDelete.has(activeFolderId)) {
-      const currentFolderObj = folders.find((f) => f.id === folderId);
+      const currentFolderObj = foldersRef.current.find((f) => f.id === folderId);
       setActiveFolder(currentFolderObj?.parentFolderId || null);
     }
   };
 
   const renameFolder = async (folderId: string, newName: string) => {
     if (!newName.trim()) return;
-    const updated = folders.map((f) =>
+    const updated = foldersRef.current.map((f) =>
       f.id === folderId ? { ...f, name: newName.trim(), updatedAt: Date.now() } : f
     );
+    foldersRef.current = updated;
     setFolders(updated);
-    await StorageService.saveFolders(updated);
+    processFoldersQueue();
   };
 
   // Document Actions
@@ -442,27 +684,33 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: Date.now(),
     };
 
-    const updatedDocs = [newDoc, ...documents];
-    const updatedPages = [...pages, newPage];
+    const updatedDocs = [newDoc, ...documentsRef.current];
+    const updatedPages = [...pagesRef.current, newPage];
+
+    documentsRef.current = updatedDocs;
+    pagesRef.current = updatedPages;
 
     setDocuments(updatedDocs);
     setPages(updatedPages);
 
-    await StorageService.saveDocuments(updatedDocs);
-    await StorageService.savePages(updatedPages);
+    processDocsQueue();
+    processPagesQueue();
 
     return newDoc;
   };
 
   const deleteDocument = async (documentId: string) => {
-    const updatedDocs = documents.filter((d) => d.id !== documentId);
-    const updatedPages = pages.filter((p) => p.documentId !== documentId);
+    const updatedDocs = documentsRef.current.filter((d) => d.id !== documentId);
+    const updatedPages = pagesRef.current.filter((p) => p.documentId !== documentId);
+
+    documentsRef.current = updatedDocs;
+    pagesRef.current = updatedPages;
 
     setDocuments(updatedDocs);
     setPages(updatedPages);
 
-    await StorageService.saveDocuments(updatedDocs);
-    await StorageService.savePages(updatedPages);
+    processDocsQueue();
+    processPagesQueue();
 
     if (activeDocumentId === documentId) {
       setActiveDocument(null);
@@ -470,17 +718,19 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const toggleFavoriteDocument = async (id: string) => {
-    const updated = documents.map((d) => (d.id === id ? { ...d, isFavorite: !d.isFavorite } : d));
+    const updated = documentsRef.current.map((d) => (d.id === id ? { ...d, isFavorite: !d.isFavorite } : d));
+    documentsRef.current = updated;
     setDocuments(updated);
-    await StorageService.saveDocuments(updated);
+    processDocsQueue();
   };
 
   const updateDocumentTitle = async (id: string, newTitle: string) => {
-    const updated = documents.map((d) =>
+    const updated = documentsRef.current.map((d) =>
       d.id === id ? { ...d, title: newTitle, updatedAt: Date.now() } : d
     );
+    documentsRef.current = updated;
     setDocuments(updated);
-    await StorageService.saveDocuments(updated);
+    processDocsQueue();
   };
 
   // Page Actions (Phase 2)
@@ -500,10 +750,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       updatedAt: Date.now(),
     };
 
-    const updatedPages = [...pages, newPage];
+    const updatedPages = [...pagesRef.current, newPage];
+    pagesRef.current = updatedPages;
     setPages(updatedPages);
     setActivePageId(newPage.id);
-    await StorageService.savePages(updatedPages);
+    processPagesQueue();
 
     updateDocumentTitle(activeDocumentId, activeDocument?.title || '');
     return newPage;
@@ -511,11 +762,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
   const renamePage = async (pageId: string, newTitle: string) => {
     if (!newTitle.trim()) return;
-    const updatedPages = pages.map((p) =>
+    const updatedPages = pagesRef.current.map((p) =>
       p.id === pageId ? { ...p, title: newTitle.trim(), updatedAt: Date.now() } : p
     );
+    pagesRef.current = updatedPages;
     setPages(updatedPages);
-    await StorageService.savePages(updatedPages);
+    processPagesQueue();
   };
 
   const deletePage = async (pageId: string): Promise<{ success: boolean; message?: string }> => {
@@ -526,10 +778,11 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     }
 
     const remainingPages = currentDocumentPages.filter((p) => p.id !== pageId);
-    const updatedAllPages = pages.filter((p) => p.id !== pageId);
+    const updatedAllPages = pagesRef.current.filter((p) => p.id !== pageId);
 
+    pagesRef.current = updatedAllPages;
     setPages(updatedAllPages);
-    await StorageService.savePages(updatedAllPages);
+    processPagesQueue();
 
     if (activePageId === pageId) {
       setActivePageId(remainingPages[0].id);
@@ -538,21 +791,32 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     return { success: true };
   };
 
-  const updatePageContent = async (pageId: string, content: string) => {
-    const targetPage = pages.find((p) => p.id === pageId);
-    if (!targetPage) return;
+  const updatePageContent = async (pageId: string, content: string): Promise<{ success: boolean; error?: string }> => {
+    const targetIdx = pagesRef.current.findIndex((p) => p.id === pageId);
+    if (targetIdx === -1) {
+      return { success: false, error: '페이지를 찾을 수 없습니다.' };
+    }
 
-    const updatedPages = pages.map((p) =>
-      p.id === pageId ? { ...p, content, updatedAt: Date.now() } : p
-    );
-    setPages(updatedPages);
-    await StorageService.savePages(updatedPages);
+    const targetDocId = pagesRef.current[targetIdx].documentId;
+    const now = Date.now();
 
-    const updatedDocs = documents.map((d) =>
-      d.id === targetPage.documentId ? { ...d, updatedAt: Date.now() } : d
+    // 1. Pages Ref & State 동기 갱신 (Stale closure 원천 방지)
+    const nextPages = pagesRef.current.map((p, idx) =>
+      idx === targetIdx ? { ...p, content, updatedAt: now } : p
     );
-    setDocuments(updatedDocs);
-    await StorageService.saveDocuments(updatedDocs);
+    pagesRef.current = nextPages;
+    setPages(nextPages);
+
+    // 2. Documents Ref & State 동기 갱신
+    const nextDocs = documentsRef.current.map((d) =>
+      d.id === targetDocId ? { ...d, updatedAt: now } : d
+    );
+    documentsRef.current = nextDocs;
+    setDocuments(nextDocs);
+
+    // 3. 비동기 영속화 큐 처리
+    processDocsQueue();
+    return await processPagesQueue();
   };
 
   // Phase 3: Drag and Drop & Hierarchy Management
@@ -562,11 +826,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     targetFolderId: string | null
   ): Promise<{ success: boolean; message?: string }> => {
     if (type === 'document') {
-      const updatedDocs = documents.map((d) =>
+      const updatedDocs = documentsRef.current.map((d) =>
         d.id === itemId ? { ...d, folderId: targetFolderId, updatedAt: Date.now() } : d
       );
+      documentsRef.current = updatedDocs;
       setDocuments(updatedDocs);
-      await StorageService.saveDocuments(updatedDocs);
+      processDocsQueue();
       return { success: true };
     }
 
@@ -575,15 +840,16 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       return { success: false, message: '폴더를 자기 자신 안으로 이동할 수 없습니다.' };
     }
 
-    if (targetFolderId && isFolderDescendant(folders, itemId, targetFolderId)) {
+    if (targetFolderId && isFolderDescendant(foldersRef.current, itemId, targetFolderId)) {
       return { success: false, message: '폴더를 자신의 하위 폴더 안으로 이동할 수 없습니다.' };
     }
 
-    const updatedFolders = folders.map((f) =>
+    const updatedFolders = foldersRef.current.map((f) =>
       f.id === itemId ? { ...f, parentFolderId: targetFolderId, updatedAt: Date.now() } : f
     );
+    foldersRef.current = updatedFolders;
     setFolders(updatedFolders);
-    await StorageService.saveFolders(updatedFolders);
+    processFoldersQueue();
     return { success: true };
   };
 
@@ -605,12 +871,13 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
       // Reassign order
       const orderMap = new Map(currentList.map((item, idx) => [item.id, idx]));
-      const updatedFolders = folders.map((f) =>
+      const updatedFolders = foldersRef.current.map((f) =>
         orderMap.has(f.id) ? { ...f, order: orderMap.get(f.id)! } : f
       );
 
+      foldersRef.current = updatedFolders;
       setFolders(updatedFolders);
-      await StorageService.saveFolders(updatedFolders);
+      processFoldersQueue();
     } else {
       const currentList = [...currentDocuments];
       const fromIdx = currentList.findIndex((d) => d.id === activeId);
@@ -621,12 +888,13 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       currentList.splice(toIdx, 0, moved);
 
       const orderMap = new Map(currentList.map((item, idx) => [item.id, idx]));
-      const updatedDocs = documents.map((d) =>
+      const updatedDocs = documentsRef.current.map((d) =>
         orderMap.has(d.id) ? { ...d, order: orderMap.get(d.id)! } : d
       );
 
+      documentsRef.current = updatedDocs;
       setDocuments(updatedDocs);
-      await StorageService.saveDocuments(updatedDocs);
+      processDocsQueue();
     }
   };
 
@@ -649,6 +917,16 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         mainView,
         setMainView,
         recentDocumentIds,
+
+        // Save State & Reliability
+        saveStatus,
+        lastSaveError,
+        retryLastSave,
+
+        // Backup & Schema Version (Phase 2)
+        schemaVersion,
+        exportBackup,
+        importBackup,
 
         activeProject,
         activeFolder,

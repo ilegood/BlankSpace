@@ -194,7 +194,6 @@ const INITIAL_FLOW_EDGES: Edge[] = [
 export const GameFlowEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { customPrompt, success, info } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const flowContainerRef = useRef<HTMLDivElement>(null);
 
   const [nodes, setNodes] = useState<Node<FlowNodeData>[]>(INITIAL_FLOW_NODES);
@@ -224,10 +223,8 @@ export const GameFlowEditor: React.FC = () => {
   const persistFlow = useCallback(
     (curNodes: Node<FlowNodeData>[], curEdges: Edge[]) => {
       if (!activePage) return;
-      setSaveStatus('saving');
       const payload = JSON.stringify({ nodes: curNodes, edges: curEdges });
       updatePageContent(activePage.id, payload);
-      setTimeout(() => setSaveStatus('saved'), 350);
     },
     [activePage, updatePageContent]
   );
@@ -316,7 +313,7 @@ export const GameFlowEditor: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] relative overflow-hidden select-none">
       {/* Header */}
-      <SpecialEditorHeader saveStatus={saveStatus} onExportImage={handleExportImage} />
+      <SpecialEditorHeader onExportImage={handleExportImage} />
 
       {/* Main 3-Column Layout: Left Elements + Center Canvas + Right Node Inspector */}
       <div className="flex-1 flex overflow-hidden">

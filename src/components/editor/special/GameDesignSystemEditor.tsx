@@ -51,7 +51,6 @@ const DEFAULT_DEATH_LAND: GameSystemData = {
 export const GameDesignSystemEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { success } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   const [activeToc, setActiveToc] = useState<string>('overview');
@@ -72,9 +71,7 @@ export const GameDesignSystemEditor: React.FC = () => {
   const persistData = (next: GameSystemData) => {
     setData(next);
     if (!activePage) return;
-    setSaveStatus('saving');
     updatePageContent(activePage.id, JSON.stringify(next));
-    setTimeout(() => setSaveStatus('saved'), 300);
   };
 
   const handleExportImage = async () => {
@@ -87,7 +84,7 @@ export const GameDesignSystemEditor: React.FC = () => {
   return (
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Header */}
-      <SpecialEditorHeader saveStatus={saveStatus} onExportImage={handleExportImage} />
+      <SpecialEditorHeader onExportImage={handleExportImage} />
 
       {/* Main 2-Column Layout: Left TOC + Center Document Sheet */}
       <div className="flex-1 flex overflow-hidden">

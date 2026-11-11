@@ -32,7 +32,6 @@ import {
 export const CharacterRelationsEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { toast } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const printRef = useRef<HTMLDivElement>(null);
 
   // Main Relations Document State
@@ -87,9 +86,7 @@ export const CharacterRelationsEditor: React.FC = () => {
       isUndoRedoAction.current = false;
 
       if (!activePage) return;
-      setSaveStatus('saving');
       updatePageContent(activePage.id, JSON.stringify(nextData));
-      setTimeout(() => setSaveStatus('saved'), 300);
     },
     [activePage, historyIdx, updatePageContent]
   );
@@ -279,7 +276,6 @@ export const CharacterRelationsEditor: React.FC = () => {
     >
       {/* Top Main Header */}
       <SpecialEditorHeader
-        saveStatus={saveStatus}
         onExportImage={handleExportImage}
       />
 

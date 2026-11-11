@@ -34,15 +34,6 @@ export const TEMPLATES: TemplateDefinition[] = [
     defaultTitle: '캐릭터 관계도',
     defaultContent: '캐릭터 간의 관계와 감정을 연결하여 시각화합니다.'
   },
-  {
-    id: 'character-dialogue',
-    name: '캐릭터 다이얼로그',
-    description: '캐릭터 간의 대화를 작성하고 관리합니다.',
-    category: 'character',
-    iconName: 'MessageSquare',
-    defaultTitle: '캐릭터 대사 스크립트',
-    defaultContent: '주요 씬별 캐릭터 대사와 지문'
-  },
 
   // 2. 세계관
   {
@@ -83,6 +74,15 @@ export const TEMPLATES: TemplateDefinition[] = [
   },
 
   // 3. 게임 기획
+  {
+    id: 'character-dialogue',
+    name: '캐릭터 대사 스크립트',
+    description: '캐릭터 간의 대화와 분기 흐름을 작성하고 관리합니다.',
+    category: 'planning',
+    iconName: 'MessageSquare',
+    defaultTitle: '캐릭터 대사 스크립트',
+    defaultContent: '주요 씬별 캐릭터 대사와 지문'
+  },
   {
     id: 'game-design-system',
     name: '게임 기획 + 시스템 기획',
@@ -175,7 +175,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     category: 'general',
     iconName: 'CheckSquare',
     defaultTitle: '개발 체크리스트',
-    defaultContent: '- [ ] 기획서 초안 검토\n- [ ] 메인 컨셉 아트 확정\n- [ ] 프로토타입 빌드 테스트'
+    defaultContent: '- [ ] 기획서 초안 검토\n- [ ] 메인 컨셉 아트 확정\n- [ ] 프로토타입 빌드 테스트',
+    hidden: true
   },
   {
     id: 'general-meeting-notes',
@@ -184,7 +185,8 @@ export const TEMPLATES: TemplateDefinition[] = [
     category: 'general',
     iconName: 'Users',
     defaultTitle: '개발 주간 회의록',
-    defaultContent: '## 참석자\n\n## 안건\n\n## 결정 사항'
+    defaultContent: '## 참석자\n\n## 안건\n\n## 결정 사항',
+    hidden: true
   },
   {
     id: 'general-idea-board',

@@ -111,7 +111,6 @@ const DEFAULT_ITEMS: GameItem[] = [
 export const ItemDataEditor: React.FC = () => {
   const { activeDocument, activePage, updatePageContent } = useWorkspace();
   const { success } = useToast();
-  const [saveStatus, setSaveStatus] = useState<'saved' | 'saving'>('saved');
   const contentRef = useRef<HTMLDivElement>(null);
 
   const [activeCategory, setActiveCategory] = useState<string>('all');
@@ -140,9 +139,7 @@ export const ItemDataEditor: React.FC = () => {
   const persistItems = (newItems: GameItem[]) => {
     setItems(newItems);
     if (!activePage) return;
-    setSaveStatus('saving');
     updatePageContent(activePage.id, JSON.stringify(newItems));
-    setTimeout(() => setSaveStatus('saved'), 300);
   };
 
   const handleExportImage = async () => {
@@ -207,7 +204,6 @@ export const ItemDataEditor: React.FC = () => {
     <div className="flex-1 flex flex-col h-full bg-[#FAFBFD] dark:bg-[#17171D] relative overflow-hidden select-none">
       {/* Header */}
       <SpecialEditorHeader
-        saveStatus={saveStatus}
         onExportImage={handleExportImage}
         extraControls={
           <div className="flex items-center gap-2">

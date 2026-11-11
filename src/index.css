@@ -169,33 +169,60 @@ html.dark {
 .ProseMirror ul[data-type="taskList"] li {
   display: flex !important;
   align-items: flex-start !important;
-  gap: 0.6rem !important;
-  margin: 0.35rem 0 !important;
+  gap: 0.55rem !important;
+  margin: 0.25rem 0 !important;
 }
 
 .ProseMirror ul[data-type="taskList"] li > label {
   user-select: none !important;
-  margin-top: 0.2rem !important;
   flex-shrink: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  height: 1.55em !important; /* 텍스트 첫 줄 line-height와 일치시켜 가로줄 정중앙 정렬 */
+  margin: 0 !important;
+  padding: 0 !important;
+  pointer-events: auto !important; /* 보기 모드(Read-only)에서도 클릭 가능 */
+  cursor: pointer !important;
 }
 
 .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
-  width: 1rem !important;
-  height: 1rem !important;
-  border-radius: 0.25rem !important;
+  width: 1.05rem !important;
+  height: 1.05rem !important;
+  border-radius: 0.28rem !important;
   border: 1.5px solid #A5B4FC !important;
   accent-color: #7E61E7 !important;
   cursor: pointer !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  vertical-align: middle !important;
+  pointer-events: auto !important; /* 보기 모드(Read-only)에서도 클릭 가능 */
+  transition: all 0.15s ease !important;
+}
+
+.dark .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
+  border-color: #6A5CA0 !important;
+  accent-color: #9D7BFC !important;
 }
 
 .ProseMirror ul[data-type="taskList"] li > div {
   flex: 1 !important;
   min-width: 0 !important;
+  line-height: 1.55 !important;
+}
+
+.ProseMirror ul[data-type="taskList"] li > div > p {
+  margin: 0 !important;
+  line-height: 1.55 !important;
 }
 
 .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
   text-decoration: line-through !important;
   color: #94A3B8 !important;
+}
+
+.dark .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: #726F82 !important;
 }
 
 /* 인용문 (Blockquote) */
