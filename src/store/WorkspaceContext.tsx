@@ -1,6 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { Project, Folder, Document, DocumentPage, FilterType, ViewMode, SortOption, TemplateCategoryType } from '../types';
 import { StorageService, BackupService, CURRENT_SCHEMA_VERSION } from '../storage';
+import { CloudWorkspaceService } from '../services/cloudWorkspaceService';
+import { useAuth } from './AuthContext';
+import { useToast } from '../components/toast/ToastContext';
 import { generateId } from '../utils/id';
 import { TEMPLATES } from '../templates/templateList';
 
@@ -112,11 +115,18 @@ const isFolderDescendant = (allFolders: Folder[], parentId: string, candidateChi
 };
 
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const userRef = useRef(user);
+  userRef.current = user;
+
   const [projects, setProjects] = useState<Project[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [pages, setPages] = useState<DocumentPage[]>([]);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
+  const activeProjectIdRef = useRef<string | null>(null);
+  activeProjectIdRef.current = activeProjectId;
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
   const [activeDocumentId, setActiveDocumentIdState] = useState<string | null>(null);
   const [activePageId, setActivePageId] = useState<string | null>(null);
@@ -144,6 +154,26 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const isSavingProjectsRef = useRef(false);
   const hasPendingProjectsSaveRef = useRef(false);
 
+  // Cloud Sync Debounced Saver
+  const cloudSaveTimerRef = useRef<any>(null);
+
+  const triggerCloudSave = useCallback(() => {
+    if (!userRef.current) return;
+    if (cloudSaveTimerRef.current) {
+      clearTimeout(cloudSaveTimerRef.current);
+    }
+    cloudSaveTimerRef.current = setTimeout(async () => {
+      if (!userRef.current) return;
+      await CloudWorkspaceService.saveWorkspace(userRef.current.id, {
+        projects: projectsRef.current,
+        folders: foldersRef.current,
+        documents: documentsRef.current,
+        pages: pagesRef.current,
+        activeProjectId: activeProjectIdRef.current,
+      });
+    }, 600);
+  }, []);
+
   // Process Pages Queue
   const processPagesQueue = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
     if (isSavingPagesRef.current) {
@@ -165,6 +195,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         }
       } while (hasPendingPagesSaveRef.current);
 
+      triggerCloudSave();
       setSaveStatus('saved');
       setLastSaveError(null);
       return { success: true };
@@ -177,7 +208,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       isSavingPagesRef.current = false;
     }
-  }, []);
+  }, [triggerCloudSave]);
 
   // Process Docs Queue
   const processDocsQueue = useCallback(async () => {
@@ -196,6 +227,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           throw new Error(res.error || '문서 목록 저장에 실패했습니다.');
         }
       } while (hasPendingDocsSaveRef.current);
+
+      triggerCloudSave();
     } catch (err: any) {
       console.error('Save docs error:', err);
       setSaveStatus('error');
@@ -203,7 +236,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       isSavingDocsRef.current = false;
     }
-  }, []);
+  }, [triggerCloudSave]);
 
   // Process Folders Queue
   const processFoldersQueue = useCallback(async () => {
@@ -221,6 +254,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           throw new Error(res.error || '폴더 목록 저장에 실패했습니다.');
         }
       } while (hasPendingFoldersSaveRef.current);
+
+      triggerCloudSave();
     } catch (err: any) {
       console.error('Save folders error:', err);
       setSaveStatus('error');
@@ -228,7 +263,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       isSavingFoldersRef.current = false;
     }
-  }, []);
+  }, [triggerCloudSave]);
 
   // Process Projects Queue
   const processProjectsQueue = useCallback(async () => {
@@ -246,6 +281,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
           throw new Error(res.error || '프로젝트 저장에 실패했습니다.');
         }
       } while (hasPendingProjectsSaveRef.current);
+
+      triggerCloudSave();
     } catch (err: any) {
       console.error('Save projects error:', err);
       setSaveStatus('error');
@@ -253,7 +290,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     } finally {
       isSavingProjectsRef.current = false;
     }
-  }, []);
+  }, [triggerCloudSave]);
 
   // Retry failed saves manually
   const retryLastSave = useCallback(async () => {
@@ -320,23 +357,87 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   // Backup & Schema Version State (Phase 2)
   const [schemaVersion, setSchemaVersion] = useState<number>(CURRENT_SCHEMA_VERSION);
 
-  // Load from Storage
-  useEffect(() => {
-    StorageService.init().then((data) => {
-      projectsRef.current = data.projects;
-      foldersRef.current = data.folders;
-      documentsRef.current = data.documents;
-      pagesRef.current = data.pages;
+  // Cloud Sync on User Change
+  const prevUserRef = useRef<string | null>(null);
 
-      setProjects(data.projects);
-      setFolders(data.folders);
-      setDocuments(data.documents);
-      setPages(data.pages);
-      setActiveProjectIdState(data.activeProjectId);
-      setSchemaVersion(data.schemaVersion || CURRENT_SCHEMA_VERSION);
+  useEffect(() => {
+    // 1. 비로그인 상태일 때: 로컬 스토리지에서 로드
+    if (!user) {
+      if (prevUserRef.current) {
+        // 로그아웃된 경우: 로컬 기본 데이터로 복원
+        StorageService.init().then((data) => {
+          projectsRef.current = data.projects;
+          foldersRef.current = data.folders;
+          documentsRef.current = data.documents;
+          pagesRef.current = data.pages;
+
+          setProjects(data.projects);
+          setFolders(data.folders);
+          setDocuments(data.documents);
+          setPages(data.pages);
+          setActiveProjectIdState(data.activeProjectId);
+          setIsLoaded(true);
+        });
+      } else {
+        StorageService.init().then((data) => {
+          projectsRef.current = data.projects;
+          foldersRef.current = data.folders;
+          documentsRef.current = data.documents;
+          pagesRef.current = data.pages;
+
+          setProjects(data.projects);
+          setFolders(data.folders);
+          setDocuments(data.documents);
+          setPages(data.pages);
+          setActiveProjectIdState(data.activeProjectId);
+          setSchemaVersion(data.schemaVersion || CURRENT_SCHEMA_VERSION);
+          setIsLoaded(true);
+        });
+      }
+      prevUserRef.current = null;
+      return;
+    }
+
+    // 2. 로그인된 경우: Supabase 클라우드에서 해당 계정 전용 데이터 로드
+    prevUserRef.current = user.id;
+    setIsLoaded(false);
+
+    CloudWorkspaceService.loadWorkspace(user.id).then(async (cloudData) => {
+      if (cloudData && cloudData.projects && cloudData.projects.length > 0) {
+        // 클라우드에 기존 계정 데이터가 있는 경우 로드
+        projectsRef.current = cloudData.projects;
+        foldersRef.current = cloudData.folders || [];
+        documentsRef.current = cloudData.documents || [];
+        pagesRef.current = cloudData.pages || [];
+
+        setProjects(cloudData.projects);
+        setFolders(cloudData.folders || []);
+        setDocuments(cloudData.documents || []);
+        setPages(cloudData.pages || []);
+        setActiveProjectIdState(cloudData.activeProjectId || null);
+        toast.success(
+          '클라우드 동기화 완료',
+          `${user.user_metadata?.full_name || user.email?.split('@')[0] || '사용자'}님의 작업 공간을 불러왔습니다.`
+        );
+      } else {
+        // 클라우드에 아직 데이터가 없는 경우 (첫 로그인): 현재 로컬 데이터를 클라우드에 최초 업로드
+        const initialPayload = {
+          projects: projectsRef.current,
+          folders: foldersRef.current,
+          documents: documentsRef.current,
+          pages: pagesRef.current,
+          activeProjectId: activeProjectIdRef.current,
+          schemaVersion,
+        };
+        await CloudWorkspaceService.saveWorkspace(user.id, initialPayload);
+        toast.success(
+          '클라우드 연동 완료',
+          '현재 작업 공간이 계정에 안전하게 동기화되었습니다.'
+        );
+      }
       setIsLoaded(true);
     });
-  }, []);
+  }, [user?.id]);
 
   // Export workspace backup as JSON
   const exportBackup = useCallback((customFileName?: string) => {
