@@ -547,6 +547,7 @@ export const CharacterDialogueEditor: React.FC = () => {
     >
       {/* 1. Global Header */}
       <SpecialEditorHeader
+        isEditMode={isEditMode}
         onExportImage={handleExportImage}
       />
 

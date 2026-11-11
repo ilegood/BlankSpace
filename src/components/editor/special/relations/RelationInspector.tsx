@@ -18,17 +18,14 @@ import {
   GitCommit,
   Check,
   Upload,
-  User,
 } from 'lucide-react';
 import { useToast } from '../../../toast/ToastContext';
 
 interface RelationInspectorProps {
   selectedRelation: RelationItem | null;
   selectedCharacter: RelationCharacter | null;
-  selectedGroup?: any;
   characters: RelationCharacter[];
   relations: RelationItem[];
-  groups?: any[];
   legends?: RelationLegendItem[];
   legendSettings?: CharacterRelationsDocData['legendSettings'];
   isEditMode: boolean;
@@ -69,13 +66,13 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
   // 상단 탭: 요소 설정 | 관계도 설정
   const [topTab, setTopTab] = useState<'element' | 'settings'>('element');
 
-  // 관계 정보 섹션 접기/펼치기
-  const [isRelationInfoOpen, setIsRelationInfoOpen] = useState(true);
-
   // 캐릭터 맵
   const charMap = new Map(characters.map((c) => [c.id, c]));
 
-  // 이미지 파일 로컬 업로드 처리 (FileReader DataURL)
+  // 범례 맵
+  const legendMap = new Map(legends.map((l) => [l.id, l]));
+
+  // 이미지 파일 로컬 업로드 처리
   const handleImageFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedCharacter) return;
@@ -122,7 +119,7 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
   );
 
   // =========================================================================
-  // 1. 관계도 설정 탭 선택 시 (범례 추가는 여기서만 가능)
+  // 1. 관계도 설정 탭 선택 시
   // =========================================================================
   if (topTab === 'settings') {
     return (
@@ -130,26 +127,6 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
         {renderTabBar()}
 
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar text-xs">
-          {/* Legend Box Visibility Toggle */}
-          <div className="p-3 bg-slate-50 dark:bg-[#262634] rounded-2xl border border-slate-200/80 dark:border-[#3A3948] flex items-center justify-between">
-            <div>
-              <span className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] block">
-                관계 범례 박스 표시
-              </span>
-              <span className="text-[10.5px] text-slate-400 dark:text-[#7D7B90]">
-                캔버스 화면 내 플로팅 범례 노출 여부
-              </span>
-            </div>
-            <input
-              type="checkbox"
-              checked={legendSettings.visible !== false}
-              onChange={(e) =>
-                onUpdateLegendSettings?.({ visible: e.target.checked })
-              }
-              className="w-4 h-4 accent-lavender-600 cursor-pointer"
-            />
-          </div>
-
           {/* Relation Legends List */}
           <div className="space-y-2">
             <span className="text-xs font-bold text-slate-700 dark:text-[#E8E7EF] block">
@@ -195,7 +172,6 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
               ))}
             </div>
 
-            {/* 범례 추가 버튼 (관계도 설정 탭에만 존재) */}
             <button
               type="button"
               onClick={() => {
@@ -205,7 +181,7 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
                   name: '새로운 관계',
                   color: '#3B82F6',
                   style: 'solid',
-                  strokeWidth: 3,
+                  strokeWidth: 3.5,
                 });
                 toast.success('새 범례 항목이 추가되었습니다.');
               }}
@@ -222,15 +198,20 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
 
   // =========================================================================
   // 2. 요소 설정 탭: 관계선 선택 시
-  // (A->B 생각과 B->A 생각이 다르면 자동으로 그라데이션 표기!)
+  // (라벨 완전 제거, A->B와 B->A 독립 설정, 다른 범례 선택 시 자동 그라데이션)
   // =========================================================================
   if (selectedRelation) {
     const charA = charMap.get(selectedRelation.sourceId);
     const charB = charMap.get(selectedRelation.targetId);
     const dir = selectedRelation.direction || 'bidirectional';
 
-    const colorA = selectedRelation.colorAtoB || selectedRelation.color || '#3B82F6';
-    const colorB = selectedRelation.colorBtoA || selectedRelation.color || '#3B82F6';
+    // A -> B 범례 및 색상
+    const activeLegA = legends.find((l) => l.id === selectedRelation.legendIdAtoB) || legends[0];
+    const colorA = selectedRelation.colorAtoB || activeLegA?.color || selectedRelation.color || '#3B82F6';
+
+    // B -> A 범례 및 색상
+    const activeLegB = legends.find((l) => l.id === selectedRelation.legendIdBtoA) || legends[1] || legends[0];
+    const colorB = selectedRelation.colorBtoA || activeLegB?.color || selectedRelation.color || '#EF4444';
 
     const handleDeleteRelation = async () => {
       const confirmed = await customConfirm({
@@ -245,24 +226,60 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
       }
     };
 
-    // A/B 감정 색상 업데이트 시 자동 그라데이션 판정
-    const updateEmotionColors = (newColorA: string, newColorB: string) => {
-      if (newColorA !== newColorB) {
-        onUpdateRelation(selectedRelation.id, {
-          colorAtoB: newColorA,
-          colorBtoA: newColorB,
-          color: newColorA,
-          gradient: { fromColor: newColorA, toColor: newColorB },
-        });
-      } else {
-        onUpdateRelation(selectedRelation.id, {
-          colorAtoB: newColorA,
-          colorBtoA: newColorB,
-          color: newColorA,
-          gradient: undefined,
-        });
-      }
+    // A -> B 범례 변경 핸들러 (B에 절대 영향 없음!)
+    const handleSelectLegendAtoB = (legend: RelationLegendItem) => {
+      const newColorA = legend.color;
+      const willBeGradient = dir === 'bidirectional' && newColorA !== colorB;
+
+      onUpdateRelation(selectedRelation.id, {
+        legendIdAtoB: legend.id,
+        emotionAtoB: legend.name,
+        colorAtoB: newColorA,
+        color: newColorA,
+        gradient: willBeGradient
+          ? { fromColor: newColorA, toColor: colorB }
+          : undefined,
+      });
     };
+
+    // B -> A 범례 변경 핸들러 (A에 절대 영향 없음!)
+    const handleSelectLegendBtoA = (legend: RelationLegendItem) => {
+      const newColorB = legend.color;
+      const willBeGradient = dir === 'bidirectional' && colorA !== newColorB;
+
+      onUpdateRelation(selectedRelation.id, {
+        legendIdBtoA: legend.id,
+        emotionBtoA: legend.name,
+        colorBtoA: newColorB,
+        gradient: willBeGradient
+          ? { fromColor: colorA, toColor: newColorB }
+          : undefined,
+      });
+    };
+
+    // 방향 변경 핸들러
+    const handleChangeDirection = (newDir: 'bidirectional' | 'source-to-target' | 'target-to-source') => {
+      let gradient = undefined;
+      let lineColor = colorA;
+
+      if (newDir === 'bidirectional') {
+        if (colorA !== colorB) {
+          gradient = { fromColor: colorA, toColor: colorB };
+        }
+      } else if (newDir === 'source-to-target') {
+        lineColor = colorA;
+      } else if (newDir === 'target-to-source') {
+        lineColor = colorB;
+      }
+
+      onUpdateRelation(selectedRelation.id, {
+        direction: newDir,
+        color: lineColor,
+        gradient,
+      });
+    };
+
+    const isGradActive = dir === 'bidirectional' && colorA !== colorB;
 
     return (
       <div className="w-80 bg-white dark:bg-[#1E1E27] border-l border-slate-200/90 dark:border-[#3A3948] flex flex-col shrink-0 select-none overflow-hidden h-full z-20 transition-colors">
@@ -272,7 +289,7 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
         <div className="px-4 py-3 border-b border-slate-100 dark:border-[#2C2C38] flex items-center justify-between bg-slate-50/60 dark:bg-[#262634]">
           <div className="flex items-center gap-1.5 text-xs font-bold text-lavender-700 dark:text-[#B7A5FF]">
             <GitCommit className="w-4 h-4 text-lavender-600 dark:text-lavender-400" />
-            <span>관계선</span>
+            <span>관계선 설정</span>
           </div>
 
           <button
@@ -287,133 +304,15 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar text-xs">
-          {/* Section 1: 관계 기본 정보 */}
+          {/* Section 1: 관계 방향 선택 */}
           <div className="space-y-2">
-            <div
-              onClick={() => setIsRelationInfoOpen((v) => !v)}
-              className="flex items-center justify-between cursor-pointer text-slate-800 dark:text-[#E8E7EF] font-bold"
-            >
-              <span>관계 기본 정보</span>
-              {isRelationInfoOpen ? (
-                <ChevronUp className="w-3.5 h-3.5 text-slate-400" />
-              ) : (
-                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
-              )}
-            </div>
-
-            {isRelationInfoOpen && (
-              <div className="space-y-3 pt-1">
-                <div>
-                  <label className="text-[11px] text-slate-500 dark:text-[#A5A3B5] font-semibold block mb-1">
-                    관계 이름
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="예: 라이벌, 동료"
-                    value={selectedRelation.label || selectedRelation.relationType || ''}
-                    onChange={(e) =>
-                      onUpdateRelation(selectedRelation.id, {
-                        label: e.target.value,
-                        relationType: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#262634] border border-slate-200 dark:border-[#3A3948] rounded-xl text-xs font-semibold text-slate-800 dark:text-[#E8E7EF] focus:border-lavender-500 focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[11px] text-slate-500 dark:text-[#A5A3B5] font-semibold block mb-1">
-                    관계 설명
-                  </label>
-                  <textarea
-                    rows={2}
-                    placeholder="상세 관계 메모..."
-                    value={selectedRelation.memo || ''}
-                    onChange={(e) =>
-                      onUpdateRelation(selectedRelation.id, { memo: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-[#262634] border border-slate-200 dark:border-[#3A3948] rounded-xl text-xs font-semibold text-slate-800 dark:text-[#E8E7EF] focus:border-lavender-500 focus:outline-none resize-none leading-relaxed"
-                  />
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Section 2: 핵심! A와 B의 서로에 대한 생각 (다르면 그라데이션 자동 표기) */}
-          <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-[#2C2C38]">
-            <div className="flex items-center justify-between">
-              <label className="text-[11px] text-slate-700 dark:text-[#E8E7EF] font-bold block">
-                인물 간 생각 (상이할 시 그라데이션)
-              </label>
-              {colorA !== colorB && (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] font-bold">
-                  그라데이션 ON
-                </span>
-              )}
-            </div>
-
-            {/* A -> B */}
-            <div className="p-2.5 bg-slate-50 dark:bg-[#262634] rounded-xl border border-slate-200/80 dark:border-[#3A3948] space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-700 dark:text-[#E8E7EF]">
-                  {charA?.name || 'A'} ➔ {charB?.name || 'B'} 생각
-                </span>
-                <input
-                  type="color"
-                  value={colorA}
-                  onChange={(e) => updateEmotionColors(e.target.value, colorB)}
-                  className="w-5 h-5 rounded-xs border-0 p-0 cursor-pointer"
-                  title="A의 생각 색상"
-                />
-              </div>
-              <input
-                type="text"
-                placeholder="예: 깊은 신뢰와 존경"
-                value={selectedRelation.emotionAtoB || ''}
-                onChange={(e) =>
-                  onUpdateRelation(selectedRelation.id, { emotionAtoB: e.target.value })
-                }
-                className="w-full px-2.5 py-1.5 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs text-slate-800 dark:text-[#E8E7EF]"
-              />
-            </div>
-
-            {/* B -> A */}
-            <div className="p-2.5 bg-slate-50 dark:bg-[#262634] rounded-xl border border-slate-200/80 dark:border-[#3A3948] space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-slate-700 dark:text-[#E8E7EF]">
-                  {charB?.name || 'B'} ➔ {charA?.name || 'A'} 생각
-                </span>
-                <input
-                  type="color"
-                  value={colorB}
-                  onChange={(e) => updateEmotionColors(colorA, e.target.value)}
-                  className="w-5 h-5 rounded-xs border-0 p-0 cursor-pointer"
-                  title="B의 생각 색상"
-                />
-              </div>
-              <input
-                type="text"
-                placeholder="예: 넘어서고 싶은 라이벌"
-                value={selectedRelation.emotionBtoA || ''}
-                onChange={(e) =>
-                  onUpdateRelation(selectedRelation.id, { emotionBtoA: e.target.value })
-                }
-                className="w-full px-2.5 py-1.5 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-lg text-xs text-slate-800 dark:text-[#E8E7EF]"
-              />
-            </div>
-          </div>
-
-          {/* Section 3: 관계 방향 */}
-          <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-[#2C2C38]">
             <label className="text-[11px] text-slate-600 dark:text-[#A5A3B5] font-bold block">
               관계 방향
             </label>
             <div className="grid grid-cols-3 gap-1.5">
               <button
                 type="button"
-                onClick={() =>
-                  onUpdateRelation(selectedRelation.id, { direction: 'bidirectional' })
-                }
+                onClick={() => handleChangeDirection('bidirectional')}
                 className={`py-2 px-1 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
                   dir === 'bidirectional'
                     ? 'border-lavender-500 bg-lavender-50/70 dark:bg-[#352E58]/50 text-lavender-700 dark:text-[#B7A5FF] font-bold ring-1 ring-lavender-400'
@@ -421,14 +320,12 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
                 }`}
               >
                 <ArrowLeftRight className="w-4 h-4" />
-                <span className="text-[10.5px]">양방향</span>
+                <span className="text-[10px]">양방향</span>
               </button>
 
               <button
                 type="button"
-                onClick={() =>
-                  onUpdateRelation(selectedRelation.id, { direction: 'source-to-target' })
-                }
+                onClick={() => handleChangeDirection('source-to-target')}
                 className={`py-2 px-1 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
                   dir === 'source-to-target'
                     ? 'border-lavender-500 bg-lavender-50/70 dark:bg-[#352E58]/50 text-lavender-700 dark:text-[#B7A5FF] font-bold ring-1 ring-lavender-400'
@@ -436,14 +333,14 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
                 }`}
               >
                 <ArrowRight className="w-4 h-4" />
-                <span className="text-[10.5px]">단방향 (→)</span>
+                <span className="text-[10px] truncate max-w-[70px]">
+                  {charA?.name || 'A'} ➔ {charB?.name || 'B'}
+                </span>
               </button>
 
               <button
                 type="button"
-                onClick={() =>
-                  onUpdateRelation(selectedRelation.id, { direction: 'target-to-source' })
-                }
+                onClick={() => handleChangeDirection('target-to-source')}
                 className={`py-2 px-1 rounded-xl border text-center transition-all flex flex-col items-center justify-center gap-1 ${
                   dir === 'target-to-source'
                     ? 'border-lavender-500 bg-lavender-50/70 dark:bg-[#352E58]/50 text-lavender-700 dark:text-[#B7A5FF] font-bold ring-1 ring-lavender-400'
@@ -451,12 +348,139 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
                 }`}
               >
                 <ArrowRight className="w-4 h-4 rotate-180" />
-                <span className="text-[10.5px]">단방향 (←)</span>
+                <span className="text-[10px] truncate max-w-[70px]">
+                  {charB?.name || 'B'} ➔ {charA?.name || 'A'}
+                </span>
               </button>
             </div>
           </div>
 
-          {/* Section 4: 선 스타일 (색상, 형태, 두께) */}
+          {/* Section 2: A ➔ B의 관계 범례 (독립 설정) */}
+          {(dir === 'bidirectional' || dir === 'source-to-target') && (
+            <div className="p-3 bg-slate-50 dark:bg-[#262634] rounded-2xl border border-slate-200/80 dark:border-[#3A3948] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-slate-800 dark:text-[#E8E7EF] flex items-center gap-1.5">
+                  <span
+                    style={{ backgroundColor: colorA }}
+                    className="w-3 h-3 rounded-full shrink-0 shadow-2xs"
+                  />
+                  <span>
+                    {charA?.name || 'A'}의 태도 ({charB?.name || 'B'}에게)
+                  </span>
+                </span>
+                <span
+                  style={{ color: colorA }}
+                  className="font-bold text-[11px]"
+                >
+                  {selectedRelation.emotionAtoB || activeLegA?.name || '범례 선택'}
+                </span>
+              </div>
+
+              {/* 범례 선택 버튼 목록 */}
+              <div className="grid grid-cols-2 gap-1.5 pt-1">
+                {legends.map((leg) => {
+                  const isCurrent =
+                    selectedRelation.legendIdAtoB === leg.id ||
+                    (!selectedRelation.legendIdAtoB && activeLegA?.id === leg.id);
+
+                  return (
+                    <button
+                      key={leg.id}
+                      type="button"
+                      onClick={() => handleSelectLegendAtoB(leg)}
+                      className={`px-2 py-1.5 rounded-xl border text-left flex items-center gap-1.5 transition-all ${
+                        isCurrent
+                          ? 'border-lavender-500 bg-white dark:bg-[#1E1E27] font-bold shadow-xs'
+                          : 'border-slate-200 dark:border-[#3A3948] bg-transparent text-slate-600 dark:text-[#A5A3B5] hover:bg-white dark:hover:bg-[#1E1E27]'
+                      }`}
+                    >
+                      <span
+                        style={{ backgroundColor: leg.color }}
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                      />
+                      <span className="text-[11px] truncate">{leg.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Section 3: B ➔ A의 관계 범례 (독립 설정) */}
+          {(dir === 'bidirectional' || dir === 'target-to-source') && (
+            <div className="p-3 bg-slate-50 dark:bg-[#262634] rounded-2xl border border-slate-200/80 dark:border-[#3A3948] space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-xs text-slate-800 dark:text-[#E8E7EF] flex items-center gap-1.5">
+                  <span
+                    style={{ backgroundColor: colorB }}
+                    className="w-3 h-3 rounded-full shrink-0 shadow-2xs"
+                  />
+                  <span>
+                    {charB?.name || 'B'}의 태도 ({charA?.name || 'A'}에게)
+                  </span>
+                </span>
+                <span
+                  style={{ color: colorB }}
+                  className="font-bold text-[11px]"
+                >
+                  {selectedRelation.emotionBtoA || activeLegB?.name || '범례 선택'}
+                </span>
+              </div>
+
+              {/* 범례 선택 버튼 목록 */}
+              <div className="grid grid-cols-2 gap-1.5 pt-1">
+                {legends.map((leg) => {
+                  const isCurrent =
+                    selectedRelation.legendIdBtoA === leg.id ||
+                    (!selectedRelation.legendIdBtoA && activeLegB?.id === leg.id);
+
+                  return (
+                    <button
+                      key={leg.id}
+                      type="button"
+                      onClick={() => handleSelectLegendBtoA(leg)}
+                      className={`px-2 py-1.5 rounded-xl border text-left flex items-center gap-1.5 transition-all ${
+                        isCurrent
+                          ? 'border-lavender-500 bg-white dark:bg-[#1E1E27] font-bold shadow-xs'
+                          : 'border-slate-200 dark:border-[#3A3948] bg-transparent text-slate-600 dark:text-[#A5A3B5] hover:bg-white dark:hover:bg-[#1E1E27]'
+                      }`}
+                    >
+                      <span
+                        style={{ backgroundColor: leg.color }}
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                      />
+                      <span className="text-[11px] truncate">{leg.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* 그라데이션 시각화 프리뷰 바 */}
+          {isGradActive && (
+            <div className="p-3 bg-slate-50 dark:bg-[#262634] rounded-2xl border border-slate-200/80 dark:border-[#3A3948] space-y-1.5">
+              <span className="text-[10.5px] font-bold text-slate-500 dark:text-[#A5A3B5] block">
+                그라데이션 연결 미리보기
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs" style={{ color: colorA }}>
+                  {charA?.name} ({selectedRelation.emotionAtoB || activeLegA?.name})
+                </span>
+                <div
+                  style={{
+                    background: `linear-gradient(to right, ${colorA}, ${colorB})`,
+                  }}
+                  className="flex-1 h-2 rounded-full shadow-xs"
+                />
+                <span className="font-bold text-xs" style={{ color: colorB }}>
+                  {charB?.name} ({selectedRelation.emotionBtoA || activeLegB?.name})
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Section 4: 선 스타일 (형태 및 두께) */}
           <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-[#2C2C38]">
             <label className="text-[11px] text-slate-600 dark:text-[#A5A3B5] font-bold block">
               선 스타일
@@ -476,7 +500,7 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
               </select>
 
               <select
-                value={selectedRelation.strokeWidth || 4}
+                value={selectedRelation.strokeWidth || 3.5}
                 onChange={(e) =>
                   onUpdateRelation(selectedRelation.id, {
                     strokeWidth: Number(e.target.value),
@@ -486,91 +510,11 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
               >
                 <option value={2}>2px</option>
                 <option value={3}>3px</option>
+                <option value={3.5}>3.5px</option>
                 <option value={4}>4px</option>
                 <option value={5}>5px</option>
                 <option value={6}>6px</option>
               </select>
-            </div>
-          </div>
-
-          {/* Section 5: 라벨 표시 토글 스위치 */}
-          <div className="pt-2 border-t border-slate-100 dark:border-[#2C2C38] flex items-center justify-between">
-            <span className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF]">
-              라벨 표시
-            </span>
-            <label className="relative inline-flex items-center cursor-pointer">
-              <input
-                type="checkbox"
-                checked={selectedRelation.showLabel ?? false}
-                onChange={(e) =>
-                  onUpdateRelation(selectedRelation.id, {
-                    showLabel: e.target.checked,
-                  })
-                }
-                className="sr-only peer"
-              />
-              <div className="w-10 h-5 bg-slate-200 dark:bg-[#3A3948] peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-lavender-600"></div>
-            </label>
-          </div>
-
-          {/* Section 6: 관계 범례 목록 (요소 설정 탭에서는 추가 버튼 없음) */}
-          <div className="space-y-2 pt-3 border-t border-slate-100 dark:border-[#2C2C38]">
-            <span className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] block">
-              관계 범례 프리셋
-            </span>
-
-            <div className="space-y-1">
-              {legends.map((leg) => {
-                const isSelected = selectedRelation.legendId === leg.id;
-
-                return (
-                  <button
-                    key={leg.id}
-                    type="button"
-                    onClick={() => {
-                      onUpdateRelation(selectedRelation.id, {
-                        legendId: leg.id,
-                        relationType: leg.name,
-                        label: leg.name,
-                        color: leg.color,
-                        gradient: leg.gradient,
-                        style: leg.style,
-                        strokeWidth: leg.strokeWidth || 3.5,
-                        colorAtoB: leg.color,
-                        colorBtoA: leg.color,
-                      });
-                    }}
-                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl border text-left transition-all ${
-                      isSelected
-                        ? 'border-lavender-400 bg-lavender-50/60 dark:bg-[#352E58]/40 font-bold text-lavender-900 dark:text-[#B7A5FF]'
-                        : 'border-slate-200/80 dark:border-[#3A3948] hover:bg-slate-50 dark:hover:bg-[#262634] text-slate-700 dark:text-[#E8E7EF]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <svg width="32" height="12" className="overflow-visible shrink-0">
-                        <line
-                          x1="0"
-                          y1="6"
-                          x2="26"
-                          y2="6"
-                          stroke={leg.color}
-                          strokeWidth="2.5"
-                          strokeDasharray={leg.style === 'dashed' ? '4 3' : undefined}
-                        />
-                        <polygon
-                          points="24,3 30,6 24,9"
-                          fill={leg.color}
-                        />
-                      </svg>
-                      <span className="text-xs truncate">{leg.name}</span>
-                    </div>
-
-                    {isSelected && (
-                      <Check className="w-3.5 h-3.5 text-lavender-600 dark:text-lavender-400 shrink-0" />
-                    )}
-                  </button>
-                );
-              })}
             </div>
           </div>
         </div>
@@ -580,7 +524,6 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
 
   // =========================================================================
   // 3. 요소 설정 탭: 캐릭터 선택 시
-  // (프로필은 원형 고정, 이름 on/off 토글, 이미지는 파일 업로드만 제공)
   // =========================================================================
   if (selectedCharacter) {
     return (
@@ -620,11 +563,7 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
                 'https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=200'
               }
               alt={selectedCharacter.name}
-              style={{
-                borderColor: selectedCharacter.borderColor || selectedCharacter.color || '#EF4444',
-                borderWidth: '4px',
-              }}
-              className="w-14 h-14 rounded-full object-cover shadow-sm shrink-0"
+              className="w-14 h-14 rounded-full object-cover shadow-sm shrink-0 border-2 border-slate-200 dark:border-[#3A3948]"
             />
             <div className="min-w-0 flex-1">
               <h3 className="text-sm font-bold text-slate-900 dark:text-[#E8E7EF] truncate">
@@ -636,7 +575,6 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
             </div>
           </div>
 
-          {/* Form: 이름 & 이미지 파일 업로드 & 이름 on/off만 남김 */}
           <div className="space-y-4">
             {/* 1. 이름 */}
             <div>
@@ -675,25 +613,7 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
               </button>
             </div>
 
-            {/* 3. 테두리 색상 */}
-            <div>
-              <label className="text-[11px] text-slate-500 dark:text-[#A5A3B5] font-semibold block mb-1">
-                테두리 색상
-              </label>
-              <input
-                type="color"
-                value={selectedCharacter.borderColor || selectedCharacter.color || '#EF4444'}
-                onChange={(e) =>
-                  onUpdateCharacter(selectedCharacter.id, {
-                    borderColor: e.target.value,
-                    color: e.target.value,
-                  })
-                }
-                className="w-full h-8 rounded-xl border border-slate-200 dark:border-[#3A3948] p-0.5 cursor-pointer bg-slate-50 dark:bg-[#262634]"
-              />
-            </div>
-
-            {/* 4. 이름 표시 ON/OFF 토글 스위치 */}
+            {/* 3. 이름 표시 ON/OFF 토글 */}
             <div className="pt-2 border-t border-slate-100 dark:border-[#2C2C38] flex items-center justify-between">
               <div>
                 <span className="text-xs font-bold text-slate-800 dark:text-[#E8E7EF] block">
@@ -724,7 +644,7 @@ export const RelationInspector: React.FC<RelationInspectorProps> = ({
   }
 
   // =========================================================================
-  // 4. 요소 설정 탭: 아무것도 선택되지 않았을 때
+  // 4. 요소 설정 탭: 미선택 시
   // =========================================================================
   return (
     <div className="w-80 bg-white dark:bg-[#1E1E27] border-l border-slate-200/90 dark:border-[#3A3948] flex flex-col shrink-0 select-none overflow-hidden h-full z-20 transition-colors">

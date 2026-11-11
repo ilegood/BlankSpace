@@ -5,7 +5,6 @@ import {
   CharacterRelationsDocData,
   RelationCharacter,
   RelationItem,
-  RelationGroup,
   RelationLegendItem,
   AnchorPosition,
   DEFAULT_RELATION_LEGENDS,
@@ -21,6 +20,7 @@ import { RelationListView } from './relations/RelationListView';
 import { AddRelationCharacterModal } from './relations/AddRelationCharacterModal';
 import { CharacterRelationsHelpModal } from './relations/CharacterRelationsHelpModal';
 import { useToast } from '../../toast/ToastContext';
+import { useTheme } from '../../../store/ThemeContext';
 import {
   ChevronLeft,
   Eye,
@@ -34,11 +34,8 @@ import {
   Share2,
   List,
   UserPlus,
-  Layers,
   MousePointer2,
   Hand,
-  Maximize2,
-  RotateCcw,
   Sparkles,
 } from 'lucide-react';
 
@@ -52,6 +49,7 @@ export const CharacterRelationsEditor: React.FC = () => {
     updatePageContent,
   } = useWorkspace();
   const { toast } = useToast();
+  const { isDark } = useTheme();
   const printRef = useRef<HTMLDivElement>(null);
 
   // Document Title & Autosave Status
@@ -72,7 +70,6 @@ export const CharacterRelationsEditor: React.FC = () => {
   // Selection States
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [selectedRelationId, setSelectedRelationId] = useState<string | null>(null);
-  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   // Legend Highlight Filter State
   const [highlightedLegendId, setHighlightedLegendId] = useState<string | null>(null);
@@ -109,7 +106,6 @@ export const CharacterRelationsEditor: React.FC = () => {
       console.warn('Failed to parse relations page content:', err);
     }
 
-    // Default Fallback
     setDocData(INITIAL_RELATIONS_DATA);
     setHistory([INITIAL_RELATIONS_DATA]);
     setHistoryIdx(0);
@@ -134,7 +130,7 @@ export const CharacterRelationsEditor: React.FC = () => {
     [historyIdx]
   );
 
-  // Autosave to Page content with debounce
+  // Autosave to Page content
   useEffect(() => {
     if (!activePage) return;
     setSaveStatus('saving');
@@ -182,7 +178,7 @@ export const CharacterRelationsEditor: React.FC = () => {
     }
   };
 
-  // Keyboard Shortcuts (Delete, Undo, Redo, Mode Toggle Ctrl+E)
+  // Keyboard Shortcuts (Ctrl+Z, Ctrl+Y, Ctrl+E, Delete)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -192,7 +188,6 @@ export const CharacterRelationsEditor: React.FC = () => {
         target.isContentEditable ||
         target.closest('input, textarea, [contenteditable="true"]');
 
-      // Mode Toggle Shortcut: Ctrl+E (or Cmd+E)
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
         e.preventDefault();
         setIsEditMode((prev) => {
@@ -200,7 +195,6 @@ export const CharacterRelationsEditor: React.FC = () => {
           if (!next) {
             setSelectedCharacterId(null);
             setSelectedRelationId(null);
-            setSelectedGroupId(null);
           }
           toast.info(next ? '편집 모드로 진입했습니다.' : '보기 모드로 전환되었습니다.');
           return next;
@@ -225,9 +219,6 @@ export const CharacterRelationsEditor: React.FC = () => {
         } else if (selectedCharacterId) {
           e.preventDefault();
           handleDeleteCharacter(selectedCharacterId);
-        } else if (selectedGroupId) {
-          e.preventDefault();
-          handleDeleteGroup(selectedGroupId);
         }
       }
     };
@@ -238,7 +229,6 @@ export const CharacterRelationsEditor: React.FC = () => {
     isEditMode,
     selectedRelationId,
     selectedCharacterId,
-    selectedGroupId,
     handleUndo,
     handleRedo,
     toast,
@@ -248,19 +238,13 @@ export const CharacterRelationsEditor: React.FC = () => {
   // Character Actions
   // ------------------------------------------------------------------
   const handleAddCharacter = (charData: Omit<RelationCharacter, 'id'>) => {
-    const count = docData.characters.length;
-    const defaultX = 380 + (count % 4) * 160;
-    const defaultY = 280 + Math.floor(count / 4) * 140;
-
     const newChar: RelationCharacter = {
       ...charData,
       id: `char-${Date.now()}`,
-      x: charData.x || defaultX,
-      y: charData.y || defaultY,
-      shape: charData.shape || 'circle',
-      size: charData.size || 84,
-      borderWidth: charData.borderWidth ?? 3,
-      borderColor: charData.borderColor || charData.color || '#8B5CF6',
+      shape: 'circle',
+      size: 88,
+      borderWidth: 4,
+      borderColor: charData.color || '#EF4444',
       showName: charData.showName !== false,
     };
 
@@ -271,7 +255,6 @@ export const CharacterRelationsEditor: React.FC = () => {
     });
     setSelectedCharacterId(newChar.id);
     setSelectedRelationId(null);
-    setSelectedGroupId(null);
     toast.success(`'${newChar.name}' 캐릭터가 관계도에 추가되었습니다.`);
   };
 
@@ -280,16 +263,11 @@ export const CharacterRelationsEditor: React.FC = () => {
     const nextRels = docData.relations.filter(
       (r) => r.sourceId !== id && r.targetId !== id
     );
-    const nextGroups = (docData.groups || []).map((g) => ({
-      ...g,
-      characterIds: g.characterIds?.filter((cid) => cid !== id) || [],
-    }));
 
     pushState({
       ...docData,
       characters: nextChars,
       relations: nextRels,
-      groups: nextGroups,
     });
 
     if (selectedCharacterId === id) setSelectedCharacterId(null);
@@ -306,13 +284,6 @@ export const CharacterRelationsEditor: React.FC = () => {
     });
   };
 
-  const handleUpdateCharacterPosition = (id: string, x: number, y: number) => {
-    setDocData((prev) => ({
-      ...prev,
-      characters: prev.characters.map((c) => (c.id === id ? { ...c, x, y } : c)),
-    }));
-  };
-
   // ------------------------------------------------------------------
   // Relation Actions
   // ------------------------------------------------------------------
@@ -327,24 +298,43 @@ export const CharacterRelationsEditor: React.FC = () => {
       return;
     }
 
-    const defaultLegend = (docData.legends || DEFAULT_RELATION_LEGENDS)[0];
+    // 이미 두 캐릭터 사이에 관계선이 존재하는지 확인 (오직 1개의 관계선만 허용)
+    const existingRel = docData.relations.find(
+      (r) =>
+        (r.sourceId === sourceId && r.targetId === targetId) ||
+        (r.sourceId === targetId && r.targetId === sourceId)
+    );
+
+    if (existingRel) {
+      setSelectedRelationId(existingRel.id);
+      setSelectedCharacterId(null);
+      toast.info('이미 두 캐릭터 사이에 연결된 관계선이 존재합니다.');
+      return;
+    }
+
+    const defaultLegend = (docData.legends || DEFAULT_RELATION_LEGENDS)[1] || (docData.legends || DEFAULT_RELATION_LEGENDS)[0];
 
     const newRel: RelationItem = {
       id: `rel-${Date.now()}`,
       sourceId,
       targetId,
-      relationType: defaultLegend?.name || '새로운 관계',
-      label: defaultLegend?.name || '새로운 관계',
-      color: defaultLegend?.color || '#EF4444',
-      gradient: defaultLegend?.gradient,
+      relationType: defaultLegend?.name || '우호적',
+      label: defaultLegend?.name || '우호적',
+      color: defaultLegend?.color || '#3B82F6',
       style: defaultLegend?.style || 'solid',
-      strokeWidth: 3,
+      strokeWidth: 3.5,
       direction: 'bidirectional',
       sourceAnchor,
       targetAnchor,
       legendId: defaultLegend?.id,
-      curvature: 20,
-      showLabel: true,
+      legendIdAtoB: defaultLegend?.id,
+      emotionAtoB: defaultLegend?.name || '우호적',
+      colorAtoB: defaultLegend?.color || '#3B82F6',
+      legendIdBtoA: defaultLegend?.id,
+      emotionBtoA: defaultLegend?.name || '우호적',
+      colorBtoA: defaultLegend?.color || '#3B82F6',
+      curvature: 15,
+      showLabel: false,
     };
 
     const nextRels = [...docData.relations, newRel];
@@ -354,7 +344,6 @@ export const CharacterRelationsEditor: React.FC = () => {
     });
     setSelectedRelationId(newRel.id);
     setSelectedCharacterId(null);
-    setSelectedGroupId(null);
     toast.success('두 캐릭터 사이에 관계선이 연결되었습니다.');
   };
 
@@ -379,56 +368,7 @@ export const CharacterRelationsEditor: React.FC = () => {
   };
 
   // ------------------------------------------------------------------
-  // Group Actions
-  // ------------------------------------------------------------------
-  const handleAddGroup = () => {
-    const newGroup: RelationGroup = {
-      id: `grp-${Date.now()}`,
-      name: '새 세력/소속',
-      color: '#8B5CF6',
-      x: 300,
-      y: 200,
-      width: 480,
-      height: 320,
-      characterIds: [],
-    };
-    const nextGroups = [...(docData.groups || []), newGroup];
-    pushState({
-      ...docData,
-      groups: nextGroups,
-    });
-    setSelectedGroupId(newGroup.id);
-    setSelectedCharacterId(null);
-    setSelectedRelationId(null);
-    toast.success('새 그룹 영역이 추가되었습니다.');
-  };
-
-  const handleUpdateGroup = (id: string, updates: Partial<RelationGroup>) => {
-    const nextGroups = (docData.groups || []).map((g) =>
-      g.id === id ? { ...g, ...updates } : g
-    );
-    pushState({
-      ...docData,
-      groups: nextGroups,
-    });
-  };
-
-  const handleDeleteGroup = (id: string) => {
-    const nextGroups = (docData.groups || []).filter((g) => g.id !== id);
-    const nextChars = docData.characters.map((c) =>
-      c.groupId === id ? { ...c, groupId: undefined } : c
-    );
-    pushState({
-      ...docData,
-      groups: nextGroups,
-      characters: nextChars,
-    });
-    if (selectedGroupId === id) setSelectedGroupId(null);
-    toast.info('그룹 영역이 삭제되었습니다.');
-  };
-
-  // ------------------------------------------------------------------
-  // Legend Actions (사양서 핵심: 관계 범례 관리)
+  // Legend Actions
   // ------------------------------------------------------------------
   const handleToggleLegendHighlight = (legendId: string | null) => {
     setHighlightedLegendId(legendId);
@@ -458,13 +398,11 @@ export const CharacterRelationsEditor: React.FC = () => {
       l.id === id ? { ...l, ...updates } : l
     );
 
-    // Sync relation line colors if legend color changed
     const nextRelations = docData.relations.map((r) => {
       if (r.legendId === id) {
         return {
           ...r,
           ...(updates.color ? { color: updates.color } : {}),
-          ...(updates.gradient !== undefined ? { gradient: updates.gradient } : {}),
           ...(updates.style ? { style: updates.style } : {}),
           ...(updates.name ? { relationType: updates.name } : {}),
         };
@@ -498,61 +436,7 @@ export const CharacterRelationsEditor: React.FC = () => {
     toast.info('범례 항목이 삭제되었습니다.');
   };
 
-  // ------------------------------------------------------------------
-  // Auto-Layout Algorithms
-  // ------------------------------------------------------------------
-  const handleAutoLayoutCircular = () => {
-    const count = docData.characters.length;
-    if (count === 0) return;
-
-    const centerX = 640;
-    const centerY = 460;
-    const radius = Math.max(220, count * 45);
-
-    const nextChars = docData.characters.map((char, index) => {
-      const angle = -Math.PI / 2 + (2 * Math.PI * index) / count;
-      const x = Math.round(centerX + radius * Math.cos(angle));
-      const y = Math.round(centerY + radius * Math.sin(angle));
-      return { ...char, x, y };
-    });
-
-    pushState({
-      ...docData,
-      characters: nextChars,
-    });
-    toast.success('캐릭터들이 원형 둘레로 균등하게 배치되었습니다.');
-  };
-
-  const handleAutoLayoutGrid = () => {
-    const count = docData.characters.length;
-    if (count === 0) return;
-
-    const cols = Math.ceil(Math.sqrt(count * 1.4));
-    const startX = 360;
-    const startY = 260;
-    const gapX = 220;
-    const gapY = 180;
-
-    const nextChars = docData.characters.map((char, index) => {
-      const row = Math.floor(index / cols);
-      const col = index % cols;
-      return {
-        ...char,
-        x: startX + col * gapX,
-        y: startY + row * gapY,
-      };
-    });
-
-    pushState({
-      ...docData,
-      characters: nextChars,
-    });
-    toast.success('캐릭터들이 격자 행렬에 맞춰 정돈되었습니다.');
-  };
-
-  // ------------------------------------------------------------------
   // Export as Image
-  // ------------------------------------------------------------------
   const handleExportImage = async () => {
     if (!printRef.current) return;
     setIsExporting(true);
@@ -560,7 +444,7 @@ export const CharacterRelationsEditor: React.FC = () => {
     try {
       await exportElementAsPng(printRef.current, {
         fileName: `${docTitle.trim() || '캐릭터_관계도'}_${new Date().toISOString().slice(0, 10)}`,
-        backgroundColor: '#17171D',
+        backgroundColor: isDark ? '#17171D' : '#FAFAFD',
       });
       toast.success('관계도가 고해상도 PNG 이미지로 저장되었습니다.');
     } catch (e) {
@@ -576,11 +460,9 @@ export const CharacterRelationsEditor: React.FC = () => {
     docData.characters.find((c) => c.id === selectedCharacterId) || null;
   const selectedRelation =
     docData.relations.find((r) => r.id === selectedRelationId) || null;
-  const selectedGroup =
-    (docData.groups || []).find((g) => g.id === selectedGroupId) || null;
 
   return (
-    <div className="w-full h-full flex flex-col bg-[#121217] text-slate-100 overflow-hidden font-sans">
+    <div className="w-full h-full flex flex-col bg-[#FAFAFD] dark:bg-[#121217] text-slate-800 dark:text-slate-100 overflow-hidden font-sans transition-colors">
       {/* ================================================================= */}
       {/* 1. TOP HEADER (h-14, 빈 문서/캐릭터 시트와 정확히 일치하는 표준 상단바) */}
       {/* ================================================================= */}
@@ -595,19 +477,28 @@ export const CharacterRelationsEditor: React.FC = () => {
             <ChevronLeft className="w-5 h-5" />
           </button>
 
-          <input
-            type="text"
-            value={docTitle}
-            onChange={(e) => setDocTitle(e.target.value)}
-            onBlur={handleTitleBlurOrEnter}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') {
-                e.currentTarget.blur();
-              }
-            }}
-            placeholder="캐릭터 관계도 제목"
-            className="text-sm md:text-base font-bold text-slate-800 dark:text-[#F3F2F8] bg-transparent border-none outline-none focus:ring-2 focus:ring-lavender-500/30 rounded-lg px-2 py-1 truncate max-w-xs md:max-w-md transition-all"
-          />
+          {/* Document Title: 보기 모드일 때는 순수 텍스트(배경/수정 불가), 편집 모드일 때만 입력창 */}
+          {isEditMode ? (
+            <input
+              type="text"
+              value={docTitle}
+              onChange={(e) => setDocTitle(e.target.value)}
+              onBlur={handleTitleBlurOrEnter}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.currentTarget.blur();
+                }
+              }}
+              placeholder="캐릭터 관계도 제목"
+              className="text-sm md:text-base font-bold text-slate-800 dark:text-[#F3F2F8] bg-slate-100/70 dark:bg-[#2A2938] border border-slate-200 dark:border-[#3A3948] px-2.5 py-1 rounded-lg focus:border-lavender-500 focus:outline-none cursor-text truncate max-w-xs md:max-w-md transition-all"
+            />
+          ) : (
+            <span
+              className="text-sm md:text-base font-bold text-slate-800 dark:text-[#F3F2F8] bg-transparent border-0 px-1 py-1 truncate max-w-xs md:max-w-md select-text cursor-default"
+            >
+              {docTitle || '캐릭터 관계도'}
+            </span>
+          )}
         </div>
 
         {/* Right Action Buttons */}
@@ -620,7 +511,6 @@ export const CharacterRelationsEditor: React.FC = () => {
                 setIsEditMode(false);
                 setSelectedCharacterId(null);
                 setSelectedRelationId(null);
-                setSelectedGroupId(null);
                 toast.info('보기 모드로 전환되었습니다.');
               }}
               className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
@@ -722,7 +612,7 @@ export const CharacterRelationsEditor: React.FC = () => {
       </header>
 
       {/* ================================================================= */}
-      {/* 2. SUB TOOLBAR: View Switcher, Add Character/Group, Undo/Redo      */}
+      {/* 2. SUB TOOLBAR: View Switcher, Add Character, Undo/Redo            */}
       {/* ================================================================= */}
       <div className="h-11 bg-white dark:bg-[#1E1E27] border-b border-slate-200 dark:border-[#3A3948] px-4 flex items-center justify-between shrink-0 shadow-2xs z-20 transition-colors">
         {/* Left: View Tabs, Add Actions, Undo/Redo */}
@@ -755,35 +645,6 @@ export const CharacterRelationsEditor: React.FC = () => {
             </button>
           </div>
 
-          {/* Edit Mode Add Actions */}
-          {isEditMode && (
-            <>
-              <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] mx-1" />
-
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(true)}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-lavender-50 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] border border-lavender-200/80 dark:border-[#524580] hover:bg-lavender-100 rounded-lg text-xs font-bold transition-colors shadow-2xs"
-                title="캐릭터 추가 (시트 연동 / 직접 생성)"
-              >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>캐릭터 추가</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={handleAddGroup}
-                className="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 dark:bg-[#262634] text-slate-700 dark:text-[#E8E7EF] border border-slate-200 dark:border-[#3A3948] hover:bg-slate-200/70 rounded-lg text-xs font-semibold transition-colors"
-                title="세력 / 소속 그룹 영역 추가"
-              >
-                <Layers className="w-3.5 h-3.5" />
-                <span>그룹 추가</span>
-              </button>
-            </>
-          )}
-
-          <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] mx-1" />
-
           {/* Undo / Redo */}
           <button
             type="button"
@@ -805,7 +666,7 @@ export const CharacterRelationsEditor: React.FC = () => {
           </button>
         </div>
 
-        {/* Right: Tool Selector & Legend Quick Toggle */}
+        {/* Right: Legend Quick Toggle & Tool Selector */}
         <div className="flex items-center gap-2">
           {/* Quick Legend Box Visibility Toggle */}
           <button
@@ -862,7 +723,7 @@ export const CharacterRelationsEditor: React.FC = () => {
       </div>
 
       {/* ================================================================= */}
-      {/* 3. MAIN WORKSPACE: Sidebar + Canvas + Inspector                   */}
+      {/* 3. MAIN WORKSPACE: Sidebar + Canvas + Inspector (보기 모드 숨김)  */}
       {/* ================================================================= */}
       <div ref={printRef} className="flex-1 flex overflow-hidden">
         {/* 1. Left Character List Panel */}
@@ -874,7 +735,6 @@ export const CharacterRelationsEditor: React.FC = () => {
             setSelectedCharacterId(id);
             if (id) {
               setSelectedRelationId(null);
-              setSelectedGroupId(null);
             }
           }}
           onOpenAddModal={() => setIsAddModalOpen(true)}
@@ -886,7 +746,6 @@ export const CharacterRelationsEditor: React.FC = () => {
           <RelationCanvas
             characters={docData.characters}
             relations={docData.relations}
-            groups={docData.groups || []}
             legends={docData.legends || DEFAULT_RELATION_LEGENDS}
             legendSettings={
               docData.legendSettings || {
@@ -898,7 +757,6 @@ export const CharacterRelationsEditor: React.FC = () => {
             }
             selectedCharacterId={selectedCharacterId}
             selectedRelationId={selectedRelationId}
-            selectedGroupId={selectedGroupId}
             highlightedLegendId={highlightedLegendId}
             isEditMode={isEditMode}
             activeTool={activeTool}
@@ -906,28 +764,17 @@ export const CharacterRelationsEditor: React.FC = () => {
               setSelectedCharacterId(id);
               if (id) {
                 setSelectedRelationId(null);
-                setSelectedGroupId(null);
               }
             }}
             onSelectRelation={(id) => {
               setSelectedRelationId(id);
               if (id) {
                 setSelectedCharacterId(null);
-                setSelectedGroupId(null);
-              }
-            }}
-            onSelectGroup={(id) => {
-              setSelectedGroupId(id);
-              if (id) {
-                setSelectedCharacterId(null);
-                setSelectedRelationId(null);
               }
             }}
             onToggleLegendHighlight={handleToggleLegendHighlight}
             onUpdateLegendSettings={handleUpdateLegendSettings}
             onCreateRelation={handleCreateRelation}
-            onUpdateCharacterPosition={handleUpdateCharacterPosition}
-            onUpdateGroupPosition={handleUpdateGroup}
           />
         ) : (
           <RelationListView
@@ -938,73 +785,57 @@ export const CharacterRelationsEditor: React.FC = () => {
             onSelectRelation={(id) => {
               setSelectedRelationId(id);
               setSelectedCharacterId(null);
-              setSelectedGroupId(null);
             }}
             onDeleteRelation={handleDeleteRelation}
           />
         )}
 
-        {/* 3. Right Inspector Panel */}
-        <RelationInspector
-          selectedRelation={selectedRelation}
-          selectedCharacter={selectedCharacter}
-          selectedGroup={selectedGroup}
-          characters={docData.characters}
-          relations={docData.relations}
-          groups={docData.groups || []}
-          legends={docData.legends || DEFAULT_RELATION_LEGENDS}
-          legendSettings={
-            docData.legendSettings || {
-              visible: true,
-              x: 28,
-              y: 28,
-              orientation: 'vertical',
+        {/* 3. Right Inspector Panel (보기 모드에서는 완전히 숨김!) */}
+        {isEditMode && (
+          <RelationInspector
+            selectedRelation={selectedRelation}
+            selectedCharacter={selectedCharacter}
+            characters={docData.characters}
+            relations={docData.relations}
+            legends={docData.legends || DEFAULT_RELATION_LEGENDS}
+            legendSettings={
+              docData.legendSettings || {
+                visible: true,
+                x: 28,
+                y: 28,
+                orientation: 'vertical',
+              }
             }
-          }
-          isEditMode={isEditMode}
-          onUpdateRelation={handleUpdateRelation}
-          onDeleteRelation={handleDeleteRelation}
-          onUpdateCharacter={handleUpdateCharacter}
-          onDeleteCharacter={handleDeleteCharacter}
-          onUpdateGroup={handleUpdateGroup}
-          onDeleteGroup={handleDeleteGroup}
-          onUpdateLegend={handleUpdateLegend}
-          onAddLegend={handleAddLegend}
-          onDeleteLegend={handleDeleteLegend}
-          onUpdateLegendSettings={handleUpdateLegendSettings}
-          onSelectRelation={(id) => {
-            setSelectedRelationId(id);
-            if (id) {
-              setSelectedCharacterId(null);
-              setSelectedGroupId(null);
-            }
-          }}
-          onSelectCharacter={(id) => {
-            setSelectedCharacterId(id);
-            if (id) {
-              setSelectedRelationId(null);
-              setSelectedGroupId(null);
-            }
-          }}
-          onSelectGroup={(id) => {
-            setSelectedGroupId(id);
-            if (id) {
-              setSelectedCharacterId(null);
-              setSelectedRelationId(null);
-            }
-          }}
-          onOpenAddCharacterModal={() => setIsAddModalOpen(true)}
-          onAutoLayoutCircular={handleAutoLayoutCircular}
-          onAutoLayoutGrid={handleAutoLayoutGrid}
-        />
+            isEditMode={isEditMode}
+            onUpdateRelation={handleUpdateRelation}
+            onDeleteRelation={handleDeleteRelation}
+            onUpdateCharacter={handleUpdateCharacter}
+            onDeleteCharacter={handleDeleteCharacter}
+            onUpdateLegend={handleUpdateLegend}
+            onAddLegend={handleAddLegend}
+            onDeleteLegend={handleDeleteLegend}
+            onUpdateLegendSettings={handleUpdateLegendSettings}
+            onSelectRelation={(id) => {
+              setSelectedRelationId(id);
+              if (id) {
+                setSelectedCharacterId(null);
+              }
+            }}
+            onSelectCharacter={(id) => {
+              setSelectedCharacterId(id);
+              if (id) {
+                setSelectedRelationId(null);
+              }
+            }}
+          />
+        )}
       </div>
 
-      {/* 4. Add Character Modal (Tab 1: 직접 생성, Tab 2: 시트에서 가져오기) */}
+      {/* 4. Add Character Modal */}
       <AddRelationCharacterModal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         existingCharacters={docData.characters}
-        groups={docData.groups || []}
         onAddCharacter={handleAddCharacter}
       />
 

@@ -455,9 +455,7 @@ export const ScheduleEditor: React.FC = () => {
             />
           ) : (
             <span
-              onClick={() => setIsEditMode(true)}
-              title="클릭하여 편집 모드로 전환"
-              className="text-sm font-bold text-slate-800 dark:text-[#F3F2F8] bg-transparent border-0 px-1 py-1 truncate max-w-xs md:max-w-md cursor-pointer select-text"
+              className="text-sm font-bold text-slate-800 dark:text-[#F3F2F8] bg-transparent border-0 px-1 py-1 truncate max-w-xs md:max-w-md select-text cursor-default"
             >
               {docTitle || '제목 없는 일정'}
             </span>

@@ -7,6 +7,7 @@ import { toast } from '../../toast/ToastContext';
 
 interface SpecialEditorHeaderProps {
   saveStatus?: SaveStatus;
+  isEditMode?: boolean;
   onBeforeBack?: () => void;
   extraControls?: React.ReactNode;
   onExportImage?: () => Promise<void> | void;
@@ -14,6 +15,7 @@ interface SpecialEditorHeaderProps {
 
 export const SpecialEditorHeader: React.FC<SpecialEditorHeaderProps> = ({
   saveStatus: propSaveStatus,
+  isEditMode,
   onBeforeBack,
   extraControls,
   onExportImage,
@@ -84,20 +86,26 @@ export const SpecialEditorHeader: React.FC<SpecialEditorHeaderProps> = ({
 
         <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] shrink-0" />
 
-        {/* Document Title (Editable) */}
-        <input
-          type="text"
-          value={docTitle}
-          onChange={(e) => setDocTitle(e.target.value)}
-          onBlur={handleTitleBlurOrEnter}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              (e.target as HTMLInputElement).blur();
-            }
-          }}
-          placeholder="제목 없는 문서"
-          className="text-[15px] font-bold text-slate-800 dark:text-[#E8E7EF] border-b border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-lavender-500 focus:outline-none transition-colors px-1 py-0.5 truncate max-w-md bg-white dark:bg-[#1E1E27]"
-        />
+        {/* Document Title: 보기 모드일 때는 순수 텍스트(클릭 수정 불가), 편집 모드일 때만 input */}
+        {isEditMode === false ? (
+          <span className="text-[15px] font-bold text-slate-800 dark:text-[#E8E7EF] px-1 py-0.5 truncate max-w-md bg-transparent border-0 select-text cursor-default">
+            {docTitle || '제목 없는 문서'}
+          </span>
+        ) : (
+          <input
+            type="text"
+            value={docTitle}
+            onChange={(e) => setDocTitle(e.target.value)}
+            onBlur={handleTitleBlurOrEnter}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+            placeholder="제목 없는 문서"
+            className="text-[15px] font-bold text-slate-800 dark:text-[#E8E7EF] border-b border-transparent hover:border-slate-300 dark:hover:border-slate-600 focus:border-lavender-500 focus:outline-none transition-colors px-1 py-0.5 truncate max-w-md bg-transparent"
+          />
+        )}
 
         <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] shrink-0">
           {template?.name || '특수 편집기'}

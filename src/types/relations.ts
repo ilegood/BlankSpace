@@ -22,8 +22,6 @@ export interface GradientColorStop {
 export interface RelationCharacter {
   id: string;
   name: string;
-  role?: string;
-  affiliation?: string;
   imageUrl?: string;           // base64 또는 URL
   color?: string;              // 테두리 대표 색상
   borderColor?: string;
@@ -36,7 +34,7 @@ export interface RelationCharacter {
   shape?: 'circle';            // 원형 고정
   showName?: boolean;          // 이름 표시 on/off
 
-  // 캐릭터 출처 (연동 여부)
+  // 캐릭터 출처
   source?: 'custom' | 'character-sheet';
   sourceDocumentId?: string;
   sourceDocumentTitle?: string;
@@ -56,26 +54,33 @@ export interface RelationItem {
   id: string;
   sourceId: string;            // 캐릭터 A
   targetId: string;            // 캐릭터 B
-  legendId?: string;           // 연동된 범례 항목 ID
-  relationType: string;        // 관계 유형 (예: "신뢰", "라이벌", "동료")
-  label?: string;              // 관계 라벨
-  color: string;               // 대표 색상
-  gradient?: GradientColorStop; // A-B 생각이 다를 때 그라데이션
+  relationType: string;        // 대표 관계 유형
+  color: string;               // 대표 선 색상
   style: LineStyle;            // 실선, 점선
   strokeWidth: number;         // 선 두께
   direction?: RelationDirection;
-  
-  // A와 B의 서로에 대한 생각 및 각자의 색상
-  emotionAtoB?: string;        // A가 B에 대한 생각
-  colorAtoB?: string;          // A의 감정 색상
-  emotionBtoA?: string;        // B가 A에 대한 생각
-  colorBtoA?: string;          // B의 감정 색상
 
-  memo?: string;               // 세부 설명/메모
+  // A -> B 개별 설정 (A의 생각 및 범례)
+  legendIdAtoB?: string;
+  emotionAtoB?: string;
+  colorAtoB?: string;
+
+  // B -> A 개별 설정 (B의 생각 및 범례)
+  legendIdBtoA?: string;
+  emotionBtoA?: string;
+  colorBtoA?: string;
+
+  // 다를 때 A 색상 -> B 색상 그라데이션
+  gradient?: GradientColorStop;
+
+  // 하위 호환 필드
+  legendId?: string;
+  label?: string;
+  showLabel?: boolean;
+  memo?: string;
   sourceAnchor?: AnchorPosition;
   targetAnchor?: AnchorPosition;
   curvature?: number;
-  showLabel?: boolean;
 }
 
 export interface CharacterRelationsDocData {
@@ -97,57 +102,25 @@ export interface CharacterRelationsDocData {
   };
 }
 
-// 깔끔하고 보편적인 기본 6종 범례 프리셋
+// 기본 범례: 적대적(빨강), 우호적(파랑) 2종
 export const DEFAULT_RELATION_LEGENDS: RelationLegendItem[] = [
   {
-    id: 'leg-trust',
-    name: '신뢰',
-    color: '#3B82F6',
+    id: 'leg-hostile',
+    name: '적대적',
+    color: '#EF4444',
     style: 'solid',
     strokeWidth: 3.5,
   },
   {
     id: 'leg-friendly',
-    name: '우호',
-    color: '#10B981',
+    name: '우호적',
+    color: '#3B82F6',
     style: 'solid',
-    strokeWidth: 3,
-  },
-  {
-    id: 'leg-affection',
-    name: '호감',
-    color: '#F43F5E',
-    style: 'solid',
-    strokeWidth: 3,
-  },
-  {
-    id: 'leg-rival',
-    name: '경쟁 / 라이벌',
-    color: '#F97316',
-    style: 'solid',
-    strokeWidth: 3,
-  },
-  {
-    id: 'leg-hostile',
-    name: '경계 / 적대',
-    color: '#8B5CF6',
-    style: 'solid',
-    strokeWidth: 3,
-  },
-  {
-    id: 'leg-complex',
-    name: '복잡한 관계',
-    color: '#6B7280',
-    style: 'dashed',
-    strokeWidth: 2.5,
+    strokeWidth: 3.5,
   },
 ];
 
 export const RELATION_TYPE_PRESETS = [
-  { type: '신뢰', color: '#3B82F6' },
-  { type: '우호', color: '#10B981' },
-  { type: '호감', color: '#F43F5E' },
-  { type: '경쟁 / 라이벌', color: '#F97316' },
-  { type: '경계 / 적대', color: '#8B5CF6' },
-  { type: '복잡한 관계', color: '#6B7280' },
+  { type: '적대적', color: '#EF4444' },
+  { type: '우호적', color: '#3B82F6' },
 ];
