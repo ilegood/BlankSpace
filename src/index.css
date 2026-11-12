@@ -449,3 +449,20 @@ html.dark .blankspace-link-card {
   border-color: #3A3948 !important;
   color: #E8E7EF !important;
 }
+
+/* Canvas cards use a restrained surface palette in dark mode. */
+html:not(.dark) .blankspace-canvas-card [class~="rounded-xl"] { border-radius: 0.625rem; }
+html:not(.dark) .blankspace-canvas-card [class~="rounded-2xl"] { border-radius: 0.75rem; }
+html:not(.dark) .blankspace-canvas-card [class~="shadow-xs"],
+html:not(.dark) .blankspace-canvas-card [class~="shadow-2xs"] { box-shadow: 0 1px 2px rgb(15 23 42 / 0.04); }
+html.dark .blankspace-canvas-card [class~="rounded-xl"] { border-radius: 0.625rem; }
+html.dark .blankspace-canvas-card [class~="rounded-2xl"] { border-radius: 0.75rem; }
+html.dark .blankspace-canvas-card [class~="text-slate-800"] { color: #E8E7EF; }
+html.dark .blankspace-canvas-card [class~="text-slate-700"] { color: #D1D0DD; }
+html.dark .blankspace-canvas-card [class~="text-slate-600"] { color: #C0BECC; }
+html.dark .blankspace-canvas-card [class~="text-slate-500"] { color: #A5A3B5; }
+html.dark .blankspace-canvas-card [class~="bg-white"] { background-color: #24232D; }
+html.dark .blankspace-canvas-card [class*="bg-slate-50"],
+html.dark .blankspace-canvas-card [class*="bg-slate-100"] { background-color: #292936; }
+html.dark .blankspace-canvas-card [class*="border-slate-100"],
+html.dark .blankspace-canvas-card [class*="border-slate-200"] { border-color: #3A3948; }

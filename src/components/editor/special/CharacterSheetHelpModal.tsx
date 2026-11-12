@@ -93,26 +93,23 @@ export const CharacterSheetHelpModal: React.FC<CharacterSheetHelpModalProps> = (
             </div>
           </div>
 
-          {/* 2. 9종 의미 있는 단위의 구성 요소 */}
+          {/* 2. 23종 통합 컴포넌트 시스템 */}
           <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-[#262634] border border-slate-100 dark:border-[#3A3948] flex gap-3">
             <Layers className="w-5 h-5 text-lavender-600 dark:text-[#B7A5FF] shrink-0 mt-0.5" />
             <div>
               <h4 className="font-bold text-slate-800 dark:text-[#F3F2F8] text-[13px] mb-1">
-                9종의 전문 캐릭터 구성 요소
+                23종 통합 컴포넌트 라이브러리 & 캐릭터 특화 구성
               </h4>
               <p className="mb-2">
                 좌측 패널에서 원하는 카드를 클릭하여 캔버스에 즉시 추가할 수 있습니다:
               </p>
               <ul className="grid grid-cols-2 gap-1.5 text-[11px] text-slate-500 dark:text-slate-400">
-                <li>• <b>캐릭터 이미지</b>: 일러스트 삽입, 프레임, 자르기</li>
-                <li>• <b>이름 & 칭호</b>: 본명, 칭호, 코드명 복수 필드</li>
-                <li>• <b>대표 대사</b>: 명대사 및 말풍선/발언 상황</li>
-                <li>• <b>공통 정보 카드</b>: 기본/상세 정보 (2열 그리드, 표)</li>
-                <li>• <b>서술형 상세 카드</b>: 성격, 배경, 스토리 자유 서술</li>
-                <li>• <b>키워드 & 태그</b>: 속성 및 성향 칩 (자동 줄바꿈)</li>
-                <li>• <b>능력치 레이더 차트</b>: 3~8축 다각형 스탯 차트</li>
-                <li>• <b>관계 요약 카드</b>: 인물 관계 및 상태별 배지</li>
-                <li>• <b>자유 메모 카드</b>: 테마 색상이 연동되는 포스트잇</li>
+                <li>• <b>프로필 카드 [특화]</b>: 아바타, 이름, 칭호 배지, 소개 통합</li>
+                <li>• <b>스탯 카드 [특화]</b>: 막대 그래프 / 수치형 / 레이더 차트</li>
+                <li>• <b>관계 요약 카드 [특화]</b>: 내부 캐릭터 문서 연결 및 바로가기</li>
+                <li>• <b>컬러 팔레트 [공통]</b>: 일체형 컬러 바, + 추가, 코드 ON/OFF</li>
+                <li>• <b>이미지 & 갤러리</b>: 단일 이미지 (여백 0 기본) & 다중 갤러리</li>
+                <li>• <b>세계관 & 레이아웃</b>: 계층 구조, 분류 목록, 구역 카드, 표, 구분선</li>
               </ul>
             </div>
           </div>

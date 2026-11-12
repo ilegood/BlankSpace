@@ -9,6 +9,7 @@ import { FabButton } from './FabButton';
 import { CommonDocumentEditor } from '../editor/CommonDocumentEditor';
 import { CharacterSheetEditor } from '../editor/special/CharacterSheetEditor';
 import { CharacterRelationsEditor } from '../editor/special/CharacterRelationsEditor';
+import { CharacterQAEditor } from '../editor/special/qa/CharacterQAEditor';
 import { CharacterDialogueEditor } from '../editor/special/CharacterDialogueEditor';
 import { WorldSheetEditor } from '../editor/special/WorldSheetEditor';
 import { WorldMapEditor } from '../editor/special/WorldMapEditor';
@@ -66,6 +67,8 @@ export const WorkspaceView: React.FC = () => {
         return <CharacterSheetEditor />;
       case 'character-relations':
         return <CharacterRelationsEditor />;
+      case 'character-qa':
+        return <CharacterQAEditor />;
 
       // 2. 세계관 카테고리
       case 'world-sheet':

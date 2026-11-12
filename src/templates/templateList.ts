@@ -34,6 +34,15 @@ export const TEMPLATES: TemplateDefinition[] = [
     defaultTitle: '캐릭터 관계도',
     defaultContent: '캐릭터 간의 관계와 감정을 연결하여 시각화합니다.'
   },
+  {
+    id: 'character-qa',
+    name: '캐릭터 문답',
+    description: '질문과 답변을 통해 캐릭터의 성격과 설정을 구체화합니다.',
+    category: 'character',
+    iconName: 'HelpCircle',
+    defaultTitle: '새 캐릭터 문답',
+    defaultContent: '{"questions":[{"id":"qa-1","question":"가장 좋아하는 음식은?","answer":"따뜻한 수프를 좋아한다.","order":0},{"id":"qa-2","question":"가장 싫어하는 사람 유형은?","answer":"거짓말을 밥 먹듯이 하는 사람.","order":1},{"id":"qa-3","question":"휴일에는 무엇을 하나요?","answer":"집에서 책을 읽거나 낮잠을 잔다.","order":2}]}'
+  },
 
   // 2. 세계관
   {

@@ -23,6 +23,7 @@ import {
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { useTheme } from '../../../store/ThemeContext';
 import { exportElementAsPng } from '../../../utils/exportImage';
+import { getCanvasSurfaceColor } from '../../../utils/canvasTheme';
 import {
   CanvasDocumentData,
   CanvasElement,
@@ -524,22 +525,26 @@ export const CharacterSheetEditor: React.FC = () => {
   };
 
   // 2. Add Element from Library with Safe Positioning and Canvas Auto-Expansion
-  const handleAddElement = (type: CanvasElementType) => {
+  const handleAddElement = (
+    type: CanvasElementType,
+    defaultPreset?: Partial<CanvasElement>
+  ) => {
     const nextZ = canvasData.elements.length + 1;
-    let elWidth = 400;
-    let elHeight = 160;
+    let elWidth = defaultPreset?.width || 400;
+    let elHeight = defaultPreset?.height || 160;
 
     switch (type) {
-      case 'character-image': elWidth = 280; elHeight = 380; break;
-      case 'name-badge': elWidth = 540; elHeight = 80; break;
-      case 'info-card': elWidth = 540; elHeight = 180; break;
-      case 'narrative-card': elWidth = 420; elHeight = 200; break;
-      case 'keyword-card': elWidth = 540; elHeight = 90; break;
-      case 'radar-chart': elWidth = 410; elHeight = 260; break;
-      case 'relationship-card': elWidth = 410; elHeight = 180; break;
-      case 'quote-card': elWidth = 540; elHeight = 80; break;
-      case 'memo-card': elWidth = 380; elHeight = 160; break;
-      default: elWidth = 240; elHeight = 120;
+      case 'character-image': elWidth = defaultPreset?.width || 280; elHeight = defaultPreset?.height || 380; break;
+      case 'name-badge': elWidth = defaultPreset?.width || 420; elHeight = defaultPreset?.height || 84; break;
+      case 'info-card': elWidth = defaultPreset?.width || 540; elHeight = defaultPreset?.height || 180; break;
+      case 'narrative-card': elWidth = defaultPreset?.width || 420; elHeight = defaultPreset?.height || 200; break;
+      case 'keyword-card': elWidth = defaultPreset?.width || 540; elHeight = defaultPreset?.height || 90; break;
+      case 'palette-card': elWidth = defaultPreset?.width || 440; elHeight = defaultPreset?.height || 130; break;
+      case 'radar-chart': elWidth = defaultPreset?.width || 410; elHeight = defaultPreset?.height || 260; break;
+      case 'relationship-card': elWidth = defaultPreset?.width || 410; elHeight = defaultPreset?.height || 180; break;
+      case 'quote-card': elWidth = defaultPreset?.width || 540; elHeight = defaultPreset?.height || 80; break;
+      case 'memo-card': elWidth = defaultPreset?.width || 380; elHeight = defaultPreset?.height || 160; break;
+      default: elWidth = defaultPreset?.width || 240; elHeight = defaultPreset?.height || 120;
     }
 
     // Smart visible positioning inside the canvas
@@ -565,16 +570,20 @@ export const CharacterSheetEditor: React.FC = () => {
           height: elHeight,
           zIndex: nextZ,
           style: {
+            padding: 0,
             borderRadius: 18,
             borderColor: '#E2E8F0',
             borderWidth: 1,
             boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
             objectFit: 'cover',
+            ...defaultPreset?.style,
           },
           content: {
+            title: '이미지',
             imageUrl:
               'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=600&q=80',
             alt: '캐릭터 이미지',
+            ...defaultPreset?.content,
           },
         };
         break;
@@ -589,14 +598,15 @@ export const CharacterSheetEditor: React.FC = () => {
           height: elHeight,
           zIndex: nextZ,
           style: {
-            backgroundColor: '#FAFBFD',
-            borderColor: '#ECEEF3',
+            backgroundColor: '#FFFFFF',
+            borderColor: '#E5E7EB',
             borderWidth: 1,
-            borderRadius: 16,
+            borderRadius: 12,
             padding: 16,
+            ...defaultPreset?.style,
           },
           content: {
-            nameFields: [
+            nameFields: defaultPreset?.content?.nameFields || [
               {
                 id: 'nf-1',
                 label: '이름',
@@ -615,6 +625,7 @@ export const CharacterSheetEditor: React.FC = () => {
                 color: '#64748B',
               },
             ],
+            ...defaultPreset?.content,
           },
         };
         break;
@@ -801,17 +812,53 @@ export const CharacterSheetEditor: React.FC = () => {
             borderWidth: 1,
             borderRadius: 16,
             padding: 14,
+            ...defaultPreset?.style,
           },
           content: {
             title: '비밀 설정 & 메모',
             memoContent: '창작 과정에서 기억해둘 핵심 설정과 떡밥을 메모하세요.',
+            ...defaultPreset?.content,
+          },
+        };
+        break;
+
+      case 'palette-card':
+        newElement = {
+          id: `palette-${Date.now()}`,
+          type: 'palette-card',
+          x: targetX,
+          y: targetY,
+          width: elWidth || 440,
+          height: elHeight || 130,
+          zIndex: nextZ,
+          style: {
+            backgroundColor: '#FFFFFF',
+            borderColor: '#ECEEF3',
+            borderWidth: 1,
+            borderRadius: 18,
+            padding: 16,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+            ...defaultPreset?.style,
+          },
+          content: {
+            title: '컬러 팔레트',
+            showPaletteHex: true,
+            paletteShape: 'circle',
+            paletteColors: [
+              { id: 'p-1', color: '#7C3AED', label: '메인' },
+              { id: 'p-2', color: '#EC4899', label: '서브' },
+              { id: 'p-3', color: '#3B82F6', label: '포인트' },
+              { id: 'p-4', color: '#10B981', label: '악센트' },
+              { id: 'p-5', color: '#1E293B', label: '베이스' },
+            ],
+            ...defaultPreset?.content,
           },
         };
         break;
 
       default:
         newElement = {
-          id: `el-${Date.now()}`,
+          id: `${type}-${Date.now()}`,
           type,
           x: targetX,
           y: targetY,
@@ -819,13 +866,17 @@ export const CharacterSheetEditor: React.FC = () => {
           height: elHeight,
           zIndex: nextZ,
           style: {
-            backgroundColor: '#FFFFFF',
-            borderColor: '#E2E8F0',
-            borderWidth: 1,
-            borderRadius: 12,
-            padding: 12,
+            backgroundColor: type === 'spacer' ? 'transparent' : '#FFFFFF',
+            borderColor: '#ECEEF3',
+            borderWidth: type === 'spacer' ? 0 : 1,
+            borderRadius: 16,
+            padding: type === 'image-card' || type === 'spacer' ? 0 : 16,
+            ...defaultPreset?.style,
           },
-          content: { title: '새 요소', text: '내용' },
+          content: {
+            title: defaultPreset?.content?.title || '새 컴포넌트',
+            ...defaultPreset?.content,
+          },
         };
     }
 
@@ -847,7 +898,7 @@ export const CharacterSheetEditor: React.FC = () => {
       toast.info('이미지를 생성 중입니다...');
       await exportElementAsPng(printRef.current, {
         fileName: `${docTitle || '캐릭터_시트'}_${new Date().toISOString().slice(0, 10)}`,
-        backgroundColor: canvasData.backgroundColor || '#FFFFFF',
+        backgroundColor: getCanvasSurfaceColor(canvasData.backgroundColor, isDark),
       });
       toast.success('이미지 저장이 완료되었습니다.');
     } catch {
@@ -1174,7 +1225,7 @@ export const CharacterSheetEditor: React.FC = () => {
       <div className="flex-1 flex overflow-hidden">
         {/* A. Left Library Panel (Visible ONLY in Edit Mode when open) */}
         {isEditMode && showLibrary && (
-          <CanvasLibrary onAddElement={handleAddElement} />
+          <CanvasLibrary mode="character" onAddElement={handleAddElement} />
         )}
 
         {/* B. Center Freeform Canvas Workspace with Infinite Pan & Zoom */}
@@ -1230,7 +1281,7 @@ export const CharacterSheetEditor: React.FC = () => {
                 width: '100%',
                 height: '100%',
                 minHeight: `${canvasData.canvasHeight}px`,
-                backgroundColor: canvasData.backgroundColor || '#FFFFFF',
+                backgroundColor: getCanvasSurfaceColor(canvasData.backgroundColor, isDark),
                 ...getCanvasPatternStyle(),
               }}
               onClick={(e) => {
@@ -1238,7 +1289,7 @@ export const CharacterSheetEditor: React.FC = () => {
                 e.stopPropagation();
                 setSelectedId(null); // Click paper selects canvas
               }}
-              className={`relative rounded-3xl shadow-lg border transition-all overflow-hidden ${
+              className={`blankspace-sheet-canvas relative rounded-xl shadow-sm border transition-all overflow-hidden ${
                 isEditMode && selectedId === null
                   ? 'border-lavender-500 ring-4 ring-lavender-500/20 shadow-xl'
                   : 'border-slate-200/90 dark:border-[#3A3948]'

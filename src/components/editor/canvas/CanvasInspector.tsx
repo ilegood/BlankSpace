@@ -28,6 +28,7 @@ import {
   CanvasDocumentData,
   CanvasElement,
   CanvasElementType,
+  CanvasElementContent,
   CustomCharacterTemplate,
   InfoCardItem,
   NameField,
@@ -40,12 +41,17 @@ import {
   MODERN_PROFILE_CANVAS,
   MINIMAL_VISUAL_CANVAS,
 } from './defaultPresets';
-import { useToast } from '../../toast/ToastContext';
+import { toast as toastApi, useToast } from '../../toast/ToastContext';
 import { NumberInput } from './NumberInput';
+import { useWorkspace } from '../../../store/WorkspaceContext';
+import { applyCanvasLayoutTemplate, createCanvasLayoutTemplate } from '../../../utils/canvasTemplates';
 
 interface CanvasInspectorProps {
   selectedElement: CanvasElement | null;
   canvasData: CanvasDocumentData;
+  templateStorageKey?: string;
+  builtinTemplates?: CustomCharacterTemplate[];
+  defaultTemplateName?: string;
   onUpdateElement: (id: string, updates: Partial<CanvasElement>) => void;
   onDeleteElement: (id: string) => void;
   onDuplicateElement: (id: string) => void;
@@ -55,11 +61,14 @@ interface CanvasInspectorProps {
   onLoadCanvasData: (data: CanvasDocumentData) => void;
 }
 
-const TEMPLATE_STORAGE_KEY = 'blankspace_custom_character_templates';
+const DEFAULT_TEMPLATE_STORAGE_KEY = 'blankspace_custom_character_templates';
 
 export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
   selectedElement,
   canvasData,
+  templateStorageKey = DEFAULT_TEMPLATE_STORAGE_KEY,
+  builtinTemplates = BUILTIN_TEMPLATES,
+  defaultTemplateName = '내 캐릭터 시트 템플릿',
   onUpdateElement,
   onDeleteElement,
   onDuplicateElement,
@@ -69,6 +78,7 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
   onLoadCanvasData,
 }) => {
   const { toast, customPrompt, customConfirm } = useToast();
+  const { currentDocuments } = useWorkspace();
   const [activeTab, setActiveTab] = useState<'content' | 'style'>('content');
   const [globalTab, setGlobalTab] = useState<'canvas' | 'templates'>('canvas');
   const [customTemplates, setCustomTemplates] = useState<CustomCharacterTemplate[]>([]);
@@ -76,21 +86,53 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
   // Load custom templates from localStorage
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(TEMPLATE_STORAGE_KEY);
+      const raw = localStorage.getItem(templateStorageKey);
       if (raw) {
-        setCustomTemplates(JSON.parse(raw));
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed)) {
+          setCustomTemplates([]);
+          return;
+        }
+        const validTemplates = parsed.filter((template: CustomCharacterTemplate) =>
+          template && typeof template === 'object' && template.canvasData && Array.isArray(template.canvasData.elements)
+        );
+        const normalized = validTemplates.map((template: CustomCharacterTemplate) => ({
+          ...template,
+          canvasData: createCanvasLayoutTemplate(template.canvasData),
+        }));
+        const normalizedRaw = JSON.stringify(normalized);
+        let canUseNormalized = true;
+        if (normalizedRaw !== raw) {
+          const backupKey = `${templateStorageKey}_pre_layout_only_v1`;
+          try {
+            if (localStorage.getItem(backupKey) === null) localStorage.setItem(backupKey, raw);
+          } catch {
+            canUseNormalized = false;
+              toastApi.error('기존 사용자 템플릿을 안전하게 변환할 공간이 부족합니다. 원본을 유지했습니다.');
+          }
+          if (canUseNormalized) {
+            try {
+              localStorage.setItem(templateStorageKey, normalizedRaw);
+            } catch (e) {
+              console.warn('Failed to store converted layout templates; original backup was retained.', e);
+            }
+          }
+        }
+        setCustomTemplates(canUseNormalized ? normalized : parsed);
+      } else {
+        setCustomTemplates([]);
       }
     } catch (e) {
       console.error('Failed to load custom templates', e);
     }
-  }, []);
+  }, [templateStorageKey]);
 
   // Save current layout as custom template
   const handleSaveAsTemplate = async () => {
     const templateName = await customPrompt({
       title: '템플릿으로 저장',
       message: '현재 캔버스 레이아웃과 구성 요소를 저장할 템플릿 이름을 입력하세요.',
-      defaultValue: '내 캐릭터 시트 템플릿',
+      defaultValue: defaultTemplateName,
       placeholder: '템플릿 이름...',
       confirmText: '저장',
     });
@@ -101,13 +143,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
       id: `tmpl-${Date.now()}`,
       name: templateName.trim(),
       createdAt: Date.now(),
-      canvasData: JSON.parse(JSON.stringify(canvasData)),
+      canvasData: createCanvasLayoutTemplate(canvasData),
     };
 
     const nextList = [newTemplate, ...customTemplates];
     setCustomTemplates(nextList);
     try {
-      localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(nextList));
+      localStorage.setItem(templateStorageKey, JSON.stringify(nextList));
       toast.success('템플릿이 성공적으로 저장되었습니다.');
     } catch {
       toast.error('템플릿 저장 용량이 초과되었습니다.');
@@ -127,22 +169,27 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
 
     const nextList = customTemplates.filter((t) => t.id !== id);
     setCustomTemplates(nextList);
-    localStorage.setItem(TEMPLATE_STORAGE_KEY, JSON.stringify(nextList));
+    localStorage.setItem(templateStorageKey, JSON.stringify(nextList));
     toast.info('템플릿이 삭제되었습니다.');
   };
 
   // Load custom or builtin template
   const handleApplyTemplate = async (targetCanvas: CanvasDocumentData, name: string) => {
+    if (!targetCanvas || !Array.isArray(targetCanvas.elements)) {
+      toast.error('템플릿 데이터가 올바르지 않아 적용하지 않았습니다.');
+      return;
+    }
+
     const confirmed = await customConfirm({
       title: '템플릿 불러오기',
-      message: `'${name}' 템플릿을 적용하시겠습니까? 현재 작성 중인 내용이 템플릿으로 변경됩니다.`,
+      message: `'${name}'의 배치와 디자인을 적용합니다. 작성한 내용, 이미지, 문서 연결과 템플릿에 없는 기존 카드는 유지됩니다.`,
       confirmText: '적용',
     });
 
     if (!confirmed) return;
 
-    onLoadCanvasData(JSON.parse(JSON.stringify(targetCanvas)));
-    toast.success(`'${name}' 템플릿이 적용되었습니다.`);
+    onLoadCanvasData(applyCanvasLayoutTemplate(canvasData, targetCanvas));
+    toast.success(`'${name}' 레이아웃을 적용했습니다. 작성 내용은 유지됩니다.`);
   };
 
   // Handle image upload from file
@@ -387,13 +434,13 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
               <div className="flex flex-col gap-2">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
-                    추천 기본 프리셋 3종
+                    추천 기본 프리셋 ({builtinTemplates.length}종)
                   </span>
                   <span className="text-[10px] text-lavender-600 font-medium">원클릭 적용</span>
                 </div>
 
                 <div className="flex flex-col gap-2">
-                  {BUILTIN_TEMPLATES.map((tmpl) => (
+                  {builtinTemplates.map((tmpl) => (
                     <div
                       key={tmpl.id}
                       className="p-3 bg-slate-50 dark:bg-[#292936] rounded-xl border border-slate-200/80 dark:border-[#3A3948] flex flex-col gap-1.5 hover:border-lavender-400 transition-colors"
@@ -488,6 +535,12 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
   // ==========================================
   const content = selectedElement.content || {};
   const style = selectedElement.style || {};
+
+  const handleUpdateContent = (updates: Partial<CanvasElementContent>) => {
+    onUpdateElement(selectedElement.id, {
+      content: { ...content, ...updates },
+    });
+  };
 
   return (
     <div className="w-80 bg-white dark:bg-[#1E1E27] border-l border-slate-200 dark:border-[#3A3948] flex flex-col shrink-0 select-none overflow-hidden h-full">
@@ -1480,6 +1533,662 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                 </div>
               </div>
             )}
+
+            {/* 10. Palette Card */}
+            {selectedElement.type === 'palette-card' && (
+              <div className="flex flex-col gap-3">
+                {/* Title */}
+                <div className="flex flex-col gap-1">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
+                    카드 제목
+                  </span>
+                  <input
+                    type="text"
+                    value={content.title || ''}
+                    placeholder="컬러 팔레트"
+                    onChange={(e) =>
+                      handleUpdateContent({ title: e.target.value })
+                    }
+                    className="px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl outline-hidden focus:border-lavender-500 text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+
+                {/* Swatch Shape */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
+                    스워치 모양
+                  </span>
+                  <div className="flex items-center gap-1">
+                    {[
+                      { key: 'circle', label: '원형' },
+                      { key: 'rounded', label: '라운드' },
+                      { key: 'square', label: '사각' },
+                    ].map((s) => (
+                      <button
+                        key={s.key}
+                        type="button"
+                        onClick={() =>
+                          handleUpdateContent({
+                            paletteShape: s.key as 'circle' | 'rounded' | 'square',
+                          })
+                        }
+                        className={`px-2 py-1 text-[11px] rounded-lg transition-colors ${
+                          (content.paletteShape || 'circle') === s.key
+                            ? 'bg-lavender-600 text-white font-bold'
+                            : 'bg-slate-100 dark:bg-[#292936] text-slate-600 dark:text-[#A5A3B5]'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Show Hex Toggle */}
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
+                    색상 코드(HEX) 표시
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleUpdateContent({
+                        showPaletteHex: content.showPaletteHex === false ? true : false,
+                      })
+                    }
+                    className={`px-2.5 py-1 text-[11px] rounded-lg transition-colors font-medium ${
+                      content.showPaletteHex !== false
+                        ? 'bg-lavender-600 text-white font-bold'
+                        : 'bg-slate-100 dark:bg-[#292936] text-slate-500 dark:text-[#A5A3B5]'
+                    }`}
+                  >
+                    {content.showPaletteHex !== false ? '표시함' : '숨김'}
+                  </button>
+                </div>
+
+                {/* Palette Quick Presets */}
+                <div className="flex flex-col gap-1.5 pt-1">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
+                    추천 색상 세트
+                  </span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      {
+                        name: '판타지 바이올렛',
+                        colors: [
+                          { id: 'p1', color: '#7C3AED', label: '메인' },
+                          { id: 'p2', color: '#A78BFA', label: '서브' },
+                          { id: 'p3', color: '#F472B6', label: '포인트' },
+                          { id: 'p4', color: '#EDE9FE', label: '배경' },
+                          { id: 'p5', color: '#1E1B4B', label: '텍스트' },
+                        ],
+                      },
+                      {
+                        name: '사이버펑크 네온',
+                        colors: [
+                          { id: 'p1', color: '#06B6D4', label: '시안' },
+                          { id: 'p2', color: '#F43F5E', label: '핑크' },
+                          { id: 'p3', color: '#EAB308', label: '옐로우' },
+                          { id: 'p4', color: '#10B981', label: '네온' },
+                          { id: 'p5', color: '#0F172A', label: '어비스' },
+                        ],
+                      },
+                      {
+                        name: '자연 & 어스톤',
+                        colors: [
+                          { id: 'p1', color: '#15803D', label: '포레스트' },
+                          { id: 'p2', color: '#854D0E', label: '우드' },
+                          { id: 'p3', color: '#0284C7', label: '워터' },
+                          { id: 'p4', color: '#FEF08A', label: '선샤인' },
+                          { id: 'p5', color: '#334155', label: '스톤' },
+                        ],
+                      },
+                      {
+                        name: '모노크롬 흑백',
+                        colors: [
+                          { id: 'p1', color: '#000000', label: '블랙' },
+                          { id: 'p2', color: '#475569', label: '다크그레이' },
+                          { id: 'p3', color: '#94A3B8', label: '라이트그레이' },
+                          { id: 'p4', color: '#F1F5F9', label: '스노우' },
+                          { id: 'p5', color: '#FFFFFF', label: '화이트' },
+                        ],
+                      },
+                    ].map((preset) => (
+                      <button
+                        key={preset.name}
+                        type="button"
+                        onClick={() =>
+                          handleUpdateContent({
+                            paletteColors: preset.colors,
+                          })
+                        }
+                        className="px-2 py-1.5 text-[10px] bg-slate-50 dark:bg-[#292936] hover:bg-lavender-50 dark:hover:bg-[#352E58] border border-slate-200 dark:border-[#3A3948] rounded-xl text-left flex items-center justify-between transition-colors"
+                      >
+                        <span className="font-semibold text-slate-700 dark:text-[#E8E7EF] truncate">
+                          {preset.name}
+                        </span>
+                        <div className="flex items-center -space-x-1 shrink-0 ml-1">
+                          {preset.colors.slice(0, 3).map((c, i) => (
+                            <span
+                              key={i}
+                              className="w-2.5 h-2.5 rounded-full border border-white dark:border-black"
+                              style={{ backgroundColor: c.color }}
+                            />
+                          ))}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Color List Header & Add Button */}
+                <div className="flex items-center justify-between pt-1">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-[#A5A3B5]">
+                    색상 목록 ({(content.paletteColors || []).length}개)
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const colors = content.paletteColors || [];
+                      const defaultHexList = ['#8B5CF6', '#EC4899', '#3B82F6', '#10B981', '#F59E0B', '#6366F1'];
+                      const nextHex = defaultHexList[colors.length % defaultHexList.length] || '#8B5CF6';
+                      handleUpdateContent({
+                        paletteColors: [
+                          ...colors,
+                          {
+                            id: `col-${Date.now()}`,
+                            color: nextHex,
+                            label: `색상 ${colors.length + 1}`,
+                          },
+                        ],
+                      });
+                    }}
+                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-lavender-600 bg-lavender-50 dark:bg-lavender-950/40 border border-lavender-200 dark:border-lavender-800 rounded-lg hover:bg-lavender-100 transition-colors"
+                  >
+                    <Plus className="w-3 h-3" />
+                    <span>색상 추가</span>
+                  </button>
+                </div>
+
+                {/* Color List Items */}
+                <div className="flex flex-col gap-1.5 max-h-64 overflow-y-auto custom-scrollbar pr-1">
+                  {(content.paletteColors || []).map((col, idx) => (
+                    <div
+                      key={col.id || idx}
+                      className="flex items-center gap-2 p-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200/80 dark:border-[#3A3948] rounded-xl"
+                    >
+                      {/* Color Picker input */}
+                      <div className="relative w-7 h-7 rounded-lg overflow-hidden shrink-0 border border-slate-300 dark:border-slate-600 shadow-2xs">
+                        <input
+                          type="color"
+                          value={col.color.startsWith('#') && col.color.length === 7 ? col.color : '#8B5CF6'}
+                          onChange={(e) => {
+                            const colors = [...(content.paletteColors || [])];
+                            colors[idx] = { ...colors[idx], color: e.target.value };
+                            handleUpdateContent({ paletteColors: colors });
+                          }}
+                          className="absolute -inset-2 w-12 h-12 cursor-pointer"
+                        />
+                      </div>
+
+                      {/* Hex Text */}
+                      <input
+                        type="text"
+                        value={col.color}
+                        onChange={(e) => {
+                          const colors = [...(content.paletteColors || [])];
+                          colors[idx] = { ...colors[idx], color: e.target.value };
+                          handleUpdateContent({ paletteColors: colors });
+                        }}
+                        className="w-20 px-1.5 py-1 text-[11px] font-mono bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-lg text-slate-800 dark:text-[#E8E7EF]"
+                      />
+
+                      {/* Label Input */}
+                      <input
+                        type="text"
+                        placeholder="라벨"
+                        value={col.label || ''}
+                        onChange={(e) => {
+                          const colors = [...(content.paletteColors || [])];
+                          colors[idx] = { ...colors[idx], label: e.target.value };
+                          handleUpdateContent({ paletteColors: colors });
+                        }}
+                        className="flex-1 min-w-0 px-2 py-1 text-[11px] bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded-lg text-slate-800 dark:text-[#E8E7EF]"
+                      />
+
+                      {/* Delete */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const colors = [...(content.paletteColors || [])];
+                          if (colors.length <= 1) {
+                            toast.info('최소 1개 이상의 색상이 필요합니다.');
+                            return;
+                          }
+                          handleUpdateContent({
+                            paletteColors: colors.filter((_, i) => i !== idx),
+                          });
+                        }}
+                        className="p-1 text-slate-400 hover:text-red-500 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Profile Card Inspector */}
+            {selectedElement.type === 'profile-card' && (
+              <div className="flex flex-col gap-3">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
+                  프로필 카드 설정
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">카드 제목</span>
+                  <input
+                    type="text"
+                    value={content.title || ''}
+                    placeholder="프로필"
+                    onChange={(e) => handleUpdateContent({ title: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">프로필 이미지 URL</span>
+                  <input
+                    type="text"
+                    value={content.profileImageUrl || ''}
+                    placeholder="https://..."
+                    onChange={(e) => handleUpdateContent({ profileImageUrl: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">이름</span>
+                  <input
+                    type="text"
+                    value={content.profileName || ''}
+                    placeholder="이름"
+                    onChange={(e) => handleUpdateContent({ profileName: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">칭호 / 별명</span>
+                  <input
+                    type="text"
+                    value={content.profileNickname || ''}
+                    placeholder="칭호 또는 별명"
+                    onChange={(e) => handleUpdateContent({ profileNickname: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">소개 문구</span>
+                  <textarea
+                    rows={3}
+                    value={content.profileSummary || ''}
+                    placeholder="간단한 소개를 입력하세요."
+                    onChange={(e) => handleUpdateContent({ profileSummary: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF] resize-none"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Stat Card Inspector */}
+            {(selectedElement.type === 'stat-card' || selectedElement.type === 'radar-chart') && (
+              <div className="flex flex-col gap-3">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
+                  스탯 카드 설정
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">카드 제목</span>
+                  <input
+                    type="text"
+                    value={content.title || ''}
+                    placeholder="스탯 및 능력치"
+                    onChange={(e) => handleUpdateContent({ title: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">표시 방식</span>
+                  <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 dark:bg-[#292936] rounded-xl">
+                    {(['bar', 'number', 'radar'] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => handleUpdateContent({ statMode: m })}
+                        className={`py-1 text-[11px] font-semibold rounded-lg transition-colors ${
+                          (content.statMode || 'bar') === m
+                            ? 'bg-white dark:bg-[#1E1E27] text-lavender-600 dark:text-lavender-400 shadow-2xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        {m === 'bar' ? '막대형' : m === 'number' ? '수치형' : '레이더'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Stat Items */}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">스탯 항목 목록</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const items = content.statItems || [];
+                        handleUpdateContent({
+                          statItems: [
+                            ...items,
+                            {
+                              id: `stat-${Date.now()}`,
+                              label: `스탯 ${items.length + 1}`,
+                              value: 70,
+                              maxValue: 100,
+                              color: '#8B5CF6',
+                            },
+                          ],
+                        });
+                      }}
+                      className="text-[10px] text-lavender-600 font-bold hover:underline"
+                    >
+                      + 항목 추가
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-1.5 max-h-56 overflow-y-auto pr-1">
+                    {(content.statItems || []).map((it, idx) => (
+                      <div
+                        key={it.id || idx}
+                        className="flex items-center gap-1.5 p-1.5 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-xs"
+                      >
+                        <input
+                          type="color"
+                          value={it.color || '#8B5CF6'}
+                          onChange={(e) => {
+                            const next = [...(content.statItems || [])];
+                            next[idx] = { ...next[idx], color: e.target.value };
+                            handleUpdateContent({ statItems: next });
+                          }}
+                          className="w-5 h-5 rounded cursor-pointer shrink-0 border-0 p-0"
+                        />
+                        <input
+                          type="text"
+                          value={it.label}
+                          onChange={(e) => {
+                            const next = [...(content.statItems || [])];
+                            next[idx] = { ...next[idx], label: e.target.value };
+                            handleUpdateContent({ statItems: next });
+                          }}
+                          className="flex-1 min-w-0 px-1 py-0.5 bg-transparent border-0 outline-hidden font-semibold"
+                        />
+                        <input
+                          type="number"
+                          value={it.value}
+                          onChange={(e) => {
+                            const next = [...(content.statItems || [])];
+                            next[idx] = { ...next[idx], value: Number(e.target.value) };
+                            handleUpdateContent({ statItems: next });
+                          }}
+                          className="w-12 px-1 py-0.5 bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded text-center font-mono text-[11px]"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const next = (content.statItems || []).filter((_, i) => i !== idx);
+                            handleUpdateContent({ statItems: next });
+                          }}
+                          className="p-1 text-slate-400 hover:text-red-500"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Zone Card Inspector */}
+            {selectedElement.type === 'zone-card' && (
+              <div className="flex flex-col gap-3">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
+                  구역 카드 설정
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">구역 명칭</span>
+                  <input
+                    type="text"
+                    value={content.title || ''}
+                    placeholder="구역 명칭"
+                    onChange={(e) => handleUpdateContent({ title: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">포함된 장소 목록</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const locs = content.zoneLocations || [];
+                        handleUpdateContent({
+                          zoneLocations: [
+                            ...locs,
+                            { id: `loc-${Date.now()}`, name: `새 장소 ${locs.length + 1}` },
+                          ],
+                        });
+                      }}
+                      className="text-[10px] text-lavender-600 font-bold hover:underline"
+                    >
+                      + 장소 추가
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2 max-h-60 overflow-y-auto pr-1">
+                    {(content.zoneLocations || []).map((loc, idx) => (
+                      <div
+                        key={loc.id || idx}
+                        className="p-2 bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl flex flex-col gap-1.5 text-xs"
+                      >
+                        <div className="flex items-center justify-between gap-1.5">
+                          <input
+                            type="text"
+                            value={loc.name}
+                            placeholder="장소명"
+                            onChange={(e) => {
+                              const next = [...(content.zoneLocations || [])];
+                              next[idx] = { ...next[idx], name: e.target.value };
+                              handleUpdateContent({ zoneLocations: next });
+                            }}
+                            className="font-bold text-slate-800 dark:text-[#E8E7EF] bg-transparent border-0 outline-hidden flex-1"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const next = (content.zoneLocations || []).filter((_, i) => i !== idx);
+                              handleUpdateContent({ zoneLocations: next });
+                            }}
+                            className="p-1 text-slate-400 hover:text-red-500"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                        <input
+                          type="text"
+                          value={loc.imageUrl || ''}
+                          placeholder="이미지 URL (선택)"
+                          onChange={(e) => {
+                            const next = [...(content.zoneLocations || [])];
+                            next[idx] = { ...next[idx], imageUrl: e.target.value || undefined };
+                            handleUpdateContent({ zoneLocations: next });
+                          }}
+                          className="w-full text-[10px] bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded px-1.5 py-1 text-slate-600 dark:text-slate-300"
+                        />
+                        <div className="grid grid-cols-2 gap-1.5">
+                          <input
+                            type="text"
+                            value={loc.summary || ''}
+                            placeholder="한 줄 소개"
+                            onChange={(e) => {
+                              const next = [...(content.zoneLocations || [])];
+                              next[idx] = { ...next[idx], summary: e.target.value || undefined };
+                              handleUpdateContent({ zoneLocations: next });
+                            }}
+                            className="min-w-0 text-[10px] bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded px-1.5 py-1 text-slate-600 dark:text-slate-300"
+                          />
+                          <input
+                            type="text"
+                            value={loc.features || ''}
+                            placeholder="주요 특징"
+                            onChange={(e) => {
+                              const next = [...(content.zoneLocations || [])];
+                              next[idx] = { ...next[idx], features: e.target.value || undefined };
+                              handleUpdateContent({ zoneLocations: next });
+                            }}
+                            className="min-w-0 text-[10px] bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded px-1.5 py-1 text-slate-600 dark:text-slate-300"
+                          />
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[10px] text-slate-400 shrink-0">연결 문서:</span>
+                          <select
+                            value={loc.documentId || ''}
+                            onChange={(e) => {
+                              const doc = currentDocuments.find((d) => d.id === e.target.value);
+                              const next = [...(content.zoneLocations || [])];
+                              next[idx] = {
+                                ...next[idx],
+                                documentId: e.target.value || undefined,
+                                documentTitle: doc?.title || undefined,
+                              };
+                              handleUpdateContent({ zoneLocations: next });
+                            }}
+                            className="text-[10px] bg-white dark:bg-[#1E1E27] border border-slate-200 dark:border-[#3A3948] rounded px-1.5 py-0.5 text-slate-600 dark:text-slate-300 w-full"
+                          >
+                            <option value="">문서 미연결 (이름만 표시)</option>
+                            {currentDocuments.map((d) => (
+                              <option key={d.id} value={d.id}>
+                                {d.title || '제목 없음'}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Document Link Card Inspector */}
+            {selectedElement.type === 'doc-link-card' && (
+              <div className="flex flex-col gap-3">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
+                  문서 링크 설정
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">카드 제목</span>
+                  <input
+                    type="text"
+                    value={content.title || ''}
+                    placeholder="연결된 문서"
+                    onChange={(e) => handleUpdateContent({ title: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">연결할 내부 문서</span>
+                  <select
+                    value={content.targetDocumentId || ''}
+                    onChange={(e) => {
+                      const doc = currentDocuments.find((d) => d.id === e.target.value);
+                      handleUpdateContent({
+                        targetDocumentId: e.target.value || undefined,
+                        targetDocumentTitle: doc?.title || undefined,
+                      });
+                    }}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  >
+                    <option value="">문서를 선택하세요</option>
+                    {currentDocuments.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.title || '제목 없음'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Video & Audio Card Inspector */}
+            {selectedElement.type === 'video-card' && (
+              <div className="flex flex-col gap-3">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
+                  동영상 카드 설정
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">동영상 URL</span>
+                  <input
+                    type="text"
+                    value={content.videoUrl || ''}
+                    placeholder="유튜브 또는 비디오 링크"
+                    onChange={(e) => handleUpdateContent({ videoUrl: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {selectedElement.type === 'audio-card' && (
+              <div className="flex flex-col gap-3">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
+                  오디오 카드 설정
+                </span>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">오디오 파일명</span>
+                  <input
+                    type="text"
+                    value={content.audioFileName || ''}
+                    placeholder="오디오 파일명"
+                    onChange={(e) => handleUpdateContent({ audioFileName: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] font-semibold text-slate-600 dark:text-[#E8E7EF]">오디오 URL</span>
+                  <input
+                    type="text"
+                    value={content.audioUrl || ''}
+                    placeholder="https://... (.mp3, .wav)"
+                    onChange={(e) => handleUpdateContent({ audioUrl: e.target.value })}
+                    className="w-full px-2.5 py-1.5 text-xs bg-slate-50 dark:bg-[#292936] border border-slate-200 dark:border-[#3A3948] rounded-xl text-slate-800 dark:text-[#E8E7EF]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Spacer Inspector */}
+            {selectedElement.type === 'spacer' && (
+              <div className="flex flex-col gap-3">
+                <span className="text-[11px] font-bold text-slate-400 dark:text-[#A5A3B5] tracking-wider uppercase">
+                  여백 높이 조절
+                </span>
+                <NumberInput
+                  prefix="H"
+                  value={content.spacerHeight || selectedElement.height || 30}
+                  step={5}
+                  min={10}
+                  max={300}
+                  onChange={(val) => {
+                    handleUpdateContent({ spacerHeight: val });
+                    onUpdateElement(selectedElement.id, { height: val });
+                  }}
+                />
+              </div>
+            )}
           </div>
         ) : (
           /* ================= STYLE & DESIGN TAB ================= */
@@ -1509,9 +2218,29 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
                   min={100}
                   onChange={(val) => onUpdateElement(selectedElement.id, { width: val })}
                 />
-                {['name-badge', 'info-card', 'narrative-card', 'keyword-card', 'relationship-card'].includes(
-                  selectedElement.type
-                ) ? (
+                {[
+                  'name-badge',
+                  'info-card',
+                  'detail-card',
+                  'narrative-card',
+                  'keyword-card',
+                  'tag-card',
+                  'relationship-card',
+                  'palette-card',
+                  'profile-card',
+                  'stat-card',
+                  'hierarchy-card',
+                  'category-list-card',
+                  'zone-card',
+                  'table-card',
+                  'doc-link-card',
+                  'video-card',
+                  'audio-card',
+                  'gallery-card',
+                  'text-card',
+                  'section-heading',
+                  'group-container',
+                ].includes(selectedElement.type) ? (
                   <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-[#292936] p-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948]">
                     <span className="text-slate-400 text-[10px] dark:text-[#A5A3B5] font-bold">H</span>
                     <span className="text-[10px] text-lavender-600 dark:text-lavender-400 font-sans font-semibold">
@@ -1817,24 +2546,30 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
               <div className="flex items-center justify-between">
                 <span className="text-[11px] text-slate-600 dark:text-[#A5A3B5]">내부 여백</span>
                 <div className="flex items-center gap-1">
-                  {[8, 12, 16, 20, 24].map((pad) => (
-                    <button
-                      key={pad}
-                      type="button"
-                      onClick={() =>
-                        onUpdateElement(selectedElement.id, {
-                          style: { ...style, padding: pad },
-                        })
-                      }
-                      className={`px-1.5 py-0.5 text-[10px] font-mono rounded ${
-                        (style.padding ?? 16) === pad
-                          ? 'bg-lavender-500 text-white font-bold'
-                          : 'bg-slate-100 dark:bg-[#292936] text-slate-600 dark:text-[#A5A3B5]'
-                      }`}
-                    >
-                      {pad}
-                    </button>
-                  ))}
+                  {[0, 8, 12, 16, 20, 24].map((pad) => {
+                    const isImg =
+                      selectedElement.type === 'character-image' ||
+                      selectedElement.type === 'image';
+                    const activePad = style.padding ?? (isImg ? 0 : 16);
+                    return (
+                      <button
+                        key={pad}
+                        type="button"
+                        onClick={() =>
+                          onUpdateElement(selectedElement.id, {
+                            style: { ...style, padding: pad },
+                          })
+                        }
+                        className={`px-1.5 py-0.5 text-[10px] font-mono rounded ${
+                          activePad === pad
+                            ? 'bg-lavender-500 text-white font-bold'
+                            : 'bg-slate-100 dark:bg-[#292936] text-slate-600 dark:text-[#A5A3B5]'
+                        }`}
+                      >
+                        {pad}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -1847,16 +2582,39 @@ export const CanvasInspector: React.FC<CanvasInspectorProps> = ({
 
 function getElementTypeName(type: CanvasElementType): string {
   switch (type) {
+    case 'image-card':
     case 'character-image':
       return '캐릭터 이미지';
     case 'name-badge':
-      return '이름 & 칭호 배지';
+      return '이름 및 칭호';
+    case 'gallery-card':
+      return '이미지 갤러리';
+    case 'text-card':
+      return '텍스트 카드';
+    case 'detail-card':
+      return '세부사항 카드';
+    case 'tag-card':
+      return '태그 카드';
+    case 'table-card':
+      return '표 카드';
+    case 'profile-card':
+      return '프로필 카드';
+    case 'stat-card':
+      return '스탯 카드';
+    case 'hierarchy-card':
+      return '계층 구조 카드';
+    case 'category-list-card':
+      return '분류 목록 카드';
+    case 'zone-card':
+      return '구역 카드';
     case 'info-card':
       return '공통 정보 카드';
     case 'narrative-card':
       return '서술형 상세 카드';
     case 'keyword-card':
       return '키워드 & 태그';
+    case 'palette-card':
+      return '컬러 팔레트 카드';
     case 'radar-chart':
       return '능력치 레이더 차트';
     case 'relationship-card':

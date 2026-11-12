@@ -3,7 +3,7 @@ import { CanvasDocumentData, CanvasElement, CustomCharacterTemplate } from '../.
 // 1. 기본 템플릿: 클래식 RPG 영웅 시트 (의미 있는 단위 컴포넌트 구성)
 export const DEFAULT_CHARACTER_CANVAS: CanvasDocumentData = {
   canvasWidth: 920,
-  canvasHeight: 720,
+  canvasHeight: 860,
   zoom: 100,
   backgroundColor: '#FFFFFF',
   elements: [
@@ -17,10 +17,11 @@ export const DEFAULT_CHARACTER_CANVAS: CanvasDocumentData = {
       height: 440,
       zIndex: 2,
       style: {
-        borderRadius: 20,
+        padding: 0,
+        borderRadius: 12,
         borderColor: '#E2E8F0',
         borderWidth: 1,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.06)',
+        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
         objectFit: 'cover',
       },
       content: {
@@ -43,8 +44,8 @@ export const DEFAULT_CHARACTER_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FAFBFD',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 18,
-        padding: 16,
+        borderRadius: 12,
+        padding: 12,
       },
       content: {
         nameFields: [
@@ -90,7 +91,7 @@ export const DEFAULT_CHARACTER_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FBFBFF',
         borderColor: '#EDE9FE',
         borderWidth: 1,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 14,
       },
       content: {
@@ -113,9 +114,9 @@ export const DEFAULT_CHARACTER_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 18,
-        padding: 16,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+        borderRadius: 12,
+        padding: 12,
+        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
       },
       content: {
         title: '기본 정보',
@@ -146,9 +147,9 @@ export const DEFAULT_CHARACTER_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 18,
+        borderRadius: 12,
         padding: 14,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
       },
       content: {
         title: '전투 능력치',
@@ -178,9 +179,9 @@ export const DEFAULT_CHARACTER_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 18,
-        padding: 16,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+        borderRadius: 12,
+        padding: 12,
+        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
       },
       content: {
         title: '성격 및 키워드',
@@ -210,14 +211,44 @@ export const DEFAULT_CHARACTER_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 18,
-        padding: 16,
-        boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+        borderRadius: 12,
+        padding: 12,
+        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
       },
       content: {
         title: '배경 스토리 및 특징',
         narrativeText:
           '노바 기사단 소속의 신입 기사. 뛰어난 재능으로 주목받고 있지만, 과거의 사건으로 인해 쉽사리 타인에게 마음을 열지 않는다.\n\n검술과 원소 마법의 융합에 능하며 고대 유적 탐사 임무를 맡고 있다. 겉으로는 냉철해 보이지만 맡은 임무와 동료에 대한 헌신은 누구보다 강하다.',
+      },
+    },
+
+    // 8. 컬러 팔레트 카드
+    {
+      id: 'el-char-palette',
+      type: 'palette-card',
+      x: 36,
+      y: 700,
+      width: 848,
+      height: 120,
+      zIndex: 2,
+      style: {
+        backgroundColor: '#FFFFFF',
+        borderColor: '#ECEEF3',
+        borderWidth: 1,
+        borderRadius: 12,
+        padding: 12,
+        boxShadow: '0 1px 2px rgba(15, 23, 42, 0.04)',
+      },
+      content: {
+        title: '캐릭터 컬러 팔레트',
+        showPaletteHex: true,
+        paletteColors: [
+          { id: 'cp-1', color: '#6D28D9', label: '눈동자' },
+          { id: 'cp-2', color: '#A855F7', label: '망토' },
+          { id: 'cp-3', color: '#267B54', label: '의상(메인)' },
+          { id: 'cp-4', color: '#6EE7B7', label: '포인트' },
+          { id: 'cp-5', color: '#F7F6F2', label: '안감/장비' },
+        ],
       },
     },
   ],
@@ -262,7 +293,7 @@ export const MODERN_PROFILE_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FAFBFD',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 18,
+        borderRadius: 12,
         padding: 14,
       },
       content: {
@@ -304,7 +335,7 @@ export const MODERN_PROFILE_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 14,
       },
       content: {
@@ -330,7 +361,7 @@ export const MODERN_PROFILE_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 14,
       },
       content: {
@@ -353,8 +384,8 @@ export const MODERN_PROFILE_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FEFCE8',
         borderColor: '#FEF08A',
         borderWidth: 1,
-        borderRadius: 18,
-        padding: 16,
+        borderRadius: 12,
+        padding: 12,
       },
       content: {
         title: '메모 (비고)',
@@ -373,8 +404,8 @@ export const MODERN_PROFILE_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 18,
-        padding: 16,
+        borderRadius: 12,
+        padding: 12,
       },
       content: {
         title: '성격 및 특이사항',
@@ -401,7 +432,7 @@ export const MINIMAL_VISUAL_CANVAS: CanvasDocumentData = {
       height: 520,
       zIndex: 2,
       style: {
-        borderRadius: 20,
+        borderRadius: 12,
         borderColor: '#E2E8F0',
         borderWidth: 1,
         objectFit: 'cover',
@@ -424,7 +455,7 @@ export const MINIMAL_VISUAL_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FAFBFD',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 14,
       },
       content: {
@@ -466,7 +497,7 @@ export const MINIMAL_VISUAL_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 14,
       },
       content: {
@@ -492,7 +523,7 @@ export const MINIMAL_VISUAL_CANVAS: CanvasDocumentData = {
         backgroundColor: '#FFFFFF',
         borderColor: '#ECEEF3',
         borderWidth: 1,
-        borderRadius: 16,
+        borderRadius: 12,
         padding: 14,
       },
       content: {

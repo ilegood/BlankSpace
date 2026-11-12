@@ -1,22 +1,47 @@
 export type CanvasElementType =
-  // 1. 의미 있는 단위의 캐릭터 시트 구성 요소
-  | 'character-image'       // 캐릭터 이미지 (프레임, 자르기 등)
-  | 'name-badge'             // 이름 요소 (복수 필드 지원)
-  | 'info-card'              // 공통 정보 카드 (기본/상세 통합)
-  | 'narrative-card'         // 서술형 상세 정보 카드 (성격, 배경, 외형 등)
-  | 'keyword-card'           // 카테고리 & 키워드 카드 (태그/표)
-  | 'radar-chart'            // 능력치 레이더 차트 (3~8축)
-  | 'relationship-card'      // 관계 요약 카드
-  | 'quote-card'             // 대표 대사 카드
-  | 'memo-card'              // 메모 카드
-  // 2. 구버전 및 기본 호환 타입
+  // A. 공통 컴포넌트 (13종)
+  | 'image-card'            // 1) 이미지 카드
+  | 'gallery-card'          // 2) 이미지 갤러리
+  | 'text-card'             // 3) 텍스트 카드
+  | 'narrative-card'        // 4) 서술 카드
+  | 'detail-card'           // 5) 세부사항 카드
+  | 'tag-card'              // 6) 태그 카드
+  | 'quote-card'            // 7) 인용 카드
+  | 'table-card'            // 8) 표 카드
+  | 'palette-card'          // 9) 컬러 팔레트
+  | 'doc-link-card'         // 10) 문서 링크 카드
+  | 'video-card'            // 11) 동영상 카드
+  | 'audio-card'            // 12) 오디오 카드
+  | 'memo-card'             // 13) 메모 카드
+
+  // B. 캐릭터 특화 컴포넌트 (3종)
+  | 'profile-card'          // 14) 프로필 카드
+  | 'stat-card'             // 15) 스탯 카드
+  | 'relationship-card'     // 16) 관계 요약 카드
+
+  // C. 세계관 특화 컴포넌트 (3종)
+  | 'hierarchy-card'        // 17) 계층 구조 카드
+  | 'category-list-card'    // 18) 분류 목록 카드
+  | 'zone-card'             // 19) 구역 카드
+
+  // D. 레이아웃 요소 (4종)
+  | 'section-heading'       // 20) 섹션 제목
+  | 'divider'               // 21) 구분선
+  | 'spacer'                // 22) 여백
+  | 'group-container'       // 23) 그룹 컨테이너
+
+  // 기존 호환성 유지용 별칭
+  | 'character-image'
+  | 'name-badge'
+  | 'info-card'
+  | 'keyword-card'
+  | 'radar-chart'
   | 'image'
   | 'heading'
   | 'text'
   | 'info-field'
   | 'status-chart'
-  | 'container'
-  | 'divider';
+  | 'container';
 
 // 그라데이션 설정
 export interface CanvasGradient {
@@ -92,6 +117,62 @@ export interface RelationshipItem {
   description: string; // 한줄 설명
   color?: string;      // 관계 상태 배지 색상
   avatarUrl?: string;
+  documentId?: string; // 연결된 내부 캐릭터 문서 ID
+  documentTitle?: string;
+}
+
+// 6. 컬러 팔레트 항목
+export interface PaletteColorItem {
+  id: string;
+  color: string;       // 예: "#8B5CF6"
+  label?: string;       // 예: "메인", "서브", "포인트", "피부톤"
+}
+
+// 7. 갤러리 이미지 항목
+export interface GalleryImageItem {
+  id: string;
+  url: string;
+  caption?: string;
+  alt?: string;
+  tag?: string;
+}
+
+// 8. 스탯 항목
+export interface StatCardItem {
+  id: string;
+  label: string;
+  value: number;
+  maxValue?: number;
+  color?: string;
+}
+
+// 9. 계층 구조 항목
+export interface HierarchyItem {
+  id: string;
+  label: string;
+  description?: string;
+  parentId?: string | null;
+  isOpen?: boolean;
+}
+
+// 10. 분류 목록 항목
+export interface CategoryGroupItem {
+  id: string;
+  name: string;
+  description?: string;
+  items: { id: string; text: string; subText?: string }[];
+}
+
+// 11. 구역 카드 장소 항목 (내부 문서 연결 지원)
+export interface ZoneLocationItem {
+  id: string;
+  name: string;
+  icon?: string;
+  imageUrl?: string;
+  summary?: string;
+  features?: string;
+  documentId?: string;
+  documentTitle?: string;
 }
 
 // 구버전 호환용 인터페이스
@@ -150,7 +231,53 @@ export interface CanvasElementContent {
   // 9. 메모 카드 (Memo Card)
   memoContent?: string;
 
-  // 10. 구버전 호환 필드
+  // 10. 컬러 팔레트 카드 (Palette Card)
+  paletteColors?: PaletteColorItem[];
+  paletteShape?: 'circle' | 'rounded' | 'square';
+  showPaletteHex?: boolean;
+
+  // 11. 이미지 캡션 및 비율
+  caption?: string;
+
+  // 12. 이미지 갤러리 (Gallery Card)
+  galleryImages?: GalleryImageItem[];
+
+  // 13. 표 카드 (Table Card)
+  tableHeaders?: string[];
+  tableRows?: string[][];
+
+  // 14. 문서 링크 카드 (Doc Link Card)
+  targetDocumentId?: string;
+  targetDocumentTitle?: string;
+
+  // 15. 동영상 및 오디오 카드
+  videoUrl?: string;
+  audioUrl?: string;
+  audioFileName?: string;
+
+  // 16. 프로필 카드 (Profile Card)
+  profileImageUrl?: string;
+  profileName?: string;
+  profileNickname?: string;
+  profileSummary?: string;
+
+  // 17. 스탯 카드 (Stat Card)
+  statMode?: 'number' | 'bar' | 'radar';
+  statItems?: StatCardItem[];
+
+  // 18. 계층 구조 카드 (Hierarchy Card)
+  hierarchyItems?: HierarchyItem[];
+
+  // 19. 분류 목록 카드 (Category List Card)
+  categoryGroups?: CategoryGroupItem[];
+
+  // 20. 구역 카드 (Zone Card)
+  zoneLocations?: ZoneLocationItem[];
+
+  // 21. 여백 (Spacer)
+  spacerHeight?: number;
+
+  // 22. 구버전 호환 필드
   text?: string;
   infoItems?: InfoItem[];
   layoutDirection?: 'horizontal' | 'vertical';
