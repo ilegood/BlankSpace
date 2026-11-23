@@ -1,1091 +1,482 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import {
-  ChevronLeft,
-  ChevronRight,
-  Eye,
-  Edit3,
-  Moon,
-  Sun,
-  Download,
-  Star,
-  HelpCircle,
-  Save,
-  Plus,
-  FolderPlus,
-  Calendar,
-  ChevronDown,
-  CheckCircle2,
-  Clock,
-  Layers,
-  Sparkles,
-  Percent,
-  Compass,
-} from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
-import { useTheme } from '../../../store/ThemeContext';
-import { exportElementAsPng } from '../../../utils/exportImage';
-import { ScheduleHelpModal } from './ScheduleHelpModal';
-import { ScheduleDetailModal, ScheduleItem, ScheduleGroup } from './ScheduleDetailModal';
+import { EditorHeader } from '../EditorHeader';
 
-// Sample Dummy Groups (for UI Design Preview)
-const INITIAL_GROUPS: ScheduleGroup[] = [
-  { id: 'group-1', title: '🎮 개인 프로젝트 (Blankspace)', color: '#8B5CF6', isCollapsed: false },
-  { id: 'group-2', title: '📚 학업 및 전공 과제', color: '#10B981', isCollapsed: false },
-  { id: 'group-3', title: '🌱 일상생활 & 루틴', color: '#F59E0B', isCollapsed: false },
+interface TaskGroup {
+  id: string;
+  name: string;
+  collapsed?: boolean;
+}
+
+interface ScheduleTask {
+  id: string;
+  groupId: string;
+  name: string;
+  startCol: number;
+  spanCols: number;
+  progress: number;
+  memo?: string;
+}
+
+const DEFAULT_GROUPS: TaskGroup[] = [
+  { id: 'grp-1', name: '그룹 1' },
+  { id: 'grp-2', name: '그룹 2' },
 ];
 
-// Sample Dummy Tasks / Schedule Items (7 Days: 2026-11-16 Mon ~ 2026-11-22 Sun)
-const INITIAL_ITEMS: ScheduleItem[] = [
-  // Group 1
-  {
-    id: 'item-1',
-    groupId: 'group-1',
-    title: '게임 기획서 및 세계관 초안 작성',
-    startDate: '2026-11-16',
-    endDate: '2026-11-18',
-    color: '#8B5CF6',
-    status: 'completed',
-    progress: 100,
-    description: '핵심 메카닉 및 시나리오 뼈대 구성 완료',
-  },
-  {
-    id: 'item-2',
-    groupId: 'group-1',
-    title: '주인공 캐릭터 3D 모델링 스케치',
-    startDate: '2026-11-17',
-    endDate: '2026-11-20',
-    color: '#6366F1',
-    status: 'in_progress',
-    progress: 65,
-    description: '기본 T-Pose 모델링 및 텍스처 베이킹 작업',
-  },
-  {
-    id: 'item-3',
-    groupId: 'group-1',
-    title: '인벤토리 및 스킬 UI 디자인',
-    startDate: '2026-11-19',
-    endDate: '2026-11-22',
-    color: '#0EA5E9',
-    status: 'pending',
-    progress: 20,
-    description: '피그마 컴포넌트 셋업 및 아이콘 리소스 배치',
-  },
-  // Group 2
-  {
-    id: 'item-4',
-    groupId: 'group-2',
-    title: '게임 엔진 심화 프로그래밍 과제 제출',
-    startDate: '2026-11-16',
-    endDate: '2026-11-17',
-    color: '#10B981',
-    status: 'completed',
-    progress: 100,
-    description: '쉐이더 파이프라인 최적화 보고서 및 빌드 제출',
-  },
-  {
-    id: 'item-5',
-    groupId: 'group-2',
-    title: '전공 서적 및 GDC 아티클 레퍼런스 조사',
-    startDate: '2026-11-18',
-    endDate: '2026-11-21',
-    color: '#059669',
-    status: 'in_progress',
-    progress: 50,
-    description: '절차적 맵 생성 알고리즘 관련 논문 3편 요약',
-  },
-  {
-    id: 'item-6',
-    groupId: 'group-2',
-    title: '기말 텀프로젝트 중간 발표 준비',
-    startDate: '2026-11-20',
-    endDate: '2026-11-22',
-    color: '#047857',
-    status: 'pending',
-    progress: 0,
-    description: '슬라이드 구성 및 시연 영상 녹화',
-  },
-  // Group 3
-  {
-    id: 'item-7',
-    groupId: 'group-3',
-    title: '주 3회 헬스 운동 루틴',
-    startDate: '2026-11-16',
-    endDate: '2026-11-21',
-    color: '#F59E0B',
-    status: 'in_progress',
-    progress: 75,
-    description: '월/수/금 상하체 분할 웨이트 트레이닝',
-  },
-  {
-    id: 'item-8',
-    groupId: 'group-3',
-    title: '개발자 네트워킹 소모임 참석',
-    startDate: '2026-11-21',
-    endDate: '2026-11-21',
-    color: '#D97706',
-    status: 'pending',
-    progress: 0,
-    description: '인디 게임 개발자 오프라인 모임',
-  },
-  {
-    id: 'item-9',
-    groupId: 'group-3',
-    title: '주말 휴식 & 게임 아트 전시회 관람',
-    startDate: '2026-11-22',
-    endDate: '2026-11-22',
-    color: '#B45309',
-    status: 'pending',
-    progress: 0,
-    description: 'DDP 디자인 전시 및 미술관 방문',
-  },
+const DEFAULT_TASKS: ScheduleTask[] = [
+  { id: 'tk-1', groupId: 'grp-1', name: '작업 1', startCol: 0, spanCols: 4, progress: 35 },
+  { id: 'tk-2', groupId: 'grp-1', name: '작업 2', startCol: 3, spanCols: 6, progress: 50 },
+  { id: 'tk-3', groupId: 'grp-2', name: '작업 3', startCol: 6, spanCols: 5, progress: 35 },
+  { id: 'tk-4', groupId: 'grp-2', name: '작업 4', startCol: 9, spanCols: 5, progress: 28 },
 ];
 
-type ViewScale = 'day' | 'week' | 'month';
+const WEEK_DAYS = ['월', '화', '수', '목', '금', '토', '일', '월', '화', '수', '목', '금', '토', '일'];
 
-// Date Helper Functions
-const formatDateKey = (d: Date): string => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
+export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = ({
+  templateOverrideId,
+}) => {
+  const { activeDocument, activePage, openDocument, openTemplateEditor, updateDocument, updatePage } =
+    useWorkspace();
 
-const getMonday = (d: Date): Date => {
-  const date = new Date(d);
-  const day = date.getDay();
-  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-  return new Date(date.getFullYear(), date.getMonth(), diff);
-};
+  const isTemplateMode = Boolean(templateOverrideId);
+  const [isEditMode, setIsEditMode] = useState(isTemplateMode);
+  const [scale, setScale] = useState<'day' | 'week' | 'month'>('week');
+  const [groups, setGroups] = useState<TaskGroup[]>(DEFAULT_GROUPS);
+  const [tasks, setTasks] = useState<ScheduleTask[]>(DEFAULT_TASKS);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>('tk-2');
 
-const getWeekNumber = (d: Date): number => {
-  const date = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-  const dayNum = date.getUTCDay() || 7;
-  date.setUTCDate(date.getUTCDate() + 4 - dayNum);
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  return Math.ceil(((date.getTime() - yearStart.getTime()) / 86400000 + 1) / 7);
-};
+  // Interactive schedule range + live drag state (§6-9)
+  const [startDate, setStartDate] = useState('2026-11-16');
+  const [hasEndDate, setHasEndDate] = useState(false);
+  const [endDate, setEndDate] = useState('2026-12-14');
+  const [dateMenuOpen, setDateMenuOpen] = useState(false);
+  const [liveBar, setLiveBar] = useState<{ id: string; startCol: number; spanCols: number } | null>(
+    null
+  );
+  const ganttScrollRef = useRef<HTMLDivElement>(null);
 
-const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
-
-export const ScheduleEditor: React.FC = () => {
-  const {
-    activeDocument,
-    setActiveDocument,
-    updateDocumentTitle,
-    toggleFavoriteDocument,
-    saveStatus,
-  } = useWorkspace();
-  const { theme, toggleTheme } = useTheme();
-
-  const isDark =
-    theme === 'dark' ||
-    (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-
-  // View / Edit Mode
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [isHelpOpen, setIsHelpOpen] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-
-  // Time Scale View (Day, Week, Month) - Default: Week
-  const [viewScale, setViewScale] = useState<ViewScale>('week');
-  const [showTodayMarker, setShowTodayMarker] = useState(true);
-
-  // Dynamic Base Date for whole timeline (전체 날짜 직접 수정 지원)
-  const [baseDate, setBaseDate] = useState<Date>(() => new Date(2026, 10, 16)); // 2026-11-16 (월)
-
-  // Groups and Schedule Items (UI Preview Data)
-  const [groups, setGroups] = useState<ScheduleGroup[]>(INITIAL_GROUPS);
-  const [items, setItems] = useState<ScheduleItem[]>(INITIAL_ITEMS);
-
-  // Active / Selected Item for Detail Modal
-  const [selectedItem, setSelectedItem] = useState<ScheduleItem | null>(null);
-  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
-
-  // Hover sync between task list and timeline bar
-  const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
-
-  // Container refs for export & date picker
-  const scheduleContainerRef = useRef<HTMLDivElement>(null);
-  const datePickerInputRef = useRef<HTMLInputElement>(null);
-
-  // Open native Date Picker safely
-  const handleOpenDatePicker = () => {
-    if (datePickerInputRef.current) {
+  useEffect(() => {
+    if (activePage?.content) {
       try {
-        if ('showPicker' in HTMLInputElement.prototype) {
-          datePickerInputRef.current.showPicker();
-        } else {
-          datePickerInputRef.current.focus();
+        const parsed = JSON.parse(activePage.content);
+        if (Array.isArray(parsed.tasks)) {
+          setGroups(parsed.groups || DEFAULT_GROUPS);
+          setTasks(parsed.tasks);
+          return;
         }
       } catch {
-        datePickerInputRef.current?.focus();
+        // ignore
       }
     }
-  };
+    setGroups(DEFAULT_GROUPS);
+    setTasks(DEFAULT_TASKS);
+  }, [activePage?.id]);
 
-  // Document Title state
-  const [docTitle, setDocTitle] = useState(activeDocument?.title || '주간 프로젝트 간트 차트');
-  useEffect(() => {
-    if (activeDocument) setDocTitle(activeDocument.title);
-  }, [activeDocument]);
-
-  const handleTitleBlur = () => {
-    if (activeDocument && docTitle.trim() && docTitle !== activeDocument.title) {
-      updateDocumentTitle(activeDocument.id, docTitle.trim());
+  const persist = (nextGroups: TaskGroup[], nextTasks: ScheduleTask[]) => {
+    setGroups(nextGroups);
+    setTasks(nextTasks);
+    if (activePage) {
+      updatePage(activePage.id, {
+        content: JSON.stringify({ groups: nextGroups, tasks: nextTasks }),
+      });
     }
   };
 
-  // Shortcut Ctrl+E for View/Edit mode
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'e') {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA') return;
-        e.preventDefault();
-        setIsEditMode((prev) => !prev);
+  const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null;
+  const cols = scale === 'month' ? 12 : 14;
+
+  const startBarDrag = (
+    e: React.MouseEvent,
+    tk: ScheduleTask,
+    mode: 'move' | 'left' | 'right',
+    trackEl: HTMLDivElement | null
+  ) => {
+    if (!isEditMode || e.button !== 0 || !trackEl) return;
+    e.stopPropagation();
+    setSelectedTaskId(tk.id);
+    const sx = e.clientX;
+    const trackWidth = Math.max(100, trackEl.getBoundingClientRect().width);
+    const colW = trackWidth / cols;
+    const origStart = tk.startCol;
+    const origSpan = tk.spanCols;
+    let finalStart = origStart;
+    let finalSpan = origSpan;
+    let moved = false;
+
+    const onMove = (ev: MouseEvent) => {
+      const deltaCols = Math.round((ev.clientX - sx) / colW);
+      if (!moved && Math.abs(ev.clientX - sx) < 4) return;
+      moved = true;
+
+      if (mode === 'move') {
+        finalStart = Math.max(0, Math.min(cols - origSpan, origStart + deltaCols));
+        finalSpan = origSpan;
+      } else if (mode === 'right') {
+        finalSpan = Math.max(1, Math.min(cols - origStart, origSpan + deltaCols));
+        finalStart = origStart;
+      } else {
+        const clampedDelta = Math.max(-origStart, Math.min(origSpan - 1, deltaCols));
+        finalStart = origStart + clampedDelta;
+        finalSpan = origSpan - clampedDelta;
+      }
+      setLiveBar({ id: tk.id, startCol: finalStart, spanCols: finalSpan });
+    };
+
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      setLiveBar(null);
+      if (moved && (finalStart !== origStart || finalSpan !== origSpan)) {
+        persist(
+          groups,
+          tasks.map((t) =>
+            t.id === tk.id ? { ...t, startCol: finalStart, spanCols: finalSpan } : t
+          )
+        );
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // Time Axis Days dynamically computed from baseDate and viewScale
-  const daysInView = useMemo(() => {
-    const list = [];
-    const todayStr = formatDateKey(new Date());
-
-    if (viewScale === 'week') {
-      const monday = getMonday(baseDate);
-      for (let i = 0; i < 7; i++) {
-        const cur = new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + i);
-        const dateStr = formatDateKey(cur);
-        const dayOfWeek = cur.getDay();
-        list.push({
-          date: cur,
-          dateStr,
-          year: cur.getFullYear(),
-          month: cur.getMonth() + 1,
-          dayNum: cur.getDate(),
-          dayLabel: DAY_LABELS[dayOfWeek],
-          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-          isToday: dateStr === todayStr,
-        });
-      }
-    } else if (viewScale === 'day') {
-      // 7 days around baseDate (-3 to +3)
-      for (let i = -3; i <= 3; i++) {
-        const cur = new Date(baseDate.getFullYear(), baseDate.getMonth(), baseDate.getDate() + i);
-        const dateStr = formatDateKey(cur);
-        const dayOfWeek = cur.getDay();
-        list.push({
-          date: cur,
-          dateStr,
-          year: cur.getFullYear(),
-          month: cur.getMonth() + 1,
-          dayNum: cur.getDate(),
-          dayLabel: DAY_LABELS[dayOfWeek],
-          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-          isToday: dateStr === todayStr,
-        });
-      }
-    } else {
-      // month: 1st to last day of baseDate month
-      const year = baseDate.getFullYear();
-      const month = baseDate.getMonth();
-      const lastDay = new Date(year, month + 1, 0).getDate();
-      for (let d = 1; d <= lastDay; d++) {
-        const cur = new Date(year, month, d);
-        const dateStr = formatDateKey(cur);
-        const dayOfWeek = cur.getDay();
-        list.push({
-          date: cur,
-          dateStr,
-          year: cur.getFullYear(),
-          month: cur.getMonth() + 1,
-          dayNum: cur.getDate(),
-          dayLabel: DAY_LABELS[dayOfWeek],
-          isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-          isToday: dateStr === todayStr,
-        });
-      }
-    }
-
-    return list;
-  }, [baseDate, viewScale]);
-
-  // Navigate Period (< / Today / >)
-  const handlePrevPeriod = () => {
-    setBaseDate((prev) => {
-      const next = new Date(prev);
-      if (viewScale === 'week') next.setDate(prev.getDate() - 7);
-      else if (viewScale === 'day') next.setDate(prev.getDate() - 1);
-      else next.setMonth(prev.getMonth() - 1);
-      return next;
-    });
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
   };
-
-  const handleNextPeriod = () => {
-    setBaseDate((prev) => {
-      const next = new Date(prev);
-      if (viewScale === 'week') next.setDate(prev.getDate() + 7);
-      else if (viewScale === 'day') next.setDate(prev.getDate() + 1);
-      else next.setMonth(prev.getMonth() + 1);
-      return next;
-    });
-  };
-
-  const handleTodayClick = () => {
-    setBaseDate(new Date());
-  };
-
-  // Period label for toolbar: '00월 00주차' 없이 오직 순수 기간만 표시
-  const periodRangeStr = useMemo(() => {
-    if (daysInView.length === 0) return '';
-    const first = daysInView[0];
-    const last = daysInView[daysInView.length - 1];
-
-    const fYear = first.year;
-    const fMonth = String(first.month).padStart(2, '0');
-    const fDay = String(first.dayNum).padStart(2, '0');
-
-    const lYear = last.year;
-    const lMonth = String(last.month).padStart(2, '0');
-    const lDay = String(last.dayNum).padStart(2, '0');
-
-    return `${fYear}.${fMonth}.${fDay} ~ ${lYear}.${lMonth}.${lDay}`;
-  }, [daysInView]);
-
-  // Column width per day (px)
-  const columnWidth = viewScale === 'day' ? 140 : viewScale === 'month' ? 48 : 100;
-  const totalTimelineWidth = columnWidth * daysInView.length;
-
-  // Today marker index
-  const todayColumnIndex = daysInView.findIndex((d) => d.isToday);
-
-  // Toggle group collapse
-  const handleToggleCollapse = (groupId: string) => {
-    setGroups((prev) =>
-      prev.map((g) => (g.id === groupId ? { ...g, isCollapsed: !g.isCollapsed } : g))
-    );
-  };
-
-  // Toggle all groups
-  const handleToggleAllGroups = () => {
-    const hasUncollapsed = groups.some((g) => !g.isCollapsed);
-    setGroups((prev) => prev.map((g) => ({ ...g, isCollapsed: hasUncollapsed })));
-  };
-
-  // Export as PNG
-  const handleExportImage = async () => {
-    if (!scheduleContainerRef.current) return;
-    setIsExporting(true);
-    try {
-      await exportElementAsPng(scheduleContainerRef.current, {
-        fileName: `${activeDocument?.title || 'schedule-gantt'}-${new Date().toISOString().slice(0, 10)}.png`,
-      });
-    } finally {
-      setIsExporting(false);
-    }
-  };
-
-  // Calculate Bar Left & Width based on dates
-  const calculateBarPosition = (startDate: string, endDate: string) => {
-    if (daysInView.length === 0) return { left: -9999, width: 0, isVisible: false };
-
-    const firstViewDate = daysInView[0].dateStr;
-    const lastViewDate = daysInView[daysInView.length - 1].dateStr;
-
-    // Check if item overlaps with current view
-    if (endDate < firstViewDate || startDate > lastViewDate) {
-      return { left: -9999, width: 0, isVisible: false };
-    }
-
-    let startIndex = daysInView.findIndex((d) => d.dateStr === startDate);
-    let endIndex = daysInView.findIndex((d) => d.dateStr === endDate);
-
-    if (startIndex === -1) {
-      startIndex = startDate < firstViewDate ? 0 : daysInView.length - 1;
-    }
-    if (endIndex === -1) {
-      endIndex = endDate > lastViewDate ? daysInView.length - 1 : 0;
-    }
-
-    const safeStart = Math.min(startIndex, endIndex);
-    const safeEnd = Math.max(startIndex, endIndex);
-
-    const left = safeStart * columnWidth + 8;
-    const width = Math.max(32, (safeEnd - safeStart + 1) * columnWidth - 16);
-
-    return { left, width, isVisible: true };
-  };
-
-  if (!activeDocument) return null;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#F8F9FC] dark:bg-[#15151D] relative select-none overflow-hidden transition-colors duration-200">
-      {/* 1. Global Navigation & Action Header (통합 표준 규격) */}
-      <header className="h-14 px-6 border-b border-[#ECEEF3] dark:border-[#3A3948] bg-white dark:bg-[#1E1E27] flex items-center justify-between shrink-0 z-30 shadow-xs transition-colors">
-        {/* Left: 목록으로 | 이름 | 파일 형식 */}
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <button
-            onClick={() => setActiveDocument(null)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] text-xs font-semibold text-slate-700 dark:text-[#E8E7EF] hover:bg-slate-50 dark:hover:bg-[#292936] transition-colors shrink-0"
-            title="목록으로 나가기"
-          >
-            <ChevronLeft className="w-4 h-4 text-slate-400 dark:text-[#A5A3B5]" />
-            <span>목록으로</span>
-          </button>
+    <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-white dark:bg-[#15151C]">
+      <EditorHeader
+        title={isTemplateMode ? '일정 (템플릿)' : activeDocument?.title || '일정'}
+        onTitleChange={(t) => activeDocument && updateDocument(activeDocument.id, { title: t })}
+        templateType="general-timeline"
+        isEditMode={isEditMode}
+        onChangeMode={setIsEditMode}
+        onExit={() => (isTemplateMode ? openTemplateEditor(null) : openDocument(null))}
+        isTemplateMode={isTemplateMode}
+      />
 
-          <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] shrink-0" />
-
-          {/* Document Title: 보기 모드일 때는 연한 배경을 완전히 없애고 헤더 배경과 100% 동일하게 순수 텍스트로 표시 */}
-          {isEditMode ? (
-            <input
-              type="text"
-              value={docTitle}
-              onChange={(e) => setDocTitle(e.target.value)}
-              onBlur={handleTitleBlur}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  (e.target as HTMLInputElement).blur();
-                }
-              }}
-              placeholder="제목 없는 일정"
-              className="text-sm font-bold text-slate-800 dark:text-[#F3F2F8] bg-slate-100/70 dark:bg-[#2A2938] border border-slate-200 dark:border-[#3A3948] px-2.5 py-1 rounded-lg focus:border-lavender-500 focus:outline-none cursor-text truncate max-w-xs md:max-w-md transition-all"
-            />
-          ) : (
-            <span
-              className="text-sm font-bold text-slate-800 dark:text-[#F3F2F8] bg-transparent border-0 px-1 py-1 truncate max-w-xs md:max-w-md select-text cursor-default"
-            >
-              {docTitle || '제목 없는 일정'}
-            </span>
-          )}
-
-          <div className="h-4 w-px bg-slate-200 dark:bg-[#3A3948] shrink-0" />
-
-          {/* Template Badge (파일 형식) */}
-          <span className="inline-block px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-lavender-100 dark:bg-[#352E58] text-lavender-700 dark:text-[#B7A5FF] border border-lavender-200/60 dark:border-[#524580] shrink-0">
-            일정 (간트 차트)
-          </span>
-        </div>
-
-        {/* Right: 보기/편집 | 자동 저장됨 | 다크모드 | 이미지 저장 | 즐겨찾기 | 도움말 */}
-        <div className="flex items-center gap-2.5 text-xs text-slate-400 dark:text-[#A5A3B5] shrink-0">
-          {/* 1. 보기 / 편집 스위치 */}
-          <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-[#292936] border border-slate-200/80 dark:border-[#3A3948]">
-            <button
-              type="button"
-              onClick={() => setIsEditMode(false)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                !isEditMode
-                  ? 'bg-white dark:bg-[#1E1E27] text-lavender-600 dark:text-[#B7A5FF] shadow-xs'
-                  : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-700 dark:hover:text-[#E8E7EF]'
-              }`}
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>보기</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsEditMode(true)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                isEditMode
-                  ? 'bg-lavender-600 text-white shadow-xs'
-                  : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-700 dark:hover:text-[#E8E7EF]'
-              }`}
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>편집</span>
-            </button>
-          </div>
-
-          <span className="text-slate-200 dark:text-[#3A3948]">|</span>
-
-          {/* 2. 자동 저장됨 배지 */}
-          <div className="flex items-center gap-1.5 text-[11.5px]">
-            <Save
-              className={`w-3.5 h-3.5 ${
-                saveStatus === 'saving'
-                  ? 'text-amber-500 animate-pulse'
-                  : 'text-slate-400 dark:text-[#A5A3B5]'
-              }`}
-            />
-            <span
-              className={
-                saveStatus === 'saving'
-                  ? 'text-amber-600 dark:text-amber-400 font-medium'
-                  : 'text-slate-400 dark:text-[#A5A3B5]'
-              }
-            >
-              {saveStatus === 'saving' ? '저장 중...' : '자동 저장됨'}
-            </span>
-          </div>
-
-          <span className="text-slate-200 dark:text-[#3A3948]">|</span>
-
-          {/* 3. 다크 모드 토글 */}
-          <button
-            type="button"
-            onClick={toggleTheme}
-            className="p-1.5 rounded-lg border border-slate-200 dark:border-[#3A3948] hover:bg-lavender-50 dark:hover:bg-[#292936] transition-colors"
-            title="다크 모드 토글"
-          >
-            {isDark ? (
-              <Moon className="w-3.5 h-3.5 text-[#A995F5]" />
-            ) : (
-              <Sun className="w-3.5 h-3.5 text-amber-500" />
-            )}
-          </button>
-
-          {/* 4. 이미지 저장 버튼 */}
-          <button
-            onClick={handleExportImage}
-            disabled={isExporting}
-            title="간트 차트 이미지로 저장 (PNG)"
-            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 dark:border-[#3A3948] text-slate-600 dark:text-[#E8E7EF] hover:text-lavender-700 dark:hover:text-[#B7A5FF] hover:bg-lavender-50 dark:hover:bg-[#292936] hover:border-lavender-200 transition-colors text-xs font-medium"
-          >
-            <Download
-              className={`w-3.5 h-3.5 ${
-                isExporting ? 'animate-bounce text-lavender-600' : 'text-slate-400 dark:text-[#A5A3B5]'
-              }`}
-            />
-            <span>{isExporting ? '저장 중...' : '이미지 저장'}</span>
-          </button>
-
-          {/* 5. 즐겨찾기 버튼 */}
-          <button
-            onClick={() => toggleFavoriteDocument(activeDocument.id)}
-            title="즐겨찾기 토글"
-            className={`p-1.5 rounded-lg border transition-colors ${
-              activeDocument.isFavorite
-                ? 'border-lavender-200 dark:border-[#554884] bg-lavender-50 dark:bg-[#352E58] text-lavender-600 dark:text-[#A995F5]'
-                : 'border-slate-200 dark:border-[#3A3948] text-slate-400 dark:text-[#A5A3B5] hover:text-slate-600 dark:hover:text-[#E8E7EF]'
-            }`}
-          >
-            <Star
-              className={`w-3.5 h-3.5 ${
-                activeDocument.isFavorite ? 'fill-lavender-600 dark:fill-[#A995F5]' : ''
-              }`}
-            />
-          </button>
-
-          {/* 6. 도움말 버튼 */}
-          <button
-            type="button"
-            onClick={() => setIsHelpOpen(true)}
-            title="일정 템플릿 사용법 및 도움말"
-            className="p-1.5 rounded-lg border border-slate-200 dark:border-[#3A3948] hover:bg-lavender-50 dark:hover:bg-[#292936] text-slate-500 hover:text-lavender-600 dark:text-[#A5A3B5] transition-colors"
-          >
-            <HelpCircle className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </header>
-
-      {/* 2. Gantt Secondary Toolbar (기간 이동, 시간 단위 전환, 오늘 표시, 항목 추가) */}
-      <div className="h-13 px-6 border-b border-[#ECEEF3] dark:border-[#3A3948] bg-white/70 dark:bg-[#1E1E27]/70 backdrop-blur-md flex items-center justify-between shrink-0 z-20 transition-colors">
-        {/* Left: Date Period Navigator & Direct Date Editor */}
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-slate-100 dark:bg-[#292936] p-0.5 rounded-xl border border-slate-200/60 dark:border-[#3A3948]">
-            <button
-              type="button"
-              onClick={handlePrevPeriod}
-              className="p-1 rounded-lg text-slate-500 dark:text-[#A5A3B5] hover:bg-white dark:hover:bg-[#1E1E27] hover:text-slate-800 dark:hover:text-white transition-all shadow-2xs"
-              title="이전 기간"
-            >
-              <ChevronLeft className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={handleTodayClick}
-              className="px-2.5 py-1 rounded-lg text-xs font-bold text-lavender-700 dark:text-[#B7A5FF] hover:bg-white dark:hover:bg-[#1E1E27] transition-all shadow-2xs"
-              title="오늘 날짜/주차로 이동"
-            >
-              오늘
-            </button>
-            <button
-              type="button"
-              onClick={handleNextPeriod}
-              className="p-1 rounded-lg text-slate-500 dark:text-[#A5A3B5] hover:bg-white dark:hover:bg-[#1E1E27] hover:text-slate-800 dark:hover:text-white transition-all shadow-2xs"
-              title="다음 기간"
-            >
-              <ChevronRight className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Date Picker Button & Period Label (클릭 시 브라우저 날짜 픽커 즉시 호출) */}
-          <button
-            type="button"
-            onClick={handleOpenDatePicker}
-            className="relative flex items-center gap-2 px-3 py-1.5 rounded-xl border border-slate-200/80 dark:border-[#3A3948] bg-slate-50 dark:bg-[#292936] hover:bg-lavender-50 dark:hover:bg-[#352E58]/60 hover:border-lavender-300 dark:hover:border-[#524580] transition-all cursor-pointer group shadow-2xs"
-            title="클릭하여 전체 기간 기준 날짜 선택"
-          >
-            <Calendar className="w-4 h-4 text-lavender-600 dark:text-[#B7A5FF] shrink-0 group-hover:scale-110 transition-transform" />
-            <span className="text-xs font-bold text-slate-800 dark:text-[#F3F2F8] tracking-tight">
-              {periodRangeStr}
-            </span>
-            <span className="text-[10px] text-slate-400 dark:text-[#8E8B9E] group-hover:text-lavender-600 dark:group-hover:text-[#B7A5FF] transition-colors ml-0.5">
-              ▼
-            </span>
-
-            {/* Hidden Native Date Input for showPicker() */}
-            <input
-              ref={datePickerInputRef}
-              type="date"
-              value={formatDateKey(baseDate)}
-              onChange={(e) => {
-                if (e.target.value) {
-                  const parts = e.target.value.split('-').map(Number);
-                  setBaseDate(new Date(parts[0], parts[1] - 1, parts[2]));
-                }
-              }}
-              className="absolute left-0 bottom-0 w-1 h-1 opacity-0 pointer-events-none"
-              tabIndex={-1}
-            />
-          </button>
-        </div>
-
-        {/* Center: View Scale (Day / Week / Month) */}
-        <div className="flex items-center p-0.5 rounded-xl bg-slate-100 dark:bg-[#292936] border border-slate-200/80 dark:border-[#3A3948]">
-          {(['day', 'week', 'month'] as const).map((scale) => {
-            const isScaleActive = viewScale === scale;
-            const labelMap = { day: '일간', week: '주간', month: '월간' };
-            return (
-              <button
-                key={scale}
-                type="button"
-                onClick={() => setViewScale(scale)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                  isScaleActive
-                    ? 'bg-white dark:bg-[#1E1E27] text-lavender-600 dark:text-[#B7A5FF] shadow-xs'
-                    : 'text-slate-500 dark:text-[#8E8B9E] hover:text-slate-700 dark:hover:text-[#E8E7EF]'
-                }`}
-              >
-                {labelMap[scale]}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Right: Controls & Actions */}
-        <div className="flex items-center gap-2.5">
-          {/* Today line toggle */}
-          <button
-            type="button"
-            onClick={() => setShowTodayMarker((prev) => !prev)}
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-medium border transition-colors ${
-              showTodayMarker
-                ? 'bg-lavender-50 dark:bg-[#352E58]/50 border-lavender-300 dark:border-[#524580] text-lavender-700 dark:text-[#B7A5FF]'
-                : 'bg-white dark:bg-[#292936] border-slate-200 dark:border-[#3A3948] text-slate-400 dark:text-[#A5A3B5]'
-            }`}
-            title="오늘 날짜 기준선 토글"
-          >
-            <div className={`w-2 h-2 rounded-full ${showTodayMarker ? 'bg-lavender-500' : 'bg-slate-300 dark:bg-slate-600'}`} />
-            <span>오늘 기준선</span>
-          </button>
-
-          {/* Toggle all groups */}
-          <button
-            type="button"
-            onClick={handleToggleAllGroups}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-xl border border-slate-200 dark:border-[#3A3948] bg-white dark:bg-[#292936] text-xs font-medium text-slate-600 dark:text-[#C5C3D4] hover:bg-slate-50 dark:hover:bg-[#1E1E27] transition-colors"
-          >
-            <Layers className="w-3.5 h-3.5 text-slate-400 dark:text-[#A5A3B5]" />
-            <span>그룹 접기/펼치기</span>
-          </button>
-
-          {/* Edit Mode Actions (Group & Task creation) */}
-          {isEditMode && (
-            <div className="flex items-center gap-1.5 pl-1.5 border-l border-slate-200 dark:border-[#3A3948]">
-              <button
-                type="button"
-                onClick={() => {
-                  const newGroup: ScheduleGroup = {
-                    id: `group-${Date.now()}`,
-                    title: '새 업무 그룹',
-                    color: '#8B5CF6',
-                    isCollapsed: false,
-                  };
-                  setGroups((prev) => [...prev, newGroup]);
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-[#292936] dark:hover:bg-[#333346] text-slate-700 dark:text-[#E8E7EF] font-semibold text-xs transition-colors shadow-2xs"
-              >
-                <FolderPlus className="w-3.5 h-3.5 text-lavender-600 dark:text-[#B7A5FF]" />
-                <span>+ 그룹 추가</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const newItem: ScheduleItem = {
-                    id: `item-${Date.now()}`,
-                    groupId: groups[0]?.id || 'group-1',
-                    title: '새 일정 작업',
-                    startDate: '2026-11-18',
-                    endDate: '2026-11-20',
-                    color: '#8B5CF6',
-                    status: 'pending',
-                    progress: 0,
-                    description: '',
-                  };
-                  setItems((prev) => [...prev, newItem]);
-                  setSelectedItem(newItem);
-                  setIsDetailModalOpen(true);
-                }}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-lavender-600 hover:bg-lavender-700 text-white font-semibold text-xs transition-all shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ 새 일정</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* 3. Main Gantt Chart Workspace (Split View) */}
-      <div
-        ref={scheduleContainerRef}
-        className="flex-1 flex overflow-hidden bg-[#F8F9FC] dark:bg-[#15151D]"
-      >
-        {/* ============================================================== */}
-        {/* Left Side: Tasks & Groups Panel (Fixed width, sync vertical) */}
-        {/* ============================================================== */}
-        <div className="w-80 md:w-96 flex flex-col shrink-0 border-r border-[#ECEEF3] dark:border-[#3A3948] bg-white dark:bg-[#1E1E27] z-10 transition-colors">
-          {/* Table Header */}
-          <div className="h-12 px-4 border-b border-[#ECEEF3] dark:border-[#3A3948] flex items-center justify-between bg-slate-50/70 dark:bg-[#262634] text-xs font-bold text-slate-500 dark:text-[#A5A3B5]">
-            <span className="flex-1">업무 그룹 / 작업 목록</span>
-            <div className="flex items-center gap-4 shrink-0 text-[11px] font-semibold text-slate-400 dark:text-[#8E8B9E]">
-              <span className="w-12 text-center">상태</span>
-              <span className="w-14 text-right">진행률</span>
-            </div>
-          </div>
-
-          {/* Group & Task Rows List */}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-[#2D2D3D]">
-            {groups.map((group) => {
-              const groupItems = items.filter((item) => item.groupId === group.id);
-
-              return (
-                <div key={group.id} className="flex flex-col">
-                  {/* Group Header Row */}
-                  <div
-                    onClick={() => handleToggleCollapse(group.id)}
-                    className="h-10 px-4 flex items-center justify-between bg-slate-100/60 dark:bg-[#23232F] hover:bg-slate-200/50 dark:hover:bg-[#2A2A38] cursor-pointer transition-colors"
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        <div ref={ganttScrollRef} className="flex-1 overflow-auto p-5 bg-white dark:bg-[#15151C]">
+          {/* Top Gantt Controls matching PDF Pages 51 & 55 */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4 relative">
+            <div className="flex items-center gap-2">
+              {isEditMode && (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nt: ScheduleTask = {
+                        id: `tk-${Date.now()}`,
+                        groupId: groups[0]?.id || 'grp-1',
+                        name: `작업 ${tasks.length + 1}`,
+                        startCol: 2,
+                        spanCols: 4,
+                        progress: 0,
+                      };
+                      persist(groups, [...tasks, nt]);
+                      setSelectedTaskId(nt.id);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl bg-[#6A5ACD] text-white text-xs font-semibold"
                   >
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <ChevronDown
-                        className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${
-                          group.isCollapsed ? '-rotate-90' : 'rotate-0'
-                        }`}
-                      />
-                      <span
-                        className="w-2.5 h-2.5 rounded-full shrink-0"
-                        style={{ backgroundColor: group.color }}
-                      />
-                      {isEditMode ? (
-                        <input
-                          type="text"
-                          value={group.title}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setGroups((prev) =>
-                              prev.map((g) => (g.id === group.id ? { ...g, title: val } : g))
-                            );
-                          }}
-                          className="font-bold text-xs bg-transparent border-0 p-0 text-slate-800 dark:text-[#F3F2F8] focus:outline-none focus:ring-1 focus:ring-lavender-500 rounded px-1 w-full truncate"
-                        />
-                      ) : (
-                        <span className="font-bold text-xs text-slate-800 dark:text-[#F3F2F8] truncate">
-                          {group.title}
-                        </span>
-                      )}
-                    </div>
+                    + 작업
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ng: TaskGroup = {
+                        id: `grp-${Date.now()}`,
+                        name: `그룹 ${groups.length + 1}`,
+                      };
+                      persist([...groups, ng], tasks);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
+                  >
+                    + 그룹
+                  </button>
+                </>
+              )}
+            </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200/70 dark:bg-[#353546] text-slate-600 dark:text-[#A5A3B5]">
-                        {groupItems.length}개
-                      </span>
-                      {isEditMode && (
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const newItem: ScheduleItem = {
-                              id: `item-${Date.now()}`,
-                              groupId: group.id,
-                              title: '새 작업',
-                              startDate: '2026-11-16',
-                              endDate: '2026-11-18',
-                              color: group.color,
-                              status: 'pending',
-                              progress: 0,
-                            };
-                            setItems((prev) => [...prev, newItem]);
-                            setSelectedItem(newItem);
-                            setIsDetailModalOpen(true);
-                          }}
-                          className="p-1 rounded-md text-slate-400 hover:text-lavender-600 hover:bg-slate-200 dark:hover:bg-[#3A3948] transition-colors"
-                          title="이 그룹에 작업 추가"
-                        >
-                          <Plus className="w-3.5 h-3.5" />
-                        </button>
+            <div className="flex items-center gap-2 text-xs relative">
+              <span className="text-[#8A8998]">기간</span>
+              <button
+                type="button"
+                onClick={() => setDateMenuOpen((p) => !p)}
+                className="px-3 py-1 rounded-xl border border-[#E6E3F0] dark:border-[#323244] hover:border-[#6A5ACD]"
+              >
+                {startDate} ▾
+              </button>
+              <span>~</span>
+              <button
+                type="button"
+                onClick={() => setDateMenuOpen((p) => !p)}
+                className="px-3 py-1 rounded-xl border border-[#E6E3F0] dark:border-[#323244] hover:border-[#6A5ACD]"
+              >
+                {hasEndDate ? endDate : '종료일 없음'} ▾
+              </button>
+
+              {dateMenuOpen && (
+                <div className="bs-animate-popover absolute left-0 top-9 z-30 w-64 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-xl p-3 flex flex-col gap-2.5 text-xs">
+                  <label className="flex items-center justify-between">
+                    <span>시작일</span>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between">
+                    <span>종료일 지정</span>
+                    <input
+                      type="checkbox"
+                      checked={hasEndDate}
+                      onChange={(e) => setHasEndDate(e.target.checked)}
+                      className="accent-[#6A5ACD]"
+                    />
+                  </label>
+                  {hasEndDate && (
+                    <label className="flex items-center justify-between">
+                      <span>종료일</span>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+                      />
+                    </label>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setDateMenuOpen(false)}
+                    className="self-end px-2.5 py-1 rounded-lg bg-[#6A5ACD] text-white font-semibold"
+                  >
+                    닫기
+                  </button>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={() => {
+                  const box = ganttScrollRef.current;
+                  if (box) {
+                    const targetX = Math.max(0, box.scrollWidth * 0.34 - box.clientWidth / 2);
+                    box.scrollTo({ left: targetX, behavior: 'smooth' });
+                  }
+                }}
+                className="px-3 py-1 rounded-xl border border-[#E6E3F0] dark:border-[#323244] font-semibold hover:border-[#6A5ACD]"
+              >
+                오늘
+              </button>
+
+              <div className="inline-flex rounded-xl border border-[#E6E3F0] dark:border-[#323244] p-0.5">
+                {[
+                  { id: 'day', label: '일' },
+                  { id: 'week', label: '주' },
+                  { id: 'month', label: '월' },
+                ].map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setScale(s.id as any)}
+                    className={`px-2.5 py-1 rounded-lg font-semibold ${
+                      scale === s.id ? 'bg-[#6A5ACD] text-white' : 'text-[#6E6D7A]'
+                    }`}
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Gantt Table */}
+          <div className="rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] overflow-hidden relative min-w-[760px]">
+            {/* Orange Today Vertical Line */}
+            <div
+              style={{ left: 'calc(180px + (100% - 180px) * 0.34)' }}
+              className="absolute top-0 bottom-0 w-[1.5px] bg-[#D97724] z-20 pointer-events-none"
+            >
+              <span className="absolute top-1 -translate-x-1/2 px-2 py-0.5 rounded-full bg-[#D97724] text-white text-[10px] font-bold">
+                오늘
+              </span>
+            </div>
+
+            {/* Header Row */}
+            <div className="grid grid-cols-[180px_1fr] border-b border-[#EAE7F2] dark:border-[#2E2D3D] bg-[#FAF9FE] dark:bg-[#181822] text-xs">
+              <div className="px-4 py-3 font-semibold text-[#6E6D7A]">작업</div>
+              <div className="flex flex-col">
+                <div className="grid grid-cols-2 text-center py-1 text-[11px] font-semibold text-[#6E6D7A]">
+                  <span>{scale === 'month' ? '1월 ~ 2월' : '1주차'}</span>
+                  <span>{scale === 'month' ? '2월 ~ 3월' : '2주차'}</span>
+                </div>
+                <div
+                  className="grid text-center text-[11px] text-[#8A8998] pb-1.5"
+                  style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
+                >
+                  {Array.from({ length: cols }).map((_, i) => (
+                    <span key={i}>{scale === 'month' ? i + 1 : WEEK_DAYS[i % 14]}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Groups & Tasks */}
+            {groups.map((grp) => {
+              const grpTasks = tasks.filter((t) => t.groupId === grp.id);
+              return (
+                <React.Fragment key={grp.id}>
+                  <div className="grid grid-cols-[180px_1fr] border-b border-[#F0EEF7] dark:border-[#2A2938] items-center h-11">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        persist(
+                          groups.map((g) =>
+                            g.id === grp.id ? { ...g, collapsed: !g.collapsed } : g
+                          ),
+                          tasks
+                        )
+                      }
+                      className="px-4 flex items-center gap-1.5 text-xs font-bold text-left"
+                    >
+                      {grp.collapsed ? (
+                        <ChevronRight className="w-3.5 h-3.5" />
+                      ) : (
+                        <ChevronDown className="w-3.5 h-3.5" />
                       )}
+                      <span>{grp.name}</span>
+                    </button>
+                    <div className="px-4">
+                      <div className="h-1.5 w-1/2 rounded-full bg-[#3D328A]" />
                     </div>
                   </div>
 
-                  {/* Tasks under this Group */}
-                  {!group.isCollapsed &&
-                    groupItems.map((item) => {
-                      const isHovered = hoveredItemId === item.id;
-                      const statusMap = {
-                        pending: { text: '대기', bg: 'bg-slate-100 text-slate-600 dark:bg-[#2A2938] dark:text-[#A5A3B5]' },
-                        in_progress: { text: '진행중', bg: 'bg-blue-50 text-blue-700 dark:bg-[#1E293B] dark:text-[#93C5FD]' },
-                        completed: { text: '완료', bg: 'bg-emerald-50 text-emerald-700 dark:bg-[#132E27] dark:text-[#6EE7B7]' },
-                        on_hold: { text: '보류', bg: 'bg-amber-50 text-amber-700 dark:bg-[#322416] dark:text-[#FCD34D]' },
-                      };
-
+                  {!grp.collapsed &&
+                    grpTasks.map((tk) => {
+                      const isSel = selectedTaskId === tk.id;
+                      const startCol = liveBar?.id === tk.id ? liveBar.startCol : tk.startCol;
+                      const spanCols = liveBar?.id === tk.id ? liveBar.spanCols : tk.spanCols;
+                      const leftPct = (startCol / cols) * 100;
+                      const widthPct = (spanCols / cols) * 100;
+                      let trackRef: HTMLDivElement | null = null;
                       return (
                         <div
-                          key={item.id}
-                          onMouseEnter={() => setHoveredItemId(item.id)}
-                          onMouseLeave={() => setHoveredItemId(null)}
-                          onClick={() => {
-                            setSelectedItem(item);
-                            setIsDetailModalOpen(true);
-                          }}
-                          className={`h-11 px-4 pl-8 flex items-center justify-between border-b border-slate-100/70 dark:border-[#2D2D3D] cursor-pointer transition-colors ${
-                            isHovered
-                              ? 'bg-lavender-50/60 dark:bg-[#2D2845]'
-                              : 'hover:bg-slate-50/80 dark:hover:bg-[#242432]'
-                          }`}
+                          key={tk.id}
+                          onClick={() => setSelectedTaskId(tk.id)}
+                          className="grid grid-cols-[180px_1fr] border-b border-[#F0EEF7] dark:border-[#2A2938] items-center h-12 hover:bg-[#FAF9FE] dark:hover:bg-[#1E1E29] cursor-pointer"
                         >
-                          {/* Task Name */}
-                          <div className="flex items-center gap-2 min-w-0 flex-1 pr-2">
-                            <span
-                              className="w-1.5 h-1.5 rounded-full shrink-0"
-                              style={{ backgroundColor: item.color }}
-                            />
-                            <span className="text-xs font-medium text-slate-700 dark:text-[#E8E7EF] truncate">
-                              {item.title}
-                            </span>
-                          </div>
-
-                          {/* Status and Progress */}
-                          <div className="flex items-center gap-3 shrink-0">
-                            {/* Status Tag */}
-                            <span
-                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${
-                                statusMap[item.status].bg
-                              }`}
+                          <div className="pl-7 pr-3 text-xs font-medium truncate">{tk.name}</div>
+                          <div
+                            ref={(el) => {
+                              trackRef = el;
+                            }}
+                            className="relative h-full flex items-center"
+                          >
+                            <div
+                              onMouseDown={(e) => startBarDrag(e, tk, 'move', trackRef)}
+                              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
+                              className={`group absolute h-7 rounded-lg bg-[#A598EC] overflow-hidden flex items-center ${
+                                isEditMode ? 'cursor-grab active:cursor-grabbing' : ''
+                              } ${isSel ? 'ring-2 ring-[#1B1B1F] dark:ring-white' : ''}`}
                             >
-                              {statusMap[item.status].text}
-                            </span>
-
-                            {/* Progress bar / percent */}
-                            <div className="w-14 flex items-center gap-1.5 justify-end">
-                              <div className="w-8 h-1.5 bg-slate-200 dark:bg-[#353546] rounded-full overflow-hidden">
-                                <div
-                                  className="h-full rounded-full transition-all"
-                                  style={{
-                                    width: `${item.progress}%`,
-                                    backgroundColor: item.color || '#8B5CF6',
-                                  }}
-                                />
-                              </div>
-                              <span className="text-[11px] font-mono text-slate-400 dark:text-[#8E8B9E] w-6 text-right">
-                                {item.progress}%
-                              </span>
+                              <div
+                                style={{ width: `${tk.progress}%` }}
+                                className="h-full bg-[#6A5ACD] transition-[width] duration-150"
+                              />
+                              {isEditMode && (
+                                <>
+                                  <span
+                                    onMouseDown={(e) => startBarDrag(e, tk, 'left', trackRef)}
+                                    className="opacity-0 group-hover:opacity-100 absolute left-0 inset-y-0 w-2 bg-white/40 cursor-ew-resize"
+                                  />
+                                  <span
+                                    onMouseDown={(e) => startBarDrag(e, tk, 'right', trackRef)}
+                                    className="opacity-0 group-hover:opacity-100 absolute right-0 inset-y-0 w-2 bg-white/40 cursor-ew-resize"
+                                  />
+                                </>
+                              )}
                             </div>
                           </div>
                         </div>
                       );
                     })}
-                </div>
+                </React.Fragment>
               );
             })}
           </div>
         </div>
 
-        {/* ============================================================== */}
-        {/* Right Side: Timeline Gantt Bars Workspace (Horizontal Scroll) */}
-        {/* ============================================================== */}
-        <div className="flex-1 flex flex-col overflow-x-auto overflow-y-auto relative bg-[#FAFBFD] dark:bg-[#171720]">
-          {/* Inner Canvas with Computed Width */}
-          <div style={{ width: `${Math.max(totalTimelineWidth, 700)}px` }} className="relative flex flex-col min-h-full">
-            {/* Timeline Header (Days & Dates) */}
-            <div className="h-12 border-b border-[#ECEEF3] dark:border-[#3A3948] bg-slate-50/70 dark:bg-[#262634] flex shrink-0 sticky top-0 z-20">
-              {daysInView.map((day, idx) => (
-                <div
-                  key={day.dateStr}
-                  style={{ width: `${columnWidth}px` }}
-                  className={`h-full border-r border-slate-200/70 dark:border-[#3A3948] flex flex-col items-center justify-center text-xs shrink-0 transition-colors ${
-                    day.isWeekend
-                      ? 'bg-slate-100/40 dark:bg-[#1E1E28]/40'
-                      : day.isToday
-                      ? 'bg-lavender-50/50 dark:bg-[#352E58]/40'
-                      : ''
-                  }`}
-                >
-                  <div className="flex items-center gap-1">
-                    <span
-                      className={`text-xs font-bold ${
-                        day.isToday
-                          ? 'text-lavender-600 dark:text-[#B7A5FF]'
-                          : day.isWeekend
-                          ? 'text-rose-500 dark:text-rose-400'
-                          : 'text-slate-700 dark:text-[#E8E7EF]'
-                      }`}
-                    >
-                      {day.dayNum}
-                    </span>
-                    <span className="text-[10px] text-slate-400 dark:text-[#8E8B9E]">
-                      ({day.dayLabel})
-                    </span>
-                  </div>
-                  {day.isToday && (
-                    <span className="text-[9px] font-bold text-lavender-600 dark:text-[#B7A5FF] -mt-0.5">
-                      오늘
-                    </span>
-                  )}
-                </div>
-              ))}
+        {/* Right Task Inspector in Edit Mode */}
+        {isEditMode && selectedTask && (
+          <aside className="w-[270px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-3.5 select-none text-xs">
+            <div>
+              <div className="text-sm font-bold">작업 수정</div>
+              <div className="text-[11px] text-[#8A8998] mt-0.5">{selectedTask.name}</div>
             </div>
 
-            {/* Vertical Grid Lines & Today Marker Background Layer */}
-            <div className="absolute inset-0 top-12 pointer-events-none flex">
-              {daysInView.map((day, idx) => (
-                <div
-                  key={`grid-${day.dateStr}`}
-                  style={{ width: `${columnWidth}px` }}
-                  className={`h-full border-r border-slate-200/50 dark:border-[#2D2D3D] shrink-0 ${
-                    day.isWeekend ? 'bg-slate-100/20 dark:bg-[#1F1F2B]/30' : ''
-                  }`}
-                />
-              ))}
+            <label className="flex items-center justify-between gap-2">
+              <span>이름</span>
+              <input
+                type="text"
+                value={selectedTask.name}
+                onChange={(e) =>
+                  persist(
+                    groups,
+                    tasks.map((t) =>
+                      t.id === selectedTask.id ? { ...t, name: e.target.value } : t
+                    )
+                  )
+                }
+                className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+              />
+            </label>
 
-              {/* Today Red/Purple Vertical Line Marker */}
-              {showTodayMarker && todayColumnIndex !== -1 && (
-                <div
-                  style={{
-                    left: `${todayColumnIndex * columnWidth + columnWidth / 2}px`,
-                  }}
-                  className="absolute top-0 bottom-0 w-0.5 bg-lavender-500 z-10 flex flex-col items-center pointer-events-none"
-                >
-                  <span className="px-1.5 py-0.5 -mt-2 rounded-full text-[9px] font-bold bg-lavender-600 text-white shadow-sm">
-                    오늘
-                  </span>
-                </div>
-              )}
+            <label className="flex items-center justify-between gap-2">
+              <span>진행률</span>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                value={selectedTask.progress}
+                onChange={(e) =>
+                  persist(
+                    groups,
+                    tasks.map((t) =>
+                      t.id === selectedTask.id
+                        ? { ...t, progress: Math.min(100, Math.max(0, Number(e.target.value))) }
+                        : t
+                    )
+                  )
+                }
+                className="w-24 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-right"
+              />
+            </label>
+
+            <div className="flex items-center gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() =>
+                  persist(groups, [
+                    ...tasks,
+                    { ...selectedTask, id: `tk-${Date.now()}`, name: `${selectedTask.name} 복사` },
+                  ])
+                }
+                className="px-3.5 py-1.5 rounded-xl border border-[#E6E3F0] font-semibold"
+              >
+                복제
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  persist(groups, tasks.filter((t) => t.id !== selectedTask.id));
+                  setSelectedTaskId(null);
+                }}
+                className="px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold"
+              >
+                삭제
+              </button>
             </div>
-
-            {/* Gantt Bars Rows (Corresponding 1:1 to Left Groups & Tasks) */}
-            <div className="flex flex-col relative z-10 divide-y divide-slate-100 dark:divide-[#2D2D3D]">
-              {groups.map((group) => {
-                const groupItems = items.filter((item) => item.groupId === group.id);
-
-                return (
-                  <div key={`gantt-group-${group.id}`} className="flex flex-col">
-                    {/* Empty spacer row matching group header height */}
-                    <div className="h-10 border-b border-transparent bg-slate-100/20 dark:bg-[#23232F]/30" />
-
-                    {/* Task Rows matching item height 44px */}
-                    {!group.isCollapsed &&
-                      groupItems.map((item) => {
-                        const { left, width, isVisible } = calculateBarPosition(item.startDate, item.endDate);
-                        const isHovered = hoveredItemId === item.id;
-
-                        return (
-                          <div
-                            key={`gantt-row-${item.id}`}
-                            onMouseEnter={() => setHoveredItemId(item.id)}
-                            onMouseLeave={() => setHoveredItemId(null)}
-                            className={`h-11 border-b border-slate-100/70 dark:border-[#2D2D3D] relative flex items-center transition-colors ${
-                              isHovered
-                                ? 'bg-lavender-50/40 dark:bg-[#2D2845]/30'
-                                : 'hover:bg-slate-50/40 dark:hover:bg-[#242432]/30'
-                            }`}
-                          >
-                            {/* Gantt Schedule Bar (Only rendered if in view) */}
-                            {isVisible && (
-                              <div
-                                onClick={() => {
-                                  setSelectedItem(item);
-                                  setIsDetailModalOpen(true);
-                                }}
-                                style={{
-                                  left: `${left}px`,
-                                  width: `${width}px`,
-                                  backgroundColor: item.color,
-                                }}
-                                className={`absolute h-7 rounded-xl shadow-xs px-2.5 flex items-center justify-between text-white text-xs font-semibold cursor-pointer select-none transition-all duration-150 overflow-hidden ${
-                                  isHovered
-                                    ? 'ring-2 ring-lavender-400 dark:ring-lavender-300 scale-[1.02] shadow-md z-20'
-                                    : 'hover:shadow-sm z-10'
-                                } ${isEditMode ? 'cursor-move' : 'cursor-pointer'}`}
-                              >
-                                {/* Inner Progress fill bar overlay */}
-                                <div
-                                  style={{ width: `${item.progress}%` }}
-                                  className="absolute left-0 top-0 bottom-0 bg-black/15 pointer-events-none rounded-l-xl transition-all"
-                                />
-
-                                {/* Left Resize Handle (Edit Mode) */}
-                                {isEditMode && (
-                                  <div
-                                    className="absolute left-0 top-0 bottom-0 w-2 hover:bg-black/20 cursor-w-resize z-20"
-                                    title="시작일 드래그 조절"
-                                  />
-                                )}
-
-                                {/* Bar Content */}
-                                <span className="truncate relative z-10 text-[11px] font-bold drop-shadow-2xs">
-                                  {item.title}
-                                </span>
-
-                                <div className="flex items-center gap-1.5 relative z-10 shrink-0 text-[10px] opacity-95">
-                                  <span className="font-mono">{item.progress}%</span>
-                                </div>
-
-                                {/* Right Resize Handle (Edit Mode) */}
-                                {isEditMode && (
-                                  <div
-                                    className="absolute right-0 top-0 bottom-0 w-2 hover:bg-black/20 cursor-e-resize z-20"
-                                    title="종료일 드래그 조절"
-                                  />
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
+          </aside>
+        )}
       </div>
-
-      {/* 4. Schedule Item Detail / Add Modal */}
-      <ScheduleDetailModal
-        isOpen={isDetailModalOpen}
-        onClose={() => {
-          setIsDetailModalOpen(false);
-          setSelectedItem(null);
-        }}
-        item={selectedItem}
-        groups={groups}
-        isEditMode={isEditMode}
-        onSave={(updated) => {
-          setItems((prev) => prev.map((it) => (it.id === updated.id ? updated : it)));
-        }}
-        onDelete={(id) => {
-          setItems((prev) => prev.filter((it) => it.id !== id));
-        }}
-      />
-
-      {/* 5. Schedule Help Guide Modal */}
-      <ScheduleHelpModal isOpen={isHelpOpen} onClose={() => setIsHelpOpen(false)} />
     </div>
   );
 };

@@ -3,217 +3,215 @@ import { TemplateCategoryType, TemplateDefinition } from '../types';
 export interface CategoryInfo {
   id: TemplateCategoryType;
   name: string;
-  iconName: string;
 }
 
 export const TEMPLATE_CATEGORIES: CategoryInfo[] = [
-  { id: 'character', name: '캐릭터', iconName: 'User' },
-  { id: 'world', name: '세계관', iconName: 'Globe' },
-  { id: 'planning', name: '게임 기획', iconName: 'Gamepad2' },
-  { id: 'design', name: '디자인 및 자료', iconName: 'Image' },
-  { id: 'general', name: '일반', iconName: 'FileText' },
+  { id: 'character', name: '캐릭터' },
+  { id: 'world', name: '세계관' },
+  { id: 'planning', name: '게임 기획' },
+  { id: 'design', name: '디자인 및 에셋' },
+  { id: 'general', name: '일반' },
 ];
+
+export const CATEGORY_LABELS: Record<TemplateCategoryType, string> = {
+  character: '캐릭터',
+  world: '세계관',
+  planning: '게임 기획',
+  design: '디자인·에셋',
+  general: '일반',
+};
 
 export const TEMPLATES: TemplateDefinition[] = [
   // 1. 캐릭터
   {
     id: 'character-sheet',
     name: '캐릭터 시트',
-    description: '캐릭터의 설정과 정보를 정리합니다.',
+    description: '캐릭터의 기본 프로필, 스탯, 서술, 관계 요약을 자유롭게 구성합니다.',
     category: 'character',
-    iconName: 'FileText',
+    docKind: 'template',
+    iconName: 'User',
     defaultTitle: '새 캐릭터 시트',
-    defaultContent: '## 기본 정보\n\n- **이름**: \n- **나이 / 성별**: \n- **역할/직업**: \n\n## 외형 및 성격\n\n- 외형 특징:\n- 성격 키워드:\n\n## 배경 스토리\n\n- '
+    supportsDesignPreset: true,
   },
   {
     id: 'character-relations',
     name: '캐릭터 관계도',
-    description: '캐릭터 간의 관계를 시각적으로 표현합니다.',
+    description: '원형 자동 배치와 관계 범례로 캐릭터 간 관계를 시각화합니다.',
     category: 'character',
+    docKind: 'visual',
     iconName: 'Share2',
     defaultTitle: '캐릭터 관계도',
-    defaultContent: '캐릭터 간의 관계와 감정을 연결하여 시각화합니다.'
   },
   {
     id: 'character-qa',
     name: '캐릭터 문답',
-    description: '질문과 답변을 통해 캐릭터의 성격과 설정을 구체화합니다.',
+    description: '분류별 질문과 답변을 통해 캐릭터의 성격과 말투를 구체화합니다.',
     category: 'character',
+    docKind: 'template',
     iconName: 'HelpCircle',
-    defaultTitle: '새 캐릭터 문답',
-    defaultContent: '{"questions":[{"id":"qa-1","question":"가장 좋아하는 음식은?","answer":"따뜻한 수프를 좋아한다.","order":0},{"id":"qa-2","question":"가장 싫어하는 사람 유형은?","answer":"거짓말을 밥 먹듯이 하는 사람.","order":1},{"id":"qa-3","question":"휴일에는 무엇을 하나요?","answer":"집에서 책을 읽거나 낮잠을 잔다.","order":2}]}'
+    defaultTitle: '캐릭터 문답',
   },
 
   // 2. 세계관
   {
     id: 'world-sheet',
     name: '세계관 시트',
-    description: '세계관의 기본 법칙, 배경 설정 등을 정리합니다.',
+    description: '세계관 개요, 계층 구조, 분류, 구역을 카드로 조합해 정리합니다.',
     category: 'world',
+    docKind: 'template',
     iconName: 'Globe',
-    defaultTitle: '세계관 기본 설정',
-    defaultContent: '## 세계관 개요\n\n세계의 기원 및 기본 법칙에 대한 설명'
+    defaultTitle: '세계관 시트',
+    supportsDesignPreset: true,
   },
   {
     id: 'world-map-factions',
-    name: '지도 및 세력',
-    description: '지도 이미지 위에 국가, 지역, 세력 거점을 배치하고 영토 경계선을 관리합니다.',
+    name: '지도',
+    description: '지도 이미지 위에 지역 마커를 배치하고 상세 문서와 연결합니다.',
     category: 'world',
+    docKind: 'visual',
     iconName: 'MapPin',
-    defaultTitle: '세계 지도 및 세력도',
-    defaultContent: '대륙 지도 및 주요 국가/거점 정보'
+    defaultTitle: '세계 지도',
   },
   {
     id: 'world-chronicle',
-    name: '역사 및 연대기',
-    description: '세계관의 주요 사건을 시간순으로 정리합니다.',
+    name: '타임라인',
+    description: '세계관의 주요 사건을 시점 순서에 따라 시간축 위에 배치합니다.',
     category: 'world',
+    docKind: 'visual',
     iconName: 'Clock',
-    defaultTitle: '역사 연대표',
-    defaultContent: '주요 연대기 사건 목록'
+    defaultTitle: '타임라인',
   },
   {
     id: 'world-glossary',
-    name: '용어 사전',
-    description: '세계관 및 게임 내 고유 용어를 정리합니다.',
+    name: '용어집',
+    description: '세계관 고유명사와 개념을 초성 및 분류별로 검색하고 관리합니다.',
     category: 'world',
-    iconName: 'Book',
-    defaultTitle: '용어 사전',
-    defaultContent: '용어 목록 및 해설'
+    docKind: 'template',
+    iconName: 'BookOpen',
+    defaultTitle: '용어집',
   },
 
   // 3. 게임 기획
   {
-    id: 'character-dialogue',
-    name: '캐릭터 대사 스크립트',
-    description: '캐릭터 간의 대화와 분기 흐름을 작성하고 관리합니다.',
-    category: 'planning',
-    iconName: 'MessageSquare',
-    defaultTitle: '캐릭터 대사 스크립트',
-    defaultContent: '주요 씬별 캐릭터 대사와 지문'
-  },
-  {
     id: 'game-design-system',
-    name: '게임 기획 + 시스템 기획',
-    description: '핵심 시스템 및 게임 플레이 규칙을 설계합니다.',
+    name: '게임 기획서',
+    description: 'SWOT, 규칙, 공식, 난이도 곡선으로 게임 시스템을 설계합니다.',
     category: 'planning',
+    docKind: 'template',
     iconName: 'Gamepad2',
-    defaultTitle: '게임 시스템 기획서',
-    defaultContent: '## 핵심 메카닉\n\n플레이어가 수행하는 주요 액션 및 루프'
+    defaultTitle: '게임 기획서',
+    supportsDesignPreset: true,
   },
   {
     id: 'game-flow',
     name: '게임 플로우',
-    description: '게임 진행 순서와 분기 구조를 플로우 차트로 구성합니다.',
+    description: '시작·처리·조건·하위 시스템 노드로 게임 진행 흐름을 구성합니다.',
     category: 'planning',
+    docKind: 'visual',
     iconName: 'GitBranch',
-    defaultTitle: '게임 진행 플로우',
-    defaultContent: '타이틀 -> 튜토리얼 -> 인게임 루프'
+    defaultTitle: '게임 플로우',
   },
   {
     id: 'game-ui-ux',
     name: 'UI/UX',
-    description: '화면 이미지 위에 마커와 설명을 배치합니다.',
+    description: '화면 이미지 위에 번호 마커와 기능 설명, 문서를 연결합니다.',
     category: 'planning',
+    docKind: 'template',
     iconName: 'Layout',
-    defaultTitle: 'UI/UX 와이어프레임',
-    defaultContent: '화면 배치 및 유저 인터랙션 명세'
+    defaultTitle: 'UI/UX 명세',
   },
   {
     id: 'game-items-equip',
     name: '아이템 및 장비',
-    description: '게임 내 아이템 및 장비 데이터를 관리합니다.',
+    description: '아이템 효과, 가격, 획득처를 분류와 등급별로 정리합니다.',
     category: 'planning',
+    docKind: 'template',
     iconName: 'Shield',
-    defaultTitle: '아이템 데이터 시트',
-    defaultContent: '아이템 ID, 명칭, 효과, 획득처'
+    defaultTitle: '아이템 및 장비',
+  },
+  {
+    id: 'character-dialogue',
+    name: '게임 대화 스크립트',
+    description: '이벤트·대사·선택지 카드를 연결하고 게임 화면으로 미리 봅니다.',
+    category: 'planning',
+    docKind: 'visual',
+    iconName: 'MessageSquare',
+    defaultTitle: '게임 대화 스크립트',
   },
 
-  // 4. 디자인 및 자료
+  // 4. 디자인 및 에셋
   {
     id: 'design-reference-board',
-    name: '레퍼런스 보드 + 무드보드 + 컨셉아트',
-    description: '영감을 주는 이미지와 자료를 자유롭게 배치합니다.',
+    name: '레퍼런스 보드',
+    description: '이미지, 출처 링크, 태그, 메모를 자유로운 보드 위에 수집합니다.',
     category: 'design',
-    iconName: 'Palette',
-    defaultTitle: '컨셉 레퍼런스 보드',
-    defaultContent: '무드보드 및 레퍼런스 이미지 모음'
+    docKind: 'freeform',
+    iconName: 'Image',
+    defaultTitle: '레퍼런스 보드',
   },
   {
     id: 'design-modeling-sheet',
     name: '모델링 시트',
-    description: '3D 모델링을 위한 다각도 뷰 및 레퍼런스를 정리합니다.',
+    description: '턴어라운드, PBR 텍스처 맵, 스포이드 팔레트와 리소스를 관리합니다.',
     category: 'design',
+    docKind: 'template',
     iconName: 'Box',
-    defaultTitle: '모델링 3면도 시트',
-    defaultContent: '정면, 측면, 후면 레퍼런스'
+    defaultTitle: '모델링 시트',
   },
   {
     id: 'design-animation-sheet',
     name: '애니메이션 시트',
-    description: '프레임 애니메이션 및 모션 시퀀스를 관리합니다.',
+    description: '모션별 프레임, 길이, 루프 여부와 프레임 스트립을 정리합니다.',
     category: 'design',
+    docKind: 'template',
     iconName: 'Film',
-    defaultTitle: '모션 애니메이션 시트',
-    defaultContent: '달리기, 공격, 피격 프레임'
+    defaultTitle: '애니메이션 시트',
   },
   {
     id: 'design-sound-board',
-    name: '사운드 보드',
-    description: '배경음 및 효과음 오디오 리소스를 수집하고 미리 듣습니다.',
+    name: '사운드보드',
+    description: '효과음·배경음·보이스 오디오를 분류하고 즉시 재생합니다.',
     category: 'design',
+    docKind: 'template',
     iconName: 'Volume2',
-    defaultTitle: 'BGM & SFX 리스트',
-    defaultContent: '사운드 파일 및 연출 용도 정리'
+    defaultTitle: '사운드보드',
   },
 
   // 5. 일반
   {
     id: 'general-blank',
     name: '빈 문서',
-    description: '자유롭게 노트를 작성할 수 있는 기본 백지 문서입니다.',
+    description: '서식, 표, 체크리스트, 내부 링크를 지원하는 깔끔한 문서입니다.',
     category: 'general',
+    docKind: 'blank',
     iconName: 'FileText',
-    defaultTitle: '새 문서',
-    defaultContent: ''
-  },
-  {
-    id: 'general-checklist',
-    name: '체크리스트',
-    description: '개발 일정 및 완료할 작업 목록을 체크합니다.',
-    category: 'general',
-    iconName: 'CheckSquare',
-    defaultTitle: '개발 체크리스트',
-    defaultContent: '- [ ] 기획서 초안 검토\n- [ ] 메인 컨셉 아트 확정\n- [ ] 프로토타입 빌드 테스트',
-    hidden: true
-  },
-  {
-    id: 'general-meeting-notes',
-    name: '회의록',
-    description: '팀 미팅 및 논의 사항, 결정된 사항을 기록합니다.',
-    category: 'general',
-    iconName: 'Users',
-    defaultTitle: '개발 주간 회의록',
-    defaultContent: '## 참석자\n\n## 안건\n\n## 결정 사항',
-    hidden: true
+    defaultTitle: '제목 없는 문서',
   },
   {
     id: 'general-idea-board',
-    name: '메모 + 아이디어 보드',
-    description: '번뜩이는 아이디어와 스케치, 빠른 메모를 남깁니다.',
+    name: '메모',
+    description: '텍스트, 이미지, 영상, 오디오, 드로잉을 자유롭게 배치하는 보드입니다.',
     category: 'general',
-    iconName: 'Lightbulb',
-    defaultTitle: '아이디어 메모',
-    defaultContent: '떠오른 영감과 아이디어 브레인스토밍'
+    docKind: 'freeform',
+    iconName: 'StickyNote',
+    defaultTitle: '메모',
   },
   {
     id: 'general-timeline',
     name: '일정',
-    description: '개인 프로젝트 및 주간 업무 일정을 간트 차트로 관리합니다.',
+    description: '그룹과 작업, 진행률을 일·주·월 간트 차트로 관리합니다.',
     category: 'general',
+    docKind: 'template',
     iconName: 'Calendar',
-    defaultTitle: '주간 업무 계획 간트 차트',
-    defaultContent: ''
-  }
+    defaultTitle: '일정',
+  },
+  {
+    id: 'general-files',
+    name: '파일 보관함',
+    description: 'PDF, PSD, FBX, WAV 등 창작 파일을 카드와 목록으로 보관합니다.',
+    category: 'general',
+    docKind: 'template',
+    iconName: 'Archive',
+    defaultTitle: '파일 보관함',
+  },
 ];
-

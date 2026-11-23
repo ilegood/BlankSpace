@@ -1,1097 +1,1287 @@
-import React, { createContext, useContext, useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { Project, Folder, Document, DocumentPage, FilterType, ViewMode, SortOption, TemplateCategoryType } from '../types';
-import { StorageService, BackupService, CURRENT_SCHEMA_VERSION } from '../storage';
-import { CloudWorkspaceService } from '../services/cloudWorkspaceService';
-import { useAuth } from './AuthContext';
-import { useToast } from '../components/toast/ToastContext';
-import { generateId } from '../utils/id';
+import React, { createContext, useContext, useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import {
+  Project,
+  Folder,
+  Document,
+  DocumentPage,
+  UserTemplate,
+  DesignPresetItem,
+  ViewMode,
+  SortOption,
+  NavSection,
+  TemplateCategoryType,
+} from '../types';
+import { StorageService } from '../storage';
 import { TEMPLATES } from '../templates/templateList';
+import { generateId } from '../utils/id';
 
-export type MainView = 'projects' | 'recent' | 'favorites' | 'trash' | 'settings';
 export type SaveStatus = 'saved' | 'saving' | 'error';
 
+export interface BacklinkInfo {
+  sourceDoc: Document;
+  sourcePage?: DocumentPage;
+  status: 'active' | 'trashed';
+}
+
 interface WorkspaceContextType {
-  // State
+  isLoaded: boolean;
   projects: Project[];
   folders: Folder[];
   documents: Document[];
   pages: DocumentPage[];
+  userTemplates: UserTemplate[];
+  designPresets: DesignPresetItem[];
+  defaultTemplateOverrides: Record<string, string>;
+
+  navSection: NavSection;
   activeProjectId: string | null;
   activeFolderId: string | null;
   activeDocumentId: string | null;
   activePageId: string | null;
-  filterType: FilterType;
+  editingTemplateId: string | null;
+
   viewMode: ViewMode;
   sortOption: SortOption;
-  searchQuery: string;
-  isLoaded: boolean;
-  mainView: MainView;
-  setMainView: (view: MainView) => void;
+  globalSearchQuery: string;
   recentDocumentIds: string[];
+  isSidebarCollapsed: boolean;
+  expandedProjectIds: string[];
+  canGoBackDoc: boolean;
 
-  // Save State & Reliability
+  autoSaveEnabled: boolean;
   saveStatus: SaveStatus;
-  lastSaveError: string | null;
+  lastSavedAt: number | null;
   retryLastSave: () => Promise<void>;
 
-  // Backup & Schema Version (Phase 2)
-  schemaVersion: number;
-  exportBackup: (customFileName?: string) => void;
-  importBackup: (jsonString: string) => Promise<{ success: boolean; error?: string }>;
-
-  // Active getters & Breadcrumbs (Phase 3)
+  activeProjects: Project[];
+  trashedProjects: Project[];
+  trashedFolders: Folder[];
+  trashedDocuments: Document[];
   activeProject: Project | null;
   activeFolder: Folder | null;
   activeDocument: Document | null;
   activePage: DocumentPage | null;
   folderBreadcrumbs: Folder[];
-  currentDocumentPages: DocumentPage[];
   currentFolders: Folder[];
   currentDocuments: Document[];
+  currentDocumentPages: DocumentPage[];
 
-  // Modals
   isCreateProjectOpen: boolean;
   isCreateFolderOpen: boolean;
   isCreateDocumentOpen: boolean;
-  isFabOpen: boolean;
+  setIsCreateProjectOpen: (open: boolean) => void;
+  setIsCreateFolderOpen: (open: boolean) => void;
+  setIsCreateDocumentOpen: (open: boolean) => void;
 
-  // Actions
-  setActiveProject: (id: string | null) => void;
-  setActiveFolder: (id: string | null) => void;
-  setActiveDocument: (id: string | null) => void;
-  setActivePageId: (id: string | null) => void;
-  setFilterType: (filter: FilterType) => void;
+  setNavSection: (section: NavSection) => void;
+  openProject: (projectId: string | null) => void;
+  openFolder: (folderId: string | null) => void;
+  openDocument: (docId: string | null, pageId?: string | null) => void;
+  goBackDocument: () => void;
+  openTemplateEditor: (templateId: string | null) => void;
+  setActivePageId: (pageId: string | null) => void;
   setViewMode: (mode: ViewMode) => void;
-  setSortOption: (option: SortOption) => void;
-  setSearchQuery: (query: string) => void;
+  setSortOption: (opt: SortOption) => void;
+  setGlobalSearchQuery: (q: string) => void;
+  toggleSidebarCollapsed: () => void;
+  setSidebarCollapsed: (v: boolean) => void;
+  toggleProjectExpanded: (projectId: string) => void;
+  setAutoSaveEnabled: (v: boolean) => void;
 
-  openCreateProjectModal: () => void;
-  closeCreateProjectModal: () => void;
-  openCreateFolderModal: () => void;
-  closeCreateFolderModal: () => void;
-  openCreateDocumentModal: () => void;
-  closeCreateDocumentModal: () => void;
-  toggleFab: () => void;
-  closeFab: () => void;
+  createProject: (name: string, description?: string, coverColor?: string) => Project;
+  updateProject: (id: string, patch: Partial<Project>) => void;
+  toggleFavoriteProject: (id: string) => void;
+  duplicateProject: (id: string) => Project | null;
+  moveProjectToTrash: (id: string) => void;
+  reorderProjects: (fromId: string, toId: string) => void;
 
-  // Project Mutations
-  createProject: (name: string, description?: string, coverImage?: string) => Promise<Project>;
-  deleteProject: (id: string) => Promise<void>;
-  renameProject: (id: string, name: string) => Promise<void>;
+  createFolder: (name: string, description?: string) => Folder;
+  updateFolder: (id: string, patch: Partial<Folder>) => void;
+  duplicateFolder: (id: string) => Folder | null;
+  moveFolderToTrash: (id: string) => { descendantCount: number };
+  reorderItems: (kind: 'folder' | 'document', fromId: string, toId: string) => void;
 
-  // Folder Mutations (Phase 3)
-  createFolder: (name: string) => Promise<Folder>;
-  deleteFolder: (folderId: string) => Promise<void>;
-  renameFolder: (folderId: string, newName: string) => Promise<void>;
-
-  // Document Mutations
-  createDocument: (title: string, templateType: string, category: TemplateCategoryType) => Promise<Document>;
-  deleteDocument: (documentId: string) => Promise<void>;
+  createDocument: (
+    title: string,
+    templateType: string,
+    category: TemplateCategoryType,
+    initialContent?: string
+  ) => Document;
+  updateDocument: (id: string, patch: Partial<Document>) => void;
+  duplicateDocument: (id: string) => Document | null;
   toggleFavoriteDocument: (id: string) => void;
-  updateDocumentTitle: (id: string, newTitle: string) => void;
+  moveDocumentToTrash: (id: string) => void;
+  moveDocumentToFolder: (docId: string, targetFolderId: string | null) => void;
+  createPage: (docId: string, title?: string, content?: string) => DocumentPage;
+  updatePage: (pageId: string, patch: Partial<DocumentPage>) => void;
+  deletePage: (pageId: string) => void;
 
-  // Page Mutations (Phase 2)
-  createPage: (title?: string) => Promise<DocumentPage>;
-  renamePage: (pageId: string, newTitle: string) => Promise<void>;
-  deletePage: (pageId: string) => Promise<{ success: boolean; message?: string }>;
-  updatePageContent: (pageId: string, content: string) => Promise<{ success: boolean; error?: string }>;
+  restoreItems: (
+    items: { type: 'project' | 'folder' | 'document'; id: string }[],
+    fallbackTarget?: { projectId: string; folderId: string | null }
+  ) => void;
+  permanentlyDeleteItems: (items: { type: 'project' | 'folder' | 'document'; id: string }[]) => void;
+  emptyTrash: () => void;
+  needsRestoreTarget: (type: 'folder' | 'document', id: string) => boolean;
 
-  // Drag and Drop & Hierarchy Management (Phase 3)
-  moveItem: (type: 'folder' | 'document', itemId: string, targetFolderId: string | null) => Promise<{ success: boolean; message?: string }>;
-  reorderItems: (type: 'folder' | 'document', activeId: string, overId: string) => Promise<void>;
+  saveDefaultTemplateOverride: (templateId: string, content: string) => void;
+  resetDefaultTemplateOverride: (templateId: string) => void;
+  createUserTemplate: (
+    name: string,
+    description: string,
+    category: TemplateCategoryType,
+    baseTemplateType: string,
+    content: string
+  ) => UserTemplate;
+  deleteUserTemplate: (id: string) => void;
+  saveDesignPreset: (preset: Omit<DesignPresetItem, 'id'>) => DesignPresetItem;
+  renameDesignPreset: (id: string, name: string) => void;
+  duplicateDesignPreset: (id: string) => DesignPresetItem | null;
+  deleteDesignPreset: (id: string) => void;
+
+  getDocumentPath: (doc: Document) => string;
+  getDocumentStatus: (docId: string) => 'active' | 'trashed' | 'deleted';
+  getBacklinksForDocument: (docId: string) => BacklinkInfo[];
+  isFileReferenced: (fileNameOrId: string) => boolean;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextType | null>(null);
 
-// Helper: check if candidate is a descendant of parent
-const isFolderDescendant = (allFolders: Folder[], parentId: string, candidateChildId: string): boolean => {
-  if (parentId === candidateChildId) return true;
-  let curr = allFolders.find((f) => f.id === candidateChildId);
-  while (curr && curr.parentFolderId) {
-    if (curr.parentFolderId === parentId) return true;
-    curr = allFolders.find((f) => f.id === curr!.parentFolderId);
-  }
-  return false;
-};
-
 export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  const { toast } = useToast();
-  const userRef = useRef(user);
-  userRef.current = user;
-
+  const [isLoaded, setIsLoaded] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const [folders, setFolders] = useState<Folder[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
   const [pages, setPages] = useState<DocumentPage[]>([]);
-  const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
-  const activeProjectIdRef = useRef<string | null>(null);
-  activeProjectIdRef.current = activeProjectId;
+  const [userTemplates, setUserTemplates] = useState<UserTemplate[]>([]);
+  const [designPresets, setDesignPresets] = useState<DesignPresetItem[]>([]);
+  const [defaultTemplateOverrides, setDefaultTemplateOverrides] = useState<Record<string, string>>({});
+
+  const [navSection, setNavSectionState] = useState<NavSection>('main');
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
   const [activeFolderId, setActiveFolderId] = useState<string | null>(null);
-  const [activeDocumentId, setActiveDocumentIdState] = useState<string | null>(null);
+  const [activeDocumentId, setActiveDocumentId] = useState<string | null>(null);
   const [activePageId, setActivePageId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
+  const [docHistory, setDocHistory] = useState<string[]>([]);
 
-  // Sync refs to guarantee always-latest data access and eliminate stale closure bugs
-  const projectsRef = useRef<Project[]>([]);
-  const foldersRef = useRef<Folder[]>([]);
-  const documentsRef = useRef<Document[]>([]);
-  const pagesRef = useRef<DocumentPage[]>([]);
-
-  // Reliable Save Status Management
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
-  const [lastSaveError, setLastSaveError] = useState<string | null>(null);
-
-  // Serialized persistence queues to prevent race conditions & out-of-order writes
-  const isSavingPagesRef = useRef(false);
-  const hasPendingPagesSaveRef = useRef(false);
-
-  const isSavingDocsRef = useRef(false);
-  const hasPendingDocsSaveRef = useRef(false);
-
-  const isSavingFoldersRef = useRef(false);
-  const hasPendingFoldersSaveRef = useRef(false);
-
-  const isSavingProjectsRef = useRef(false);
-  const hasPendingProjectsSaveRef = useRef(false);
-
-  // Cloud Sync Debounced Saver
-  const cloudSaveTimerRef = useRef<any>(null);
-
-  const triggerCloudSave = useCallback(() => {
-    if (!userRef.current) return;
-    if (cloudSaveTimerRef.current) {
-      clearTimeout(cloudSaveTimerRef.current);
-    }
-    cloudSaveTimerRef.current = setTimeout(async () => {
-      if (!userRef.current) return;
-      await CloudWorkspaceService.saveWorkspace(userRef.current.id, {
-        projects: projectsRef.current,
-        folders: foldersRef.current,
-        documents: documentsRef.current,
-        pages: pagesRef.current,
-        activeProjectId: activeProjectIdRef.current,
-      });
-    }, 600);
-  }, []);
-
-  // Process Pages Queue
-  const processPagesQueue = useCallback(async (): Promise<{ success: boolean; error?: string }> => {
-    if (isSavingPagesRef.current) {
-      hasPendingPagesSaveRef.current = true;
-      return { success: true };
-    }
-
-    isSavingPagesRef.current = true;
-    setSaveStatus('saving');
-
-    let finalError: string | null = null;
-    try {
-      do {
-        hasPendingPagesSaveRef.current = false;
-        const currentPages = [...pagesRef.current];
-        const res = await StorageService.savePages(currentPages);
-        if (!res.success) {
-          throw new Error(res.error || '페이지 저장에 실패했습니다.');
-        }
-      } while (hasPendingPagesSaveRef.current);
-
-      triggerCloudSave();
-      setSaveStatus('saved');
-      setLastSaveError(null);
-      return { success: true };
-    } catch (err: any) {
-      finalError = err?.message || '저장 중 오류가 발생했습니다.';
-      console.error('Save pages error:', err);
-      setSaveStatus('error');
-      setLastSaveError(finalError);
-      return { success: false, error: finalError || undefined };
-    } finally {
-      isSavingPagesRef.current = false;
-    }
-  }, [triggerCloudSave]);
-
-  // Process Docs Queue
-  const processDocsQueue = useCallback(async () => {
-    if (isSavingDocsRef.current) {
-      hasPendingDocsSaveRef.current = true;
-      return;
-    }
-
-    isSavingDocsRef.current = true;
-    try {
-      do {
-        hasPendingDocsSaveRef.current = false;
-        const currentDocs = [...documentsRef.current];
-        const res = await StorageService.saveDocuments(currentDocs);
-        if (!res.success) {
-          throw new Error(res.error || '문서 목록 저장에 실패했습니다.');
-        }
-      } while (hasPendingDocsSaveRef.current);
-
-      triggerCloudSave();
-    } catch (err: any) {
-      console.error('Save docs error:', err);
-      setSaveStatus('error');
-      setLastSaveError(err?.message || '문서 저장에 실패했습니다.');
-    } finally {
-      isSavingDocsRef.current = false;
-    }
-  }, [triggerCloudSave]);
-
-  // Process Folders Queue
-  const processFoldersQueue = useCallback(async () => {
-    if (isSavingFoldersRef.current) {
-      hasPendingFoldersSaveRef.current = true;
-      return;
-    }
-    isSavingFoldersRef.current = true;
-    try {
-      do {
-        hasPendingFoldersSaveRef.current = false;
-        const currentFolders = [...foldersRef.current];
-        const res = await StorageService.saveFolders(currentFolders);
-        if (!res.success) {
-          throw new Error(res.error || '폴더 목록 저장에 실패했습니다.');
-        }
-      } while (hasPendingFoldersSaveRef.current);
-
-      triggerCloudSave();
-    } catch (err: any) {
-      console.error('Save folders error:', err);
-      setSaveStatus('error');
-      setLastSaveError(err?.message || '폴더 저장에 실패했습니다.');
-    } finally {
-      isSavingFoldersRef.current = false;
-    }
-  }, [triggerCloudSave]);
-
-  // Process Projects Queue
-  const processProjectsQueue = useCallback(async () => {
-    if (isSavingProjectsRef.current) {
-      hasPendingProjectsSaveRef.current = true;
-      return;
-    }
-    isSavingProjectsRef.current = true;
-    try {
-      do {
-        hasPendingProjectsSaveRef.current = false;
-        const currentProjects = [...projectsRef.current];
-        const res = await StorageService.saveProjects(currentProjects);
-        if (!res.success) {
-          throw new Error(res.error || '프로젝트 저장에 실패했습니다.');
-        }
-      } while (hasPendingProjectsSaveRef.current);
-
-      triggerCloudSave();
-    } catch (err: any) {
-      console.error('Save projects error:', err);
-      setSaveStatus('error');
-      setLastSaveError(err?.message || '프로젝트 저장에 실패했습니다.');
-    } finally {
-      isSavingProjectsRef.current = false;
-    }
-  }, [triggerCloudSave]);
-
-  // Retry failed saves manually
-  const retryLastSave = useCallback(async () => {
-    setSaveStatus('saving');
-    setLastSaveError(null);
-    try {
-      const pRes = await StorageService.savePages(pagesRef.current);
-      const dRes = await StorageService.saveDocuments(documentsRef.current);
-      const fRes = await StorageService.saveFolders(foldersRef.current);
-      const prRes = await StorageService.saveProjects(projectsRef.current);
-
-      if (pRes.success && dRes.success && fRes.success && prRes.success) {
-        setSaveStatus('saved');
-      } else {
-        const errorMsg = pRes.error || dRes.error || fRes.error || prRes.error || '저장 재시도 실패';
-        setSaveStatus('error');
-        setLastSaveError(errorMsg);
-      }
-    } catch (err: any) {
-      setSaveStatus('error');
-      setLastSaveError(err?.message || '저장 재시도 중 오류가 발생했습니다.');
-    }
-  }, []);
-
-  const [filterType, setFilterType] = useState<FilterType>('all');
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
-  const [sortOption, setSortOptionState] = useState<SortOption>(() => {
-    return (localStorage.getItem('blankspace_sort_option') as SortOption) || 'updated-desc';
-  });
+  const [sortOption, setSortOption] = useState<SortOption>('custom');
+  const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>(['proj-game-dev']);
 
-  const setSortOption = (opt: SortOption) => {
-    setSortOptionState(opt);
-    try {
-      localStorage.setItem('blankspace_sort_option', opt);
-    } catch {}
-  };
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [mainView, setMainViewState] = useState<MainView>('projects');
   const [recentDocumentIds, setRecentDocumentIds] = useState<string[]>(() => {
     try {
-      const stored = localStorage.getItem('blankspace_recent_documents');
-      return stored ? JSON.parse(stored) as string[] : [];
+      const raw = localStorage.getItem('blankspace_recent_documents');
+      return raw ? JSON.parse(raw) : ['doc-char-a', 'doc-world-sheet'];
     } catch {
-      return [];
+      return ['doc-char-a', 'doc-world-sheet'];
     }
   });
 
-  const setMainView = (view: MainView) => {
-    setMainViewState(view);
-    setActiveProjectIdState(null);
-    setActiveFolderId(null);
-    setActiveDocumentIdState(null);
-    setActivePageId(null);
-    StorageService.saveActiveProjectId(null);
-  };
+  const [autoSaveEnabled, setAutoSaveEnabled] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(Date.now());
+  const pendingSaveRef = useRef<(() => Promise<{ success: boolean }>) | null>(null);
+  const debounceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Modals
   const [isCreateProjectOpen, setIsCreateProjectOpen] = useState(false);
   const [isCreateFolderOpen, setIsCreateFolderOpen] = useState(false);
   const [isCreateDocumentOpen, setIsCreateDocumentOpen] = useState(false);
-  const [isFabOpen, setIsFabOpen] = useState(false);
 
-  // Backup & Schema Version State (Phase 2)
-  const [schemaVersion, setSchemaVersion] = useState<number>(CURRENT_SCHEMA_VERSION);
-
-  // Cloud Sync on User Change
-  const prevUserRef = useRef<string | null>(null);
+  const projectsRef = useRef(projects);
+  projectsRef.current = projects;
+  const foldersRef = useRef(folders);
+  foldersRef.current = folders;
+  const documentsRef = useRef(documents);
+  documentsRef.current = documents;
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
 
   useEffect(() => {
-    // 1. 비로그인 상태일 때: 로컬 스토리지에서 로드
-    if (!user) {
-      if (prevUserRef.current) {
-        // 로그아웃된 경우: 로컬 기본 데이터로 복원
-        StorageService.init().then((data) => {
-          projectsRef.current = data.projects;
-          foldersRef.current = data.folders;
-          documentsRef.current = data.documents;
-          pagesRef.current = data.pages;
-
-          setProjects(data.projects);
-          setFolders(data.folders);
-          setDocuments(data.documents);
-          setPages(data.pages);
-          setActiveProjectIdState(data.activeProjectId);
-          setIsLoaded(true);
-        });
-      } else {
-        StorageService.init().then((data) => {
-          projectsRef.current = data.projects;
-          foldersRef.current = data.folders;
-          documentsRef.current = data.documents;
-          pagesRef.current = data.pages;
-
-          setProjects(data.projects);
-          setFolders(data.folders);
-          setDocuments(data.documents);
-          setPages(data.pages);
-          setActiveProjectIdState(data.activeProjectId);
-          setSchemaVersion(data.schemaVersion || CURRENT_SCHEMA_VERSION);
-          setIsLoaded(true);
-        });
-      }
-      prevUserRef.current = null;
-      return;
-    }
-
-    // 2. 로그인된 경우: Supabase 클라우드에서 해당 계정 전용 데이터 로드
-    prevUserRef.current = user.id;
-    setIsLoaded(false);
-
-    CloudWorkspaceService.loadWorkspace(user.id).then(async (cloudData) => {
-      if (cloudData && cloudData.projects && cloudData.projects.length > 0) {
-        // 클라우드에 기존 계정 데이터가 있는 경우 로드
-        projectsRef.current = cloudData.projects;
-        foldersRef.current = cloudData.folders || [];
-        documentsRef.current = cloudData.documents || [];
-        pagesRef.current = cloudData.pages || [];
-
-        setProjects(cloudData.projects);
-        setFolders(cloudData.folders || []);
-        setDocuments(cloudData.documents || []);
-        setPages(cloudData.pages || []);
-        setActiveProjectIdState(cloudData.activeProjectId || null);
-        toast.success(
-          '클라우드 동기화 완료',
-          `${user.user_metadata?.full_name || user.email?.split('@')[0] || '사용자'}님의 작업 공간을 불러왔습니다.`
-        );
-      } else {
-        // 클라우드에 아직 데이터가 없는 경우 (첫 로그인): 현재 로컬 데이터를 클라우드에 최초 업로드
-        const initialPayload = {
-          projects: projectsRef.current,
-          folders: foldersRef.current,
-          documents: documentsRef.current,
-          pages: pagesRef.current,
-          activeProjectId: activeProjectIdRef.current,
-          schemaVersion,
-        };
-        await CloudWorkspaceService.saveWorkspace(user.id, initialPayload);
-        toast.success(
-          '클라우드 연동 완료',
-          '현재 작업 공간이 계정에 안전하게 동기화되었습니다.'
-        );
-      }
+    StorageService.init().then((data) => {
+      setProjects(data.projects);
+      setFolders(data.folders);
+      setDocuments(data.documents);
+      setPages(data.pages);
+      setUserTemplates(data.userTemplates);
+      setDesignPresets(data.designPresets);
+      setDefaultTemplateOverrides(data.defaultTemplateOverrides);
       setIsLoaded(true);
     });
-  }, [user?.id]);
+  }, []);
 
-  // Export workspace backup as JSON
-  const exportBackup = useCallback((customFileName?: string) => {
-    const snapshot = BackupService.createSnapshot(
-      projectsRef.current,
-      foldersRef.current,
-      documentsRef.current,
-      pagesRef.current,
-      activeProjectId,
-      schemaVersion
-    );
-    BackupService.exportToFile(snapshot, customFileName);
-  }, [activeProjectId, schemaVersion]);
+  const persistWithStatus = useCallback(async (fn: () => Promise<{ success: boolean }>) => {
+    pendingSaveRef.current = fn;
+    setSaveStatus('saving');
+    const res = await fn();
+    if (res.success) {
+      setSaveStatus('saved');
+      setLastSavedAt(Date.now());
+      pendingSaveRef.current = null;
+    } else {
+      setSaveStatus('error');
+    }
+  }, []);
 
-  // Import and restore workspace from JSON
-  const importBackup = useCallback(
-    async (jsonString: string): Promise<{ success: boolean; error?: string }> => {
-      const valResult = BackupService.validateBackupData(jsonString);
-      if (!valResult.isValid || !valResult.snapshot) {
-        return { success: false, error: valResult.error || '유효하지 않은 백업 데이터입니다.' };
-      }
-
-      const restoreRes = await BackupService.restoreFromSnapshot(
-        valResult.snapshot,
-        projectsRef.current,
-        foldersRef.current,
-        documentsRef.current,
-        pagesRef.current
-      );
-
-      if (!restoreRes.success) {
-        return restoreRes;
-      }
-
-      // Refresh memory & state
-      projectsRef.current = valResult.snapshot.projects;
-      foldersRef.current = valResult.snapshot.folders;
-      documentsRef.current = valResult.snapshot.documents;
-      pagesRef.current = valResult.snapshot.pages;
-
-      setProjects(valResult.snapshot.projects);
-      setFolders(valResult.snapshot.folders);
-      setDocuments(valResult.snapshot.documents);
-      setPages(valResult.snapshot.pages);
-      setActiveProjectIdState(valResult.snapshot.activeProjectId);
-      setSchemaVersion(valResult.snapshot.schemaVersion || CURRENT_SCHEMA_VERSION);
-
-      return { success: true };
+  const persistDebounced = useCallback(
+    (fn: () => Promise<{ success: boolean }>) => {
+      pendingSaveRef.current = fn;
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
+      debounceTimerRef.current = setTimeout(() => {
+        persistWithStatus(fn);
+      }, 800);
     },
-    []
+    [persistWithStatus]
   );
 
-  const setActiveProject = (id: string | null) => {
-    setMainViewState('projects');
-    setActiveProjectIdState(id);
-    setActiveFolderId(null);
-    setActiveDocumentIdState(null);
-    setActivePageId(null);
-    StorageService.saveActiveProjectId(id);
-  };
-
-  const setActiveFolder = (id: string | null) => {
-    setActiveFolderId(id);
-    setActiveDocumentIdState(null);
-    setActivePageId(null);
-  };
-
-  const setActiveDocument = (id: string | null) => {
-    setActiveDocumentIdState(id);
-    if (id) {
-      setRecentDocumentIds((previous) => {
-        const next = [id, ...previous.filter((recentId) => recentId !== id)].slice(0, 30);
-        try { localStorage.setItem('blankspace_recent_documents', JSON.stringify(next)); } catch {}
-        return next;
-      });
-      const docPages = pagesRef.current.filter((p) => p.documentId === id).sort((a, b) => a.order - b.order);
-      if (docPages.length > 0) {
-        setActivePageId(docPages[0].id);
-      } else {
-        const fallbackPage: DocumentPage = {
-          id: generateId('page'),
-          documentId: id,
-          title: '페이지 1',
-          content: '',
-          order: 0,
-          createdAt: Date.now(),
-          updatedAt: Date.now(),
-        };
-        const updatedPages = [...pagesRef.current, fallbackPage];
-        pagesRef.current = updatedPages;
-        setPages(updatedPages);
-        processPagesQueue();
-        setActivePageId(fallbackPage.id);
-      }
+  const retryLastSave = useCallback(async () => {
+    if (pendingSaveRef.current) {
+      await persistWithStatus(pendingSaveRef.current);
     } else {
-      setActivePageId(null);
+      await persistWithStatus(async () => {
+        await StorageService.saveProjects(projectsRef.current);
+        await StorageService.saveFolders(foldersRef.current);
+        await StorageService.saveDocuments(documentsRef.current);
+        return StorageService.savePages(pagesRef.current);
+      });
     }
-  };
+  }, [persistWithStatus]);
 
-  // Active objects
-  const activeProject = useMemo(() => {
-    return projects.find((p) => p.id === activeProjectId) || null;
-  }, [projects, activeProjectId]);
+  const activeProjects = useMemo(
+    () =>
+      projects
+        .filter((p) => !p.deletedAt)
+        .sort((a, b) => {
+          if (sortOption === 'custom') return (a.order ?? 0) - (b.order ?? 0);
+          if (sortOption === 'name-asc') return a.name.localeCompare(b.name, 'ko');
+          if (sortOption === 'created-desc') return b.createdAt - a.createdAt;
+          return b.updatedAt - a.updatedAt;
+        }),
+    [projects, sortOption]
+  );
 
-  const activeFolder = useMemo(() => {
-    return folders.find((f) => f.id === activeFolderId) || null;
-  }, [folders, activeFolderId]);
+  const trashedProjects = useMemo(() => projects.filter((p) => Boolean(p.deletedAt)), [projects]);
+  const trashedFolders = useMemo(() => folders.filter((f) => Boolean(f.deletedAt)), [folders]);
+  const trashedDocuments = useMemo(() => documents.filter((d) => Boolean(d.deletedAt)), [documents]);
 
-  const activeDocument = useMemo(() => {
-    return documents.find((d) => d.id === activeDocumentId) || null;
-  }, [documents, activeDocumentId]);
+  const activeProject = useMemo(
+    () => projects.find((p) => p.id === activeProjectId && !p.deletedAt) || null,
+    [projects, activeProjectId]
+  );
 
-  // Phase 3: Breadcrumbs for nested folders
+  const activeFolder = useMemo(
+    () => folders.find((f) => f.id === activeFolderId && !f.deletedAt) || null,
+    [folders, activeFolderId]
+  );
+
+  const activeDocument = useMemo(
+    () => documents.find((d) => d.id === activeDocumentId && !d.deletedAt) || null,
+    [documents, activeDocumentId]
+  );
+
   const folderBreadcrumbs = useMemo(() => {
     if (!activeFolderId) return [];
-    const crumbs: Folder[] = [];
-    let curr = folders.find((f) => f.id === activeFolderId);
-    while (curr) {
-      crumbs.unshift(curr);
-      curr = curr.parentFolderId ? folders.find((f) => f.id === curr!.parentFolderId) : undefined;
+    const list: Folder[] = [];
+    let cur = folders.find((f) => f.id === activeFolderId && !f.deletedAt);
+    while (cur) {
+      list.unshift(cur);
+      cur = cur.parentFolderId
+        ? folders.find((f) => f.id === cur!.parentFolderId && !f.deletedAt)
+        : undefined;
     }
-    return crumbs;
+    return list;
   }, [folders, activeFolderId]);
 
-  // Current document pages
+  const currentFolders = useMemo(() => {
+    if (!activeProjectId) return [];
+    return folders
+      .filter((f) => !f.deletedAt && f.projectId === activeProjectId && f.parentFolderId === activeFolderId)
+      .sort((a, b) => a.order - b.order);
+  }, [folders, activeProjectId, activeFolderId]);
+
+  const currentDocuments = useMemo(() => {
+    if (!activeProjectId) return [];
+    return documents
+      .filter((d) => !d.deletedAt && d.projectId === activeProjectId && d.folderId === activeFolderId)
+      .sort((a, b) => a.order - b.order);
+  }, [documents, activeProjectId, activeFolderId]);
+
   const currentDocumentPages = useMemo(() => {
     if (!activeDocumentId) return [];
     return pages.filter((p) => p.documentId === activeDocumentId).sort((a, b) => a.order - b.order);
   }, [pages, activeDocumentId]);
 
-  // Active page
   const activePage = useMemo(() => {
-    if (!activePageId) {
-      return currentDocumentPages[0] || null;
+    if (!activeDocumentId) return null;
+    if (activePageId) {
+      const found = currentDocumentPages.find((p) => p.id === activePageId);
+      if (found) return found;
     }
-    return pages.find((p) => p.id === activePageId) || currentDocumentPages[0] || null;
-  }, [pages, activePageId, currentDocumentPages]);
+    return currentDocumentPages[0] || null;
+  }, [activeDocumentId, activePageId, currentDocumentPages]);
 
-  // Current folder's children
-  const currentFolders = useMemo(() => {
-    if (!activeProjectId) return [];
-    let list = folders.filter((f) => {
-      const matchProject = f.projectId === activeProjectId;
-      const matchParent = f.parentFolderId === activeFolderId;
-      const matchSearch = searchQuery.trim() === '' || f.name.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchProject && matchParent && matchSearch;
+  const setNavSection = (section: NavSection) => {
+    setNavSectionState(section);
+    setActiveDocumentId(null);
+    setActivePageId(null);
+    setEditingTemplateId(null);
+    setDocHistory([]);
+    if (section === 'main') {
+      setActiveProjectId(null);
+      setActiveFolderId(null);
+    }
+  };
+
+  const openProject = (projectId: string | null) => {
+    setNavSectionState('main');
+    setActiveProjectId(projectId);
+    setActiveFolderId(null);
+    setActiveDocumentId(null);
+    setActivePageId(null);
+    setEditingTemplateId(null);
+    setDocHistory([]);
+    if (projectId) {
+      setExpandedProjectIds((prev) => (prev.includes(projectId) ? prev : [...prev, projectId]));
+    }
+  };
+
+  const openFolder = (folderId: string | null) => {
+    if (folderId) {
+      const folder = foldersRef.current.find((f) => f.id === folderId && !f.deletedAt);
+      if (folder) {
+        setActiveProjectId(folder.projectId);
+        setExpandedProjectIds((prev) =>
+          prev.includes(folder.projectId) ? prev : [...prev, folder.projectId]
+        );
+      }
+    }
+    setNavSectionState('main');
+    setActiveFolderId(folderId);
+    setActiveDocumentId(null);
+    setActivePageId(null);
+    setEditingTemplateId(null);
+    setDocHistory([]);
+  };
+
+  const openDocument = (docId: string | null, pageId: string | null = null) => {
+    if (!docId) {
+      setActiveDocumentId(null);
+      setActivePageId(null);
+      setEditingTemplateId(null);
+      setDocHistory([]);
+      return;
+    }
+    const doc = documentsRef.current.find((d) => d.id === docId && !d.deletedAt);
+    if (!doc) return;
+
+    if (activeDocumentId && activeDocumentId !== docId) {
+      setDocHistory((prev) => [...prev, activeDocumentId]);
+    }
+
+    setNavSectionState('main');
+    setActiveProjectId(doc.projectId);
+    setActiveFolderId(doc.folderId);
+    setActiveDocumentId(docId);
+    setEditingTemplateId(null);
+
+    const docPages = pagesRef.current
+      .filter((p) => p.documentId === docId)
+      .sort((a, b) => a.order - b.order);
+
+    if (pageId && docPages.some((p) => p.id === pageId)) {
+      setActivePageId(pageId);
+    } else if (docPages.length > 0) {
+      setActivePageId(docPages[0].id);
+    } else {
+      const p: DocumentPage = {
+        id: generateId('page'),
+        documentId: docId,
+        title: doc.title,
+        content: '',
+        order: 0,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+      const nextPages = [...pagesRef.current, p];
+      setPages(nextPages);
+      StorageService.savePages(nextPages);
+      setActivePageId(p.id);
+    }
+
+    setRecentDocumentIds((prev) => {
+      const next = [docId, ...prev.filter((id) => id !== docId)].slice(0, 20);
+      try {
+        localStorage.setItem('blankspace_recent_documents', JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
     });
+  };
 
-    return [...list].sort((a, b) => {
-      if (sortOption === 'updated-desc') return b.updatedAt - a.updatedAt;
-      if (sortOption === 'created-desc') return b.createdAt - a.createdAt;
-      if (sortOption === 'name-asc') return a.name.localeCompare(b.name, 'ko');
-      return a.order - b.order;
-    });
-  }, [folders, activeProjectId, activeFolderId, searchQuery, sortOption]);
+  const goBackDocument = () => {
+    if (docHistory.length === 0) {
+      openDocument(null);
+      return;
+    }
+    const prevId = docHistory[docHistory.length - 1];
+    setDocHistory((prev) => prev.slice(0, -1));
+    setActiveDocumentId(prevId);
+  };
 
-  const currentDocuments = useMemo(() => {
-    if (!activeProjectId) return [];
-    let docs = documents.filter((d) => {
-      const matchProject = d.projectId === activeProjectId;
-      const matchFolder = d.folderId === activeFolderId;
-      const matchSearch = searchQuery.trim() === '' || d.title.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchProject && matchFolder && matchSearch;
-    });
+  const openTemplateEditor = (templateId: string | null) => {
+    setActiveDocumentId(null);
+    setActivePageId(null);
+    setEditingTemplateId(templateId);
+  };
 
-    return [...docs].sort((a, b) => {
-      if (sortOption === 'updated-desc') return b.updatedAt - a.updatedAt;
-      if (sortOption === 'created-desc') return b.createdAt - a.createdAt;
-      if (sortOption === 'name-asc') return a.title.localeCompare(b.title, 'ko');
-      return a.order - b.order;
-    });
-  }, [documents, activeProjectId, activeFolderId, searchQuery, sortOption]);
+  const toggleSidebarCollapsed = () => setIsSidebarCollapsed((prev) => !prev);
+  const toggleProjectExpanded = (projectId: string) => {
+    setExpandedProjectIds((prev) =>
+      prev.includes(projectId) ? prev.filter((id) => id !== projectId) : [...prev, projectId]
+    );
+  };
 
-  // Project Actions
-  const createProject = async (name: string, description: string = '', coverImage?: string): Promise<Project> => {
-    const newProject: Project = {
+  // Project Mutations
+  const createProject = (name: string, description = '프로젝트 설명', coverColor = '#D9D5F3') => {
+    const newProj: Project = {
       id: generateId('proj'),
-      name,
-      description,
-      coverImage: coverImage || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1200&auto=format&fit=crop',
-      avatarImage: 'https://images.unsplash.com/photo-1534447677768-be436bb09401?q=80&w=300&auto=format&fit=crop',
+      name: name.trim() || '새 프로젝트',
+      description: description.trim() || '프로젝트 설명',
+      coverColor,
+      order: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-
-    const updated = [newProject, ...projectsRef.current];
-    projectsRef.current = updated;
-    setProjects(updated);
-    processProjectsQueue();
-    setActiveProject(newProject.id);
-    return newProject;
+    const next = [newProj, ...projectsRef.current.map((p, idx) => ({ ...p, order: idx + 1 }))];
+    setProjects(next);
+    persistWithStatus(() => StorageService.saveProjects(next));
+    openProject(newProj.id);
+    return newProj;
   };
 
-  const deleteProject = async (id: string) => {
-    const updatedProjects = projectsRef.current.filter((p) => p.id !== id);
-    const updatedFolders = foldersRef.current.filter((f) => f.projectId !== id);
-    const updatedDocs = documentsRef.current.filter((d) => d.projectId !== id);
-    const docIdsToRemove = new Set(documentsRef.current.filter((d) => d.projectId === id).map((d) => d.id));
-    const updatedPages = pagesRef.current.filter((p) => !docIdsToRemove.has(p.documentId));
+  const updateProject = (id: string, patch: Partial<Project>) => {
+    const next = projectsRef.current.map((p) =>
+      p.id === id ? { ...p, ...patch, updatedAt: Date.now() } : p
+    );
+    setProjects(next);
+    persistWithStatus(() => StorageService.saveProjects(next));
+  };
 
-    projectsRef.current = updatedProjects;
-    foldersRef.current = updatedFolders;
-    documentsRef.current = updatedDocs;
-    pagesRef.current = updatedPages;
+  const toggleFavoriteProject = (id: string) => {
+    const proj = projectsRef.current.find((p) => p.id === id);
+    if (!proj) return;
+    updateProject(id, { isFavorite: !proj.isFavorite });
+  };
 
-    setProjects(updatedProjects);
-    setFolders(updatedFolders);
-    setDocuments(updatedDocs);
-    setPages(updatedPages);
+  const duplicateProject = (id: string) => {
+    const src = projectsRef.current.find((p) => p.id === id);
+    if (!src) return null;
+    const now = Date.now();
+    const newProjId = generateId('proj');
+    const newProj: Project = {
+      ...src,
+      id: newProjId,
+      name: `${src.name} 복사본`,
+      createdAt: now,
+      updatedAt: now,
+      order: projectsRef.current.length,
+    };
 
-    processProjectsQueue();
-    processFoldersQueue();
-    processDocsQueue();
-    processPagesQueue();
+    const folderMap = new Map<string, string>();
+    const srcFolders = foldersRef.current.filter((f) => f.projectId === id && !f.deletedAt);
+    srcFolders.forEach((f) => folderMap.set(f.id, generateId('folder')));
 
+    const clonedFolders: Folder[] = srcFolders.map((f) => ({
+      ...f,
+      id: folderMap.get(f.id)!,
+      projectId: newProjId,
+      parentFolderId: f.parentFolderId ? folderMap.get(f.parentFolderId) || null : null,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    const docMap = new Map<string, string>();
+    const srcDocs = documentsRef.current.filter((d) => d.projectId === id && !d.deletedAt);
+    srcDocs.forEach((d) => docMap.set(d.id, generateId('doc')));
+
+    const clonedDocs: Document[] = srcDocs.map((d) => ({
+      ...d,
+      id: docMap.get(d.id)!,
+      projectId: newProjId,
+      folderId: d.folderId ? folderMap.get(d.folderId) || null : null,
+      createdAt: now,
+      updatedAt: now,
+    }));
+
+    const clonedPages: DocumentPage[] = [];
+    srcDocs.forEach((d) => {
+      pagesRef.current
+        .filter((p) => p.documentId === d.id)
+        .forEach((pg) => {
+          let content = pg.content;
+          docMap.forEach((newId, oldId) => {
+            content = content.split(oldId).join(newId);
+          });
+          clonedPages.push({
+            ...pg,
+            id: generateId('page'),
+            documentId: docMap.get(d.id)!,
+            content,
+            createdAt: now,
+            updatedAt: now,
+          });
+        });
+    });
+
+    const nextProjs = [...projectsRef.current, newProj];
+    const nextFolders = [...foldersRef.current, ...clonedFolders];
+    const nextDocs = [...documentsRef.current, ...clonedDocs];
+    const nextPages = [...pagesRef.current, ...clonedPages];
+
+    setProjects(nextProjs);
+    setFolders(nextFolders);
+    setDocuments(nextDocs);
+    setPages(nextPages);
+    persistWithStatus(async () => {
+      await StorageService.saveProjects(nextProjs);
+      await StorageService.saveFolders(nextFolders);
+      await StorageService.saveDocuments(nextDocs);
+      return StorageService.savePages(nextPages);
+    });
+    return newProj;
+  };
+
+  const reorderProjects = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const list = [...activeProjects];
+    const fromIdx = list.findIndex((p) => p.id === fromId);
+    const toIdx = list.findIndex((p) => p.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    const [moved] = list.splice(fromIdx, 1);
+    list.splice(toIdx, 0, moved);
+    const orderMap = new Map(list.map((p, i) => [p.id, i]));
+    const next = projectsRef.current.map((p) =>
+      orderMap.has(p.id) ? { ...p, order: orderMap.get(p.id)! } : p
+    );
+    setSortOption('custom');
+    setProjects(next);
+    persistWithStatus(() => StorageService.saveProjects(next));
+  };
+
+  const moveProjectToTrash = (id: string) => {
+    const deletedAt = Date.now();
+    const nextProjs = projectsRef.current.map((p) => (p.id === id ? { ...p, deletedAt } : p));
+    const nextFolders = foldersRef.current.map((f) =>
+      f.projectId === id && !f.deletedAt ? { ...f, deletedAt } : f
+    );
+    const nextDocs = documentsRef.current.map((d) =>
+      d.projectId === id && !d.deletedAt ? { ...d, deletedAt } : d
+    );
+    setProjects(nextProjs);
+    setFolders(nextFolders);
+    setDocuments(nextDocs);
+    persistWithStatus(async () => {
+      await StorageService.saveProjects(nextProjs);
+      await StorageService.saveFolders(nextFolders);
+      return StorageService.saveDocuments(nextDocs);
+    });
     if (activeProjectId === id) {
-      setActiveProject(updatedProjects.length > 0 ? updatedProjects[0].id : null);
+      openProject(null);
     }
   };
 
-  const renameProject = async (id: string, name: string) => {
-    if (!name.trim()) return;
-    const updated = projectsRef.current.map((p) =>
-      p.id === id ? { ...p, name: name.trim(), updatedAt: Date.now() } : p
-    );
-    projectsRef.current = updated;
-    setProjects(updated);
-    processProjectsQueue();
-  };
-
-  // Folder Actions (Phase 3)
-  const createFolder = async (name: string): Promise<Folder> => {
+  // Folder Mutations
+  const createFolder = (name: string, description = '폴더 설명') => {
     if (!activeProjectId) throw new Error('No active project');
-
     const newFolder: Folder = {
       id: generateId('folder'),
       projectId: activeProjectId,
       parentFolderId: activeFolderId,
-      name,
+      name: name.trim() || '새 폴더',
+      description: description.trim() || '폴더 설명',
       order: currentFolders.length,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-
-    const updated = [...foldersRef.current, newFolder];
-    foldersRef.current = updated;
-    setFolders(updated);
-    processFoldersQueue();
+    const next = [...foldersRef.current, newFolder];
+    setFolders(next);
+    persistWithStatus(() => StorageService.saveFolders(next));
     return newFolder;
   };
 
-  const deleteFolder = async (folderId: string) => {
-    // Collect all descendant folder IDs to cascade delete
-    const folderIdsToDelete = new Set<string>([folderId]);
-    let added = true;
-    while (added) {
-      added = false;
+  const updateFolder = (id: string, patch: Partial<Folder>) => {
+    const next = foldersRef.current.map((f) =>
+      f.id === id ? { ...f, ...patch, updatedAt: Date.now() } : f
+    );
+    setFolders(next);
+    persistWithStatus(() => StorageService.saveFolders(next));
+  };
+
+  const collectDescendantFolderIds = (rootId: string): Set<string> => {
+    const ids = new Set<string>([rootId]);
+    let changed = true;
+    while (changed) {
+      changed = false;
       for (const f of foldersRef.current) {
-        if (f.parentFolderId && folderIdsToDelete.has(f.parentFolderId) && !folderIdsToDelete.has(f.id)) {
-          folderIdsToDelete.add(f.id);
-          added = true;
+        if (f.parentFolderId && ids.has(f.parentFolderId) && !ids.has(f.id)) {
+          ids.add(f.id);
+          changed = true;
         }
       }
     }
+    return ids;
+  };
 
-    const updatedFolders = foldersRef.current.filter((f) => !folderIdsToDelete.has(f.id));
-    const docsToDelete = documentsRef.current.filter((d) => d.folderId && folderIdsToDelete.has(d.folderId));
-    const docIdsToDelete = new Set(docsToDelete.map((d) => d.id));
-    const updatedDocs = documentsRef.current.filter((d) => !docIdsToDelete.has(d.id));
-    const updatedPages = pagesRef.current.filter((p) => !docIdsToDelete.has(p.documentId));
+  const duplicateFolder = (id: string) => {
+    const src = foldersRef.current.find((f) => f.id === id);
+    if (!src) return null;
+    const now = Date.now();
+    const descendantIds = collectDescendantFolderIds(id);
+    const folderMap = new Map<string, string>();
+    descendantIds.forEach((fid) => folderMap.set(fid, generateId('folder')));
 
-    foldersRef.current = updatedFolders;
-    documentsRef.current = updatedDocs;
-    pagesRef.current = updatedPages;
+    const srcFolders = foldersRef.current.filter((f) => descendantIds.has(f.id) && !f.deletedAt);
+    const clonedFolders: Folder[] = srcFolders.map((f) => ({
+      ...f,
+      id: folderMap.get(f.id)!,
+      name: f.id === id ? `${f.name} 복사본` : f.name,
+      parentFolderId: f.id === id ? src.parentFolderId : folderMap.get(f.parentFolderId!) || null,
+      createdAt: now,
+      updatedAt: now,
+    }));
 
-    setFolders(updatedFolders);
-    setDocuments(updatedDocs);
-    setPages(updatedPages);
+    const srcDocs = documentsRef.current.filter(
+      (d) => d.folderId && descendantIds.has(d.folderId) && !d.deletedAt
+    );
+    const docMap = new Map<string, string>();
+    srcDocs.forEach((d) => docMap.set(d.id, generateId('doc')));
 
-    processFoldersQueue();
-    processDocsQueue();
-    processPagesQueue();
+    const clonedDocs: Document[] = srcDocs.map((d) => ({
+      ...d,
+      id: docMap.get(d.id)!,
+      folderId: folderMap.get(d.folderId!) || null,
+      createdAt: now,
+      updatedAt: now,
+    }));
 
-    // If currently inside deleted folder, navigate to parent or root
-    if (activeFolderId && folderIdsToDelete.has(activeFolderId)) {
-      const currentFolderObj = foldersRef.current.find((f) => f.id === folderId);
-      setActiveFolder(currentFolderObj?.parentFolderId || null);
+    const clonedPages: DocumentPage[] = [];
+    srcDocs.forEach((d) => {
+      pagesRef.current
+        .filter((p) => p.documentId === d.id)
+        .forEach((pg) => {
+          let content = pg.content;
+          docMap.forEach((newId, oldId) => {
+            content = content.split(oldId).join(newId);
+          });
+          clonedPages.push({
+            ...pg,
+            id: generateId('page'),
+            documentId: docMap.get(d.id)!,
+            content,
+            createdAt: now,
+            updatedAt: now,
+          });
+        });
+    });
+
+    const nextFolders = [...foldersRef.current, ...clonedFolders];
+    const nextDocs = [...documentsRef.current, ...clonedDocs];
+    const nextPages = [...pagesRef.current, ...clonedPages];
+    setFolders(nextFolders);
+    setDocuments(nextDocs);
+    setPages(nextPages);
+    persistWithStatus(async () => {
+      await StorageService.saveFolders(nextFolders);
+      await StorageService.saveDocuments(nextDocs);
+      return StorageService.savePages(nextPages);
+    });
+    return clonedFolders.find((f) => f.id === folderMap.get(id)) || null;
+  };
+
+  const moveFolderToTrash = (id: string) => {
+    const deletedAt = Date.now();
+    const folderIds = collectDescendantFolderIds(id);
+    const descendantDocs = documentsRef.current.filter(
+      (d) => d.folderId && folderIds.has(d.folderId) && !d.deletedAt
+    );
+    const descendantCount = folderIds.size - 1 + descendantDocs.length;
+
+    const nextFolders = foldersRef.current.map((f) =>
+      folderIds.has(f.id) && !f.deletedAt ? { ...f, deletedAt } : f
+    );
+    const nextDocs = documentsRef.current.map((d) =>
+      d.folderId && folderIds.has(d.folderId) && !d.deletedAt ? { ...d, deletedAt } : d
+    );
+    setFolders(nextFolders);
+    setDocuments(nextDocs);
+    persistWithStatus(async () => {
+      await StorageService.saveFolders(nextFolders);
+      return StorageService.saveDocuments(nextDocs);
+    });
+    if (activeFolderId && folderIds.has(activeFolderId)) {
+      const f = foldersRef.current.find((item) => item.id === id);
+      openFolder(f?.parentFolderId || null);
+    }
+    return { descendantCount };
+  };
+
+  const reorderItems = (kind: 'folder' | 'document', fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    if (kind === 'folder') {
+      const list = [...currentFolders];
+      const fi = list.findIndex((f) => f.id === fromId);
+      const ti = list.findIndex((f) => f.id === toId);
+      if (fi < 0 || ti < 0) return;
+      const [moved] = list.splice(fi, 1);
+      list.splice(ti, 0, moved);
+      const map = new Map(list.map((f, i) => [f.id, i]));
+      const next = foldersRef.current.map((f) => (map.has(f.id) ? { ...f, order: map.get(f.id)! } : f));
+      setFolders(next);
+      persistWithStatus(() => StorageService.saveFolders(next));
+    } else {
+      const list = [...currentDocuments];
+      const fi = list.findIndex((d) => d.id === fromId);
+      const ti = list.findIndex((d) => d.id === toId);
+      if (fi < 0 || ti < 0) return;
+      const [moved] = list.splice(fi, 1);
+      list.splice(ti, 0, moved);
+      const map = new Map(list.map((d, i) => [d.id, i]));
+      const next = documentsRef.current.map((d) => (map.has(d.id) ? { ...d, order: map.get(d.id)! } : d));
+      setDocuments(next);
+      persistWithStatus(() => StorageService.saveDocuments(next));
     }
   };
 
-  const renameFolder = async (folderId: string, newName: string) => {
-    if (!newName.trim()) return;
-    const updated = foldersRef.current.map((f) =>
-      f.id === folderId ? { ...f, name: newName.trim(), updatedAt: Date.now() } : f
-    );
-    foldersRef.current = updated;
-    setFolders(updated);
-    processFoldersQueue();
-  };
-
-  // Document Actions
-  const createDocument = async (
+  // Document & Page Mutations
+  const createDocument = (
     title: string,
     templateType: string,
-    category: TemplateCategoryType
-  ): Promise<Document> => {
+    category: TemplateCategoryType,
+    initialContent?: string
+  ) => {
     if (!activeProjectId) throw new Error('No active project');
-
-    const template = TEMPLATES.find((t) => t.id === templateType);
-    const finalTitle = title.trim() || template?.defaultTitle || '새 문서';
-
-    const defaultCovers: Record<string, string> = {
-      character: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?q=80&w=600&auto=format&fit=crop',
-      world: 'https://images.unsplash.com/photo-1524661135-423995f22d0b?q=80&w=600&auto=format&fit=crop',
-      planning: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=80&w=600&auto=format&fit=crop',
-      design: 'https://images.unsplash.com/photo-1579783902614-a3fb3927b675?q=80&w=600&auto=format&fit=crop',
-      general: 'https://images.unsplash.com/photo-1484480974693-6ca0a78fb36b?q=80&w=600&auto=format&fit=crop',
-    };
-
+    const tpl = TEMPLATES.find((t) => t.id === templateType);
+    const docId = generateId('doc');
     const newDoc: Document = {
-      id: generateId('doc'),
+      id: docId,
       projectId: activeProjectId,
       folderId: activeFolderId,
-      title: finalTitle,
+      title: title.trim() || tpl?.defaultTitle || '새 문서',
+      description: tpl?.description || '',
+      tags: [],
       templateType,
       category,
-      coverImage: defaultCovers[category] || defaultCovers.general,
+      docKind: tpl?.docKind || 'template',
       isFavorite: false,
       order: currentDocuments.length,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
-    const initialContent = template?.defaultContent
-      ? `<h2>${template.name}</h2><p>${template.description}</p><hr/><p>${template.defaultContent.replace(/\n/g, '<br/>')}</p>`
-      : '<p></p>';
-
+    const overrideContent = defaultTemplateOverrides[templateType];
+    const resolvedContent = initialContent ?? overrideContent ?? tpl?.defaultContent ?? '';
     const newPage: DocumentPage = {
       id: generateId('page'),
-      documentId: newDoc.id,
-      title: '페이지 1',
-      content: initialContent,
+      documentId: docId,
+      title: newDoc.title,
+      content: resolvedContent,
       order: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
-    const updatedDocs = [newDoc, ...documentsRef.current];
-    const updatedPages = [...pagesRef.current, newPage];
-
-    documentsRef.current = updatedDocs;
-    pagesRef.current = updatedPages;
-
-    setDocuments(updatedDocs);
-    setPages(updatedPages);
-
-    processDocsQueue();
-    processPagesQueue();
-
+    const nextDocs = [...documentsRef.current, newDoc];
+    const nextPages = [...pagesRef.current, newPage];
+    setDocuments(nextDocs);
+    setPages(nextPages);
+    persistWithStatus(async () => {
+      await StorageService.saveDocuments(nextDocs);
+      return StorageService.savePages(nextPages);
+    });
     return newDoc;
   };
 
-  const deleteDocument = async (documentId: string) => {
-    const updatedDocs = documentsRef.current.filter((d) => d.id !== documentId);
-    const updatedPages = pagesRef.current.filter((p) => p.documentId !== documentId);
+  const updateDocument = (id: string, patch: Partial<Document>) => {
+    const next = documentsRef.current.map((d) =>
+      d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d
+    );
+    setDocuments(next);
+    persistWithStatus(() => StorageService.saveDocuments(next));
+  };
 
-    documentsRef.current = updatedDocs;
-    pagesRef.current = updatedPages;
+  const duplicateDocument = (id: string) => {
+    const src = documentsRef.current.find((d) => d.id === id);
+    if (!src) return null;
+    const now = Date.now();
+    const newDocId = generateId('doc');
+    const clonedDoc: Document = {
+      ...src,
+      id: newDocId,
+      title: `${src.title} 복사본`,
+      createdAt: now,
+      updatedAt: now,
+      order: currentDocuments.length,
+    };
+    const clonedPages = pagesRef.current
+      .filter((p) => p.documentId === id)
+      .map((pg) => ({
+        ...pg,
+        id: generateId('page'),
+        documentId: newDocId,
+        createdAt: now,
+        updatedAt: now,
+      }));
+    const nextDocs = [...documentsRef.current, clonedDoc];
+    const nextPages = [...pagesRef.current, ...clonedPages];
+    setDocuments(nextDocs);
+    setPages(nextPages);
+    persistWithStatus(async () => {
+      await StorageService.saveDocuments(nextDocs);
+      return StorageService.savePages(nextPages);
+    });
+    return clonedDoc;
+  };
 
-    setDocuments(updatedDocs);
-    setPages(updatedPages);
+  const toggleFavoriteDocument = (id: string) => {
+    const doc = documentsRef.current.find((d) => d.id === id);
+    if (!doc) return;
+    updateDocument(id, { isFavorite: !doc.isFavorite });
+  };
 
-    processDocsQueue();
-    processPagesQueue();
-
-    if (activeDocumentId === documentId) {
-      setActiveDocument(null);
+  const moveDocumentToTrash = (id: string) => {
+    const deletedAt = Date.now();
+    const next = documentsRef.current.map((d) => (d.id === id ? { ...d, deletedAt } : d));
+    setDocuments(next);
+    persistWithStatus(() => StorageService.saveDocuments(next));
+    if (activeDocumentId === id) {
+      setActiveDocumentId(null);
+      setActivePageId(null);
     }
   };
 
-  const toggleFavoriteDocument = async (id: string) => {
-    const updated = documentsRef.current.map((d) => (d.id === id ? { ...d, isFavorite: !d.isFavorite } : d));
-    documentsRef.current = updated;
-    setDocuments(updated);
-    processDocsQueue();
+  const moveDocumentToFolder = (docId: string, targetFolderId: string | null) => {
+    updateDocument(docId, { folderId: targetFolderId });
   };
 
-  const updateDocumentTitle = async (id: string, newTitle: string) => {
-    const updated = documentsRef.current.map((d) =>
-      d.id === id ? { ...d, title: newTitle, updatedAt: Date.now() } : d
-    );
-    documentsRef.current = updated;
-    setDocuments(updated);
-    processDocsQueue();
-  };
-
-  // Page Actions (Phase 2)
-  const createPage = async (title?: string): Promise<DocumentPage> => {
-    if (!activeDocumentId) throw new Error('No active document');
-
-    const nextOrder = currentDocumentPages.length;
-    const pageTitle = title?.trim() || `페이지 ${nextOrder + 1}`;
-
+  const createPage = (docId: string, title = '새 페이지', content = '') => {
+    const existing = pagesRef.current.filter((p) => p.documentId === docId);
     const newPage: DocumentPage = {
       id: generateId('page'),
-      documentId: activeDocumentId,
-      title: pageTitle,
-      content: '<p></p>',
-      order: nextOrder,
+      documentId: docId,
+      title,
+      content,
+      order: existing.length,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-
-    const updatedPages = [...pagesRef.current, newPage];
-    pagesRef.current = updatedPages;
-    setPages(updatedPages);
+    const next = [...pagesRef.current, newPage];
+    setPages(next);
+    persistWithStatus(() => StorageService.savePages(next));
     setActivePageId(newPage.id);
-    processPagesQueue();
-
-    updateDocumentTitle(activeDocumentId, activeDocument?.title || '');
     return newPage;
   };
 
-  const renamePage = async (pageId: string, newTitle: string) => {
-    if (!newTitle.trim()) return;
-    const updatedPages = pagesRef.current.map((p) =>
-      p.id === pageId ? { ...p, title: newTitle.trim(), updatedAt: Date.now() } : p
+  const updatePage = (pageId: string, patch: Partial<DocumentPage>) => {
+    const nextPages = pagesRef.current.map((p) =>
+      p.id === pageId ? { ...p, ...patch, updatedAt: Date.now() } : p
     );
-    pagesRef.current = updatedPages;
-    setPages(updatedPages);
-    processPagesQueue();
-  };
-
-  const deletePage = async (pageId: string): Promise<{ success: boolean; message?: string }> => {
-    if (!activeDocumentId) return { success: false, message: '활성 문서가 없습니다.' };
-
-    if (currentDocumentPages.length <= 1) {
-      return { success: false, message: '문서에는 최소 1개의 페이지가 유지되어야 합니다.' };
-    }
-
-    const remainingPages = currentDocumentPages.filter((p) => p.id !== pageId);
-    const updatedAllPages = pagesRef.current.filter((p) => p.id !== pageId);
-
-    pagesRef.current = updatedAllPages;
-    setPages(updatedAllPages);
-    processPagesQueue();
-
-    if (activePageId === pageId) {
-      setActivePageId(remainingPages[0].id);
-    }
-
-    return { success: true };
-  };
-
-  const updatePageContent = async (pageId: string, content: string): Promise<{ success: boolean; error?: string }> => {
-    const targetIdx = pagesRef.current.findIndex((p) => p.id === pageId);
-    if (targetIdx === -1) {
-      return { success: false, error: '페이지를 찾을 수 없습니다.' };
-    }
-
-    // 동일한 내용일 경우 불필요한 재저장 및 리렌더링 루프 방지
-    if (pagesRef.current[targetIdx].content === content) {
-      return { success: true };
-    }
-
-    const targetDocId = pagesRef.current[targetIdx].documentId;
-    const now = Date.now();
-
-    // 1. Pages Ref & State 동기 갱신 (Stale closure 원천 방지)
-    const nextPages = pagesRef.current.map((p, idx) =>
-      idx === targetIdx ? { ...p, content, updatedAt: now } : p
-    );
-    pagesRef.current = nextPages;
     setPages(nextPages);
 
-    // 2. Documents Ref & State 동기 갱신
-    const nextDocs = documentsRef.current.map((d) =>
-      d.id === targetDocId ? { ...d, updatedAt: now } : d
-    );
-    documentsRef.current = nextDocs;
-    setDocuments(nextDocs);
-
-    // 3. 비동기 영속화 큐 처리
-    processDocsQueue();
-    return await processPagesQueue();
-  };
-
-  // Phase 3: Drag and Drop & Hierarchy Management
-  const moveItem = async (
-    type: 'folder' | 'document',
-    itemId: string,
-    targetFolderId: string | null
-  ): Promise<{ success: boolean; message?: string }> => {
-    if (type === 'document') {
-      const updatedDocs = documentsRef.current.map((d) =>
-        d.id === itemId ? { ...d, folderId: targetFolderId, updatedAt: Date.now() } : d
+    const targetPage = nextPages.find((p) => p.id === pageId);
+    if (targetPage) {
+      const nextDocs = documentsRef.current.map((d) =>
+        d.id === targetPage.documentId ? { ...d, updatedAt: Date.now() } : d
       );
-      documentsRef.current = updatedDocs;
-      setDocuments(updatedDocs);
-      processDocsQueue();
-      return { success: true };
+      setDocuments(nextDocs);
+      if (autoSaveEnabled) {
+        persistDebounced(async () => {
+          await StorageService.saveDocuments(nextDocs);
+          return StorageService.savePages(nextPages);
+        });
+      }
     }
-
-    // If moving a folder
-    if (itemId === targetFolderId) {
-      return { success: false, message: '폴더를 자기 자신 안으로 이동할 수 없습니다.' };
-    }
-
-    if (targetFolderId && isFolderDescendant(foldersRef.current, itemId, targetFolderId)) {
-      return { success: false, message: '폴더를 자신의 하위 폴더 안으로 이동할 수 없습니다.' };
-    }
-
-    const updatedFolders = foldersRef.current.map((f) =>
-      f.id === itemId ? { ...f, parentFolderId: targetFolderId, updatedAt: Date.now() } : f
-    );
-    foldersRef.current = updatedFolders;
-    setFolders(updatedFolders);
-    processFoldersQueue();
-    return { success: true };
   };
 
-  const reorderItems = async (
-    type: 'folder' | 'document',
-    activeId: string,
-    overId: string
-  ) => {
-    if (activeId === overId) return;
+  const deletePage = (pageId: string) => {
+    const next = pagesRef.current.filter((p) => p.id !== pageId);
+    setPages(next);
+    persistWithStatus(() => StorageService.savePages(next));
+    if (activePageId === pageId) {
+      setActivePageId(null);
+    }
+  };
 
+  // Trash Operations
+  const needsRestoreTarget = (type: 'folder' | 'document', id: string): boolean => {
     if (type === 'folder') {
-      const currentList = [...currentFolders];
-      const fromIdx = currentList.findIndex((f) => f.id === activeId);
-      const toIdx = currentList.findIndex((f) => f.id === overId);
-      if (fromIdx < 0 || toIdx < 0) return;
-
-      const [moved] = currentList.splice(fromIdx, 1);
-      currentList.splice(toIdx, 0, moved);
-
-      // Reassign order
-      const orderMap = new Map(currentList.map((item, idx) => [item.id, idx]));
-      const updatedFolders = foldersRef.current.map((f) =>
-        orderMap.has(f.id) ? { ...f, order: orderMap.get(f.id)! } : f
-      );
-
-      foldersRef.current = updatedFolders;
-      setFolders(updatedFolders);
-      processFoldersQueue();
-    } else {
-      const currentList = [...currentDocuments];
-      const fromIdx = currentList.findIndex((d) => d.id === activeId);
-      const toIdx = currentList.findIndex((d) => d.id === overId);
-      if (fromIdx < 0 || toIdx < 0) return;
-
-      const [moved] = currentList.splice(fromIdx, 1);
-      currentList.splice(toIdx, 0, moved);
-
-      const orderMap = new Map(currentList.map((item, idx) => [item.id, idx]));
-      const updatedDocs = documentsRef.current.map((d) =>
-        orderMap.has(d.id) ? { ...d, order: orderMap.get(d.id)! } : d
-      );
-
-      documentsRef.current = updatedDocs;
-      setDocuments(updatedDocs);
-      processDocsQueue();
+      const folder = foldersRef.current.find((f) => f.id === id);
+      if (!folder) return true;
+      const proj = projectsRef.current.find((p) => p.id === folder.projectId && !p.deletedAt);
+      if (!proj) return true;
+      if (folder.parentFolderId) {
+        const parent = foldersRef.current.find((f) => f.id === folder.parentFolderId && !f.deletedAt);
+        if (!parent) return true;
+      }
+      return false;
     }
+    const doc = documentsRef.current.find((d) => d.id === id);
+    if (!doc) return true;
+    const proj = projectsRef.current.find((p) => p.id === doc.projectId && !p.deletedAt);
+    if (!proj) return true;
+    if (doc.folderId) {
+      const folder = foldersRef.current.find((f) => f.id === doc.folderId && !f.deletedAt);
+      if (!folder) return true;
+    }
+    return false;
+  };
+
+  const restoreItems = (
+    items: { type: 'project' | 'folder' | 'document'; id: string }[],
+    fallbackTarget?: { projectId: string; folderId: string | null }
+  ) => {
+    const projRestore = new Set<string>();
+    const folderRestore = new Set<string>();
+    const docRestore = new Set<string>();
+
+    for (const item of items) {
+      if (item.type === 'project') {
+        projRestore.add(item.id);
+        foldersRef.current
+          .filter((f) => f.projectId === item.id && f.deletedAt)
+          .forEach((f) => folderRestore.add(f.id));
+        documentsRef.current
+          .filter((d) => d.projectId === item.id && d.deletedAt)
+          .forEach((d) => docRestore.add(d.id));
+      } else if (item.type === 'folder') {
+        const descendants = collectDescendantFolderIds(item.id);
+        descendants.forEach((fid) => folderRestore.add(fid));
+        documentsRef.current
+          .filter((d) => d.folderId && descendants.has(d.folderId) && d.deletedAt)
+          .forEach((d) => docRestore.add(d.id));
+      } else {
+        docRestore.add(item.id);
+      }
+    }
+
+    const nextProjs = projectsRef.current.map((p) =>
+      projRestore.has(p.id) ? { ...p, deletedAt: null } : p
+    );
+    const nextFolders = foldersRef.current.map((f) => {
+      if (!folderRestore.has(f.id)) return f;
+      if (fallbackTarget && items.some((i) => i.type === 'folder' && i.id === f.id)) {
+        return {
+          ...f,
+          deletedAt: null,
+          projectId: fallbackTarget.projectId,
+          parentFolderId: fallbackTarget.folderId,
+        };
+      }
+      return { ...f, deletedAt: null };
+    });
+    const nextDocs = documentsRef.current.map((d) => {
+      if (!docRestore.has(d.id)) return d;
+      if (fallbackTarget && items.some((i) => i.type === 'document' && i.id === d.id)) {
+        return {
+          ...d,
+          deletedAt: null,
+          projectId: fallbackTarget.projectId,
+          folderId: fallbackTarget.folderId,
+        };
+      }
+      return { ...d, deletedAt: null };
+    });
+
+    setProjects(nextProjs);
+    setFolders(nextFolders);
+    setDocuments(nextDocs);
+    persistWithStatus(async () => {
+      await StorageService.saveProjects(nextProjs);
+      await StorageService.saveFolders(nextFolders);
+      return StorageService.saveDocuments(nextDocs);
+    });
+  };
+
+  const permanentlyDeleteItems = (
+    items: { type: 'project' | 'folder' | 'document'; id: string }[]
+  ) => {
+    const projDel = new Set(items.filter((i) => i.type === 'project').map((i) => i.id));
+    const folderDel = new Set<string>();
+    items
+      .filter((i) => i.type === 'folder')
+      .forEach((i) => collectDescendantFolderIds(i.id).forEach((fid) => folderDel.add(fid)));
+
+    const docDel = new Set(items.filter((i) => i.type === 'document').map((i) => i.id));
+    documentsRef.current.forEach((d) => {
+      if (projDel.has(d.projectId) || (d.folderId && folderDel.has(d.folderId))) {
+        docDel.add(d.id);
+      }
+    });
+
+    const nextProjs = projectsRef.current.filter((p) => !projDel.has(p.id));
+    const nextFolders = foldersRef.current.filter(
+      (f) => !projDel.has(f.projectId) && !folderDel.has(f.id)
+    );
+    const nextDocs = documentsRef.current.filter((d) => !docDel.has(d.id));
+    const nextPages = pagesRef.current.filter((p) => !docDel.has(p.documentId));
+
+    setProjects(nextProjs);
+    setFolders(nextFolders);
+    setDocuments(nextDocs);
+    setPages(nextPages);
+    persistWithStatus(async () => {
+      await StorageService.saveProjects(nextProjs);
+      await StorageService.saveFolders(nextFolders);
+      await StorageService.saveDocuments(nextDocs);
+      return StorageService.savePages(nextPages);
+    });
+  };
+
+  const emptyTrash = () => {
+    const trashedDocIds = new Set(documentsRef.current.filter((d) => d.deletedAt).map((d) => d.id));
+    const nextProjs = projectsRef.current.filter((p) => !p.deletedAt);
+    const nextFolders = foldersRef.current.filter((f) => !f.deletedAt);
+    const nextDocs = documentsRef.current.filter((d) => !d.deletedAt);
+    const nextPages = pagesRef.current.filter((p) => !trashedDocIds.has(p.documentId));
+
+    setProjects(nextProjs);
+    setFolders(nextFolders);
+    setDocuments(nextDocs);
+    setPages(nextPages);
+    persistWithStatus(async () => {
+      await StorageService.saveProjects(nextProjs);
+      await StorageService.saveFolders(nextFolders);
+      await StorageService.saveDocuments(nextDocs);
+      return StorageService.savePages(nextPages);
+    });
+  };
+
+  const saveDefaultTemplateOverride = (templateId: string, content: string) => {
+    const next = { ...defaultTemplateOverrides, [templateId]: content };
+    setDefaultTemplateOverrides(next);
+    persistWithStatus(() => StorageService.saveDefaultTemplateOverrides(next));
+  };
+
+  const resetDefaultTemplateOverride = (templateId: string) => {
+    const next = { ...defaultTemplateOverrides };
+    delete next[templateId];
+    setDefaultTemplateOverrides(next);
+    persistWithStatus(() => StorageService.saveDefaultTemplateOverrides(next));
+  };
+
+  const createUserTemplate = (
+    name: string,
+    description: string,
+    category: TemplateCategoryType,
+    baseTemplateType: string,
+    content: string
+  ) => {
+    const tpl: UserTemplate = {
+      id: generateId('utpl'),
+      name: name.trim() || '사용자 템플릿',
+      description: description.trim(),
+      category,
+      baseTemplateType,
+      content,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    };
+    const next = [...userTemplates, tpl];
+    setUserTemplates(next);
+    persistWithStatus(() => StorageService.saveUserTemplates(next));
+    return tpl;
+  };
+
+  const deleteUserTemplate = (id: string) => {
+    const next = userTemplates.filter((t) => t.id !== id);
+    setUserTemplates(next);
+    persistWithStatus(() => StorageService.saveUserTemplates(next));
+  };
+
+  const saveDesignPreset = (preset: Omit<DesignPresetItem, 'id'>) => {
+    const item: DesignPresetItem = { ...preset, id: generateId('preset'), isBuiltin: false };
+    const next = [...designPresets, item];
+    setDesignPresets(next);
+    persistWithStatus(() => StorageService.saveDesignPresets(next));
+    return item;
+  };
+
+  const renameDesignPreset = (id: string, name: string) => {
+    const next = designPresets.map((p) => (p.id === id ? { ...p, name: name.trim() || p.name } : p));
+    setDesignPresets(next);
+    persistWithStatus(() => StorageService.saveDesignPresets(next));
+  };
+
+  const duplicateDesignPreset = (id: string) => {
+    const src = designPresets.find((p) => p.id === id);
+    if (!src) return null;
+    return saveDesignPreset({
+      ...src,
+      name: `${src.name} 복사본`,
+      isBuiltin: false,
+    });
+  };
+
+  const deleteDesignPreset = (id: string) => {
+    const next = designPresets.filter((p) => p.id !== id);
+    setDesignPresets(next);
+    persistWithStatus(() => StorageService.saveDesignPresets(next));
+  };
+
+  const getDocumentPath = (doc: Document): string => {
+    const proj = projectsRef.current.find((p) => p.id === doc.projectId);
+    const parts: string[] = [proj?.name || '프로젝트'];
+    if (doc.folderId) {
+      const fChain: string[] = [];
+      let cur = foldersRef.current.find((f) => f.id === doc.folderId);
+      while (cur) {
+        fChain.unshift(cur.name);
+        cur = cur.parentFolderId
+          ? foldersRef.current.find((f) => f.id === cur!.parentFolderId)
+          : undefined;
+      }
+      parts.push(...fChain);
+    }
+    return parts.join(' / ');
+  };
+
+  const getDocumentStatus = (docId: string): 'active' | 'trashed' | 'deleted' => {
+    const doc = documentsRef.current.find((d) => d.id === docId);
+    if (!doc) return 'deleted';
+    return doc.deletedAt ? 'trashed' : 'active';
+  };
+
+  const getBacklinksForDocument = (docId: string): BacklinkInfo[] => {
+    const results: BacklinkInfo[] = [];
+    const seen = new Set<string>();
+    const token = `#blankspace-doc:${docId}`;
+
+    for (const d of documentsRef.current) {
+      if (d.id === docId) continue;
+      const docPages = pagesRef.current.filter((p) => p.documentId === d.id);
+      for (const p of docPages) {
+        if (
+          p.content &&
+          (p.content.includes(token) || p.content.includes(`"${docId}"`)) &&
+          !seen.has(d.id)
+        ) {
+          seen.add(d.id);
+          results.push({
+            sourceDoc: d,
+            sourcePage: p,
+            status: d.deletedAt ? 'trashed' : 'active',
+          });
+        }
+      }
+    }
+    return results;
+  };
+
+  const isFileReferenced = (fileNameOrId: string): boolean => {
+    if (!fileNameOrId) return false;
+    return pagesRef.current.some(
+      (p) => p.documentId !== activeDocumentId && p.content.includes(fileNameOrId)
+    );
   };
 
   return (
     <WorkspaceContext.Provider
       value={{
+        isLoaded,
         projects,
         folders,
         documents,
         pages,
+        userTemplates,
+        designPresets,
+        defaultTemplateOverrides,
+        navSection,
         activeProjectId,
         activeFolderId,
         activeDocumentId,
         activePageId,
-        filterType,
+        editingTemplateId,
         viewMode,
         sortOption,
-        searchQuery,
-        isLoaded,
-        mainView,
-        setMainView,
+        globalSearchQuery,
         recentDocumentIds,
-
-        // Save State & Reliability
+        isSidebarCollapsed,
+        expandedProjectIds,
+        canGoBackDoc: docHistory.length > 0,
+        autoSaveEnabled,
         saveStatus,
-        lastSaveError,
+        lastSavedAt,
         retryLastSave,
-
-        // Backup & Schema Version (Phase 2)
-        schemaVersion,
-        exportBackup,
-        importBackup,
-
+        activeProjects,
+        trashedProjects,
+        trashedFolders,
+        trashedDocuments,
         activeProject,
         activeFolder,
         activeDocument,
         activePage,
         folderBreadcrumbs,
-        currentDocumentPages,
         currentFolders,
         currentDocuments,
-
+        currentDocumentPages,
         isCreateProjectOpen,
         isCreateFolderOpen,
         isCreateDocumentOpen,
-        isFabOpen,
-
-        setActiveProject,
-        setActiveFolder,
-        setActiveDocument,
+        setIsCreateProjectOpen,
+        setIsCreateFolderOpen,
+        setIsCreateDocumentOpen,
+        setNavSection,
+        openProject,
+        openFolder,
+        openDocument,
+        goBackDocument,
+        openTemplateEditor,
         setActivePageId,
-        setFilterType,
         setViewMode,
         setSortOption,
-        setSearchQuery,
-
-        openCreateProjectModal: () => setIsCreateProjectOpen(true),
-        closeCreateProjectModal: () => setIsCreateProjectOpen(false),
-        openCreateFolderModal: () => {
-          setIsFabOpen(false);
-          setIsCreateFolderOpen(true);
-        },
-        closeCreateFolderModal: () => setIsCreateFolderOpen(false),
-        openCreateDocumentModal: () => {
-          setIsFabOpen(false);
-          setIsCreateDocumentOpen(true);
-        },
-        closeCreateDocumentModal: () => setIsCreateDocumentOpen(false),
-        toggleFab: () => setIsFabOpen((prev) => !prev),
-        closeFab: () => setIsFabOpen(false),
-
+        setGlobalSearchQuery,
+        toggleSidebarCollapsed,
+        setSidebarCollapsed: setIsSidebarCollapsed,
+        toggleProjectExpanded,
+        setAutoSaveEnabled,
         createProject,
-        deleteProject,
-        renameProject,
-
+        updateProject,
+        toggleFavoriteProject,
+        duplicateProject,
+        moveProjectToTrash,
+        reorderProjects,
         createFolder,
-        deleteFolder,
-        renameFolder,
-
-        createDocument,
-        deleteDocument,
-        toggleFavoriteDocument,
-        updateDocumentTitle,
-
-        createPage,
-        renamePage,
-        deletePage,
-        updatePageContent,
-
-        moveItem,
+        updateFolder,
+        duplicateFolder,
+        moveFolderToTrash,
         reorderItems,
+        createDocument,
+        updateDocument,
+        duplicateDocument,
+        toggleFavoriteDocument,
+        moveDocumentToTrash,
+        moveDocumentToFolder,
+        createPage,
+        updatePage,
+        deletePage,
+        restoreItems,
+        permanentlyDeleteItems,
+        emptyTrash,
+        needsRestoreTarget,
+        saveDefaultTemplateOverride,
+        resetDefaultTemplateOverride,
+        createUserTemplate,
+        deleteUserTemplate,
+        saveDesignPreset,
+        renameDesignPreset,
+        duplicateDesignPreset,
+        deleteDesignPreset,
+        getDocumentPath,
+        getDocumentStatus,
+        getBacklinksForDocument,
+        isFileReferenced,
       }}
     >
       {children}
@@ -1100,9 +1290,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 };
 
 export const useWorkspace = () => {
-  const context = useContext(WorkspaceContext);
-  if (!context) {
-    throw new Error('useWorkspace must be used within a WorkspaceProvider');
-  }
-  return context;
+  const ctx = useContext(WorkspaceContext);
+  if (!ctx) throw new Error('useWorkspace must be used within WorkspaceProvider');
+  return ctx;
 };

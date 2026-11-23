@@ -7,20 +7,29 @@ export function formatRelativeTime(timestamp: number): string {
   }
   const diffMin = Math.floor(diffSec / 60);
   if (diffMin < 60) {
-    return `수정 ${diffMin}분 전`;
+    return `${diffMin}분 전`;
   }
   const diffHour = Math.floor(diffMin / 60);
   if (diffHour < 24) {
-    return `수정 ${diffHour}시간 전`;
+    return `${diffHour}시간 전`;
   }
   const diffDays = Math.floor(diffHour / 24);
   if (diffDays === 1) {
-    return '수정 어제';
+    return '어제';
   }
   if (diffDays < 7) {
-    return `수정 ${diffDays}일 전`;
+    return `${diffDays}일 전`;
   }
   const date = new Date(timestamp);
-  return `수정 ${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
 }
 
+export function formatShortDate(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}.${String(date.getDate()).padStart(2, '0')}`;
+}
+
+export function formatTimeClock(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
+}

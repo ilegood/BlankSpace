@@ -3,62 +3,80 @@
 @tailwind utilities;
 
 :root {
-  --bg-main: #F9FAFD;
-  --bg-sidebar: #FFFFFF;
-  --bg-card: #FFFFFF;
-  --bg-document: #FFFFFF;
-  --text-main: #1E293B;
-  --text-sub: #64748B;
-  --border-main: #ECEEF3;
-  --lavender-primary: #7E61E7;
-  --lavender-light: #EDE9FE;
+  --bg-main: #ffffff;
+  --bg-sidebar: #f7f7fb;
+  --bg-card: #ffffff;
+  --bg-muted: #f6f5fb;
+  --text-main: #1b1b1f;
+  --text-sub: #6e6d7a;
+  --border-main: #e6e3f0;
+  --accent-primary: #6a5acd;
+  --accent-soft: #ebe8f5;
+
+  /* Motion System Tokens (§1-1, §1-2) */
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 320ms;
+  --motion-draw: 400ms;
+  --ease-enter: cubic-bezier(0.2, 0, 0, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 }
 
 html.dark {
-  --bg-main: #17171D;
-  --bg-sidebar: #1E1E27;
-  --bg-card: #292936;
-  --bg-document: #22222C;
-  --text-main: #E8E7EF;
-  --text-sub: #A5A3B5;
-  --border-main: #3A3948;
-  --lavender-primary: #A995F5;
-  --lavender-light: #2D2749;
+  --bg-main: #15151c;
+  --bg-sidebar: #1b1b24;
+  --bg-card: #1e1e29;
+  --bg-muted: #262436;
+  --text-main: #f1f0f6;
+  --text-sub: #9e9caf;
+  --border-main: #2e2d3d;
+  --accent-primary: #7c6ee6;
+  --accent-soft: #2c2845;
 }
 
 @layer base {
-  /* 모든 텍스트 입력 영역 기본값 */
-  input,
-  textarea,
-  select {
-    background-color: #ffffff !important;
+  html,
+  body,
+  #root {
+    height: 100%;
+    margin: 0;
+    padding: 0;
   }
 
-  /* 다크모드 입력창 */
-  html.dark input,
-  html.dark textarea,
-  html.dark select {
-    background-color: #292936 !important;
-    color: #E8E7EF !important;
-    border-color: #3A3948 !important;
+  body {
+    background-color: var(--bg-main);
+    color: var(--text-main);
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+    transition: background-color 300ms var(--ease-enter), color 300ms var(--ease-enter);
   }
 
-  /* 부드러운 스크롤 */
-  html {
-    scroll-behavior: smooth;
+  /* Smooth theme color transitions (§3-7, §10) */
+  aside,
+  header,
+  main,
+  section,
+  .theme-transition {
+    transition:
+      background-color 300ms var(--ease-enter),
+      border-color 300ms var(--ease-enter),
+      color 300ms var(--ease-enter);
   }
 
-  /* 숫자 입력 필드 기본 브라우저 스피너 숨김 (커스텀 디자인 버튼 사용) */
-  input[type="number"]::-webkit-outer-spin-button,
-  input[type="number"]::-webkit-inner-spin-button {
+  *:focus-visible {
+    outline: 2px solid #6a5acd;
+    outline-offset: 2px;
+  }
+
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
     -webkit-appearance: none;
     margin: 0;
   }
-  input[type="number"] {
+
+  input[type='number'] {
     -moz-appearance: textfield;
   }
 
-  /* 커스텀 스크롤바 */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
@@ -67,402 +85,359 @@ html.dark {
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #E2E8F0;
+    background: #dcd9ea;
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #CBD5E1;
+    background: #c5c0dc;
   }
 
   html.dark ::-webkit-scrollbar-thumb {
-    background: #3A3948;
+    background: #353447;
   }
   html.dark ::-webkit-scrollbar-thumb:hover {
-    background: #4E4C62;
+    background: #484660;
   }
 }
 
-/* ==========================================================================
-   Tiptap 문서 편집기 서식 및 레이아웃 스타일링 (Phase 2 안정화)
-   ========================================================================== */
+/* Interactive Card & Motion Utilities (§2-1 ~ §2-12) */
+.bs-card-interactive {
+  transition:
+    transform var(--motion-fast) var(--ease-enter),
+    box-shadow var(--motion-fast) var(--ease-enter),
+    border-color var(--motion-fast) var(--ease-enter),
+    background-color 300ms var(--ease-enter);
+}
+
+.bs-card-interactive:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(106, 90, 205, 0.08);
+}
+
+.bs-card-interactive:active {
+  transform: scale(0.98);
+}
+
+@keyframes bsModalIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes bsPopoverIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes bsToastIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bsPageSubtleIn {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes bsFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bsShake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+@keyframes bsDrawLine {
+  from {
+    stroke-dashoffset: 600;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes bsHighlightFlash {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(106, 90, 205, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(106, 90, 205, 0.35);
+  }
+}
+
+.bs-animate-modal {
+  animation: bsModalIn var(--motion-base) var(--ease-enter) both;
+}
+
+.bs-animate-popover {
+  animation: bsPopoverIn 160ms var(--ease-enter) both;
+}
+
+.bs-animate-toast {
+  animation: bsToastIn var(--motion-base) var(--ease-enter) both;
+}
+
+.bs-animate-page {
+  animation: bsPageSubtleIn var(--motion-base) var(--ease-enter) both;
+}
+
+.bs-animate-fade {
+  animation: bsFadeIn var(--motion-base) var(--ease-enter) both;
+}
+
+.bs-animate-shake {
+  animation: bsShake 120ms ease-in-out 2;
+}
+
+.bs-animate-draw {
+  stroke-dasharray: 600;
+  animation: bsDrawLine var(--motion-draw) var(--ease-enter) both;
+}
+
+.bs-animate-flash {
+  animation: bsHighlightFlash 400ms ease-in-out 2;
+}
+
+/* Smooth grid-rows collapse (§2-8) */
+.bs-collapse-grid {
+  display: grid;
+  transition: grid-template-rows var(--motion-base) var(--ease-enter), opacity var(--motion-base) var(--ease-enter);
+}
+
+.bs-collapse-grid[data-open='true'] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+}
+
+.bs-collapse-grid[data-open='false'] {
+  grid-template-rows: 0fr;
+  opacity: 0;
+}
+
+.bs-collapse-inner {
+  overflow: hidden;
+}
+
+/* Reduced Motion (§1-5) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 100ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 100ms !important;
+  }
+  .bs-card-interactive:hover,
+  .bs-card-interactive:active {
+    transform: none !important;
+  }
+}
+
+/* Dot grid background for canvas editors */
+.canvas-dot-grid {
+  background-color: #faf9fe;
+  background-image: radial-gradient(#dcd8ec 1.1px, transparent 1.1px);
+  background-size: 20px 20px;
+}
+
+html.dark .canvas-dot-grid {
+  background-color: #171720;
+  background-image: radial-gradient(#2d2c3e 1.1px, transparent 1.1px);
+  background-size: 20px 20px;
+}
+
+/* Rich text editor (Tiptap ProseMirror) styles */
 .ProseMirror {
-  outline: none !important;
-  min-height: 480px;
+  outline: none;
+  min-height: 360px;
+  color: #1b1b1f;
+  line-height: 1.75;
+}
+
+html.dark .ProseMirror {
+  color: #e9e8f2;
 }
 
 .ProseMirror p {
-  margin-top: 0.5rem;
-  margin-bottom: 0.5rem;
-  line-height: 1.7;
+  margin: 0.5rem 0;
 }
 
 .ProseMirror h1 {
-  font-size: 1.875rem !important; /* 30px */
-  line-height: 1.25 !important;
-  font-weight: 700 !important;
-  color: #1E293B !important;
-  margin-top: 1.75rem !important;
-  margin-bottom: 0.75rem !important;
-  padding-bottom: 0.35rem !important;
-  border-bottom: 1px solid #ECEEF3 !important;
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin: 1.25rem 0 0.65rem;
+  color: #1b1b1f;
 }
 
 .ProseMirror h2 {
-  font-size: 1.5rem !important; /* 24px */
-  line-height: 1.3 !important;
-  font-weight: 700 !important;
-  color: #1E293B !important;
-  margin-top: 1.5rem !important;
-  margin-bottom: 0.6rem !important;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 1.1rem 0 0.5rem;
+  color: #1b1b1f;
 }
 
 .ProseMirror h3 {
-  font-size: 1.25rem !important; /* 20px */
-  line-height: 1.35 !important;
-  font-weight: 600 !important;
-  color: #334155 !important;
-  margin-top: 1.25rem !important;
-  margin-bottom: 0.5rem !important;
+  font-size: 1.05rem;
+  font-weight: 600;
+  margin: 0.9rem 0 0.4rem;
+  color: #2b2b34;
 }
 
-.ProseMirror strong,
-.ProseMirror b {
-  font-weight: 700 !important;
-  color: #0F172A !important;
-}
-
-.ProseMirror em,
-.ProseMirror i {
-  font-style: italic !important;
-}
-
-.ProseMirror s,
-.ProseMirror strike,
-.ProseMirror del {
-  text-decoration: line-through !important;
-  color: #94A3B8 !important;
-}
-
-/* 글머리 기호 목록 */
-.ProseMirror ul:not([data-type="taskList"]) {
-  list-style-type: disc !important;
-  padding-left: 1.6rem !important;
-  margin-top: 0.5rem !important;
-  margin-bottom: 0.5rem !important;
-}
-
-.ProseMirror ul:not([data-type="taskList"]) li {
-  margin-top: 0.25rem !important;
-  margin-bottom: 0.25rem !important;
-}
-
-/* 번호 매기기 목록 */
-.ProseMirror ol {
-  list-style-type: decimal !important;
-  padding-left: 1.6rem !important;
-  margin-top: 0.5rem !important;
-  margin-bottom: 0.5rem !important;
-}
-
-.ProseMirror ol li {
-  margin-top: 0.25rem !important;
-  margin-bottom: 0.25rem !important;
-}
-
-/* 할 일 체크리스트 (TaskList & TaskItem) */
-.ProseMirror ul[data-type="taskList"] {
-  list-style: none !important;
-  padding: 0 !important;
-  margin: 0.5rem 0 !important;
-}
-
-.ProseMirror ul[data-type="taskList"] li {
-  display: flex !important;
-  align-items: flex-start !important;
-  gap: 0.55rem !important;
-  margin: 0.25rem 0 !important;
-}
-
-.ProseMirror ul[data-type="taskList"] li > label {
-  user-select: none !important;
-  flex-shrink: 0 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  height: 1.55em !important; /* 텍스트 첫 줄 line-height와 일치시켜 가로줄 정중앙 정렬 */
-  margin: 0 !important;
-  padding: 0 !important;
-  pointer-events: auto !important; /* 보기 모드(Read-only)에서도 클릭 가능 */
-  cursor: pointer !important;
-}
-
-.ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
-  width: 1.05rem !important;
-  height: 1.05rem !important;
-  border-radius: 0.28rem !important;
-  border: 1.5px solid #A5B4FC !important;
-  accent-color: #7E61E7 !important;
-  cursor: pointer !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  vertical-align: middle !important;
-  pointer-events: auto !important; /* 보기 모드(Read-only)에서도 클릭 가능 */
-  transition: all 0.15s ease !important;
-}
-
-.dark .ProseMirror ul[data-type="taskList"] li > label input[type="checkbox"] {
-  border-color: #6A5CA0 !important;
-  accent-color: #9D7BFC !important;
-}
-
-.ProseMirror ul[data-type="taskList"] li > div {
-  flex: 1 !important;
-  min-width: 0 !important;
-  line-height: 1.55 !important;
-}
-
-.ProseMirror ul[data-type="taskList"] li > div > p {
-  margin: 0 !important;
-  line-height: 1.55 !important;
-}
-
-.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
-  text-decoration: line-through !important;
-  color: #94A3B8 !important;
-}
-
-.dark .ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
-  color: #726F82 !important;
-}
-
-/* 인용문 (Blockquote) */
-.ProseMirror blockquote {
-  border-left: 3.5px solid #937BEF !important;
-  background-color: #F8F8FD !important;
-  padding: 0.6rem 1rem !important;
-  margin: 1rem 0 !important;
-  border-radius: 0 0.75rem 0.75rem 0 !important;
-  color: #475569 !important;
-  font-style: italic !important;
-}
-
-/* 구분선 (HR) */
-.ProseMirror hr {
-  border: none !important;
-  border-top: 1.5px solid #E2E8F0 !important;
-  margin: 1.75rem 0 !important;
-}
-
-/* 표 (Table) */
-.ProseMirror table {
-  border-collapse: collapse !important;
-  table-layout: fixed !important;
-  width: 100% !important;
-  margin: 1.25rem 0 !important;
-  overflow: hidden !important;
-  border-radius: 0.5rem !important;
-  border: 1px solid #CBD5E1 !important;
-}
-
-.ProseMirror table th {
-  background-color: #F2F1FD !important;
-  color: #4338CA !important;
-  font-weight: 600 !important;
-  text-align: left !important;
-  padding: 0.6rem 0.85rem !important;
-  border: 1px solid #CBD5E1 !important;
-}
-
-.ProseMirror table td {
-  padding: 0.55rem 0.85rem !important;
-  border: 1px solid #CBD5E1 !important;
-  vertical-align: top !important;
-  box-sizing: border-box !important;
-  position: relative !important;
-}
-
-.ProseMirror table .selectedCell:after {
-  z-index: 2;
-  position: absolute;
-  content: "";
-  left: 0; right: 0; top: 0; bottom: 0;
-  background: rgba(126, 97, 231, 0.1);
-  pointer-events: none;
-}
-
-/* 하이퍼링크 */
-.ProseMirror a {
-  color: #7E61E7 !important;
-  text-decoration: underline !important;
-  font-weight: 500 !important;
-  cursor: pointer !important;
-}
-
-.ProseMirror a:hover {
-  color: #5638B8 !important;
-}
-
-/* 이미지 */
-.ProseMirror img {
-  max-width: 100% !important;
-  height: auto !important;
-  border-radius: 0.75rem !important;
-  margin: 1rem 0 !important;
-  border: 1px solid #E2E8F0 !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
-}
-
-/* 플레이스홀더 */
-.ProseMirror p.is-editor-empty:first-child::before {
-  content: attr(data-placeholder);
-  float: left;
-  color: #94A3B8;
-  pointer-events: none;
-  height: 0;
-}
-
-/* Phase 4: 내부 문서 링크 전용 뱃지 스타일 */
-.ProseMirror a[href^="#blankspace-doc:"],
-.ProseMirror a.internal-link {
-  display: inline-flex !important;
-  align-items: center !important;
-  gap: 0.25rem !important;
-  background-color: #F2F1FD !important;
-  color: #6845DB !important;
-  font-weight: 600 !important;
-  padding: 0.15rem 0.5rem !important;
-  border-radius: 0.375rem !important;
-  border: 1px solid #D5CFFB !important;
-  text-decoration: none !important;
-  margin: 0 0.2rem !important;
-  transition: all 0.15s ease !important;
-  font-size: 0.9em !important;
-}
-
-.ProseMirror a[href^="#blankspace-doc:"]:hover,
-.ProseMirror a.internal-link:hover {
-  background-color: #E6E3FC !important;
-  color: #5638B8 !important;
-  border-color: #B4A6F7 !important;
-  box-shadow: 0 2px 6px rgba(126, 97, 231, 0.15) !important;
-}
-
-/* Phase 6: 미디어 & 외부 임베드 */
-.ProseMirror iframe {
-  width: 100% !important;
-  max-width: 48rem !important;
-  aspect-ratio: 16 / 9 !important;
-  border-radius: 1rem !important;
-  margin: 1.25rem auto !important;
-  border: 1px solid #ECEEF3 !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
-  display: block !important;
-}
-
-.ProseMirror video {
-  width: 100% !important;
-  max-width: 48rem !important;
-  border-radius: 1rem !important;
-  margin: 1.25rem auto !important;
-  border: 1px solid #ECEEF3 !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
-  display: block !important;
-}
-
-.ProseMirror audio {
-  width: 100% !important;
-  max-width: 32rem !important;
-  margin: 0.75rem auto !important;
-  display: block !important;
-}
-
-.blankspace-link-card {
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
-}
-
-.blankspace-link-card:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
-}
-
-/* ==========================================================================
-   다크모드 ProseMirror 편집기 스타일
-   ========================================================================== */
 html.dark .ProseMirror h1,
 html.dark .ProseMirror h2,
-html.dark .ProseMirror h3,
-html.dark .ProseMirror strong,
-html.dark .ProseMirror b {
-  color: #E8E7EF !important;
+html.dark .ProseMirror h3 {
+  color: #f1f0f6;
 }
 
-html.dark .ProseMirror p,
-html.dark .ProseMirror li {
-  color: #D1D0DD !important;
+.ProseMirror ul:not([data-type='taskList']) {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
 }
 
-html.dark .ProseMirror h1 {
-  border-bottom-color: #3A3948 !important;
+.ProseMirror ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.ProseMirror ul[data-type='taskList'] {
+  list-style: none;
+  padding: 0;
+  margin: 0.5rem 0;
+}
+
+.ProseMirror ul[data-type='taskList'] li {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  margin: 0.3rem 0;
+}
+
+.ProseMirror ul[data-type='taskList'] li[data-checked='true'] > div {
+  text-decoration: line-through;
+  color: #8a8998;
+}
+
+.ProseMirror ul[data-type='taskList'] li > label input[type='checkbox'] {
+  accent-color: #6a5acd;
+  width: 15px;
+  height: 15px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ProseMirror blockquote {
+  border-left: 3px solid #d9d5ec;
+  background-color: #f8f7fc;
+  padding: 0.65rem 1rem;
+  border-radius: 0.5rem;
+  margin: 0.75rem 0;
+  color: #555464;
 }
 
 html.dark .ProseMirror blockquote {
-  border-left-color: #A995F5 !important;
-  background-color: #292936 !important;
-  color: #A5A3B5 !important;
+  border-left-color: #4c4578;
+  background-color: #232231;
+  color: #b4b2c4;
 }
 
-html.dark .ProseMirror code {
-  background-color: #292936 !important;
-  color: #B7A5FF !important;
+.ProseMirror hr {
+  border: none;
+  border-top: 1px solid #e6e3f0;
+  margin: 1.25rem 0;
 }
 
 html.dark .ProseMirror hr {
-  border-color: #3A3948 !important;
+  border-top-color: #2e2d3d;
 }
 
-html.dark .ProseMirror td,
+.ProseMirror table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 0.85rem 0;
+  border-radius: 0.65rem;
+  overflow: hidden;
+  border: 1px solid #e6e3f0;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid #e6e3f0;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  font-size: 0.85rem;
+}
+
+.ProseMirror th {
+  background-color: #f8f7fc;
+  font-weight: 600;
+}
+
+html.dark .ProseMirror table,
+html.dark .ProseMirror th,
+html.dark .ProseMirror td {
+  border-color: #2e2d3d;
+}
+
 html.dark .ProseMirror th {
-  border-color: #3A3948 !important;
-  color: #E8E7EF !important;
+  background-color: #232231;
 }
 
-html.dark .ProseMirror th {
-  background-color: #1E1E27 !important;
+.ProseMirror a {
+  color: #6a5acd;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  font-weight: 500;
+  cursor: pointer;
 }
 
-html.dark .ProseMirror a[href^="#blankspace-doc:"],
-html.dark .ProseMirror a.internal-link {
-  background-color: #352E58 !important;
-  color: #B7A5FF !important;
-  border-color: #554884 !important;
+html.dark .ProseMirror a {
+  color: #a995f5;
 }
 
-html.dark .ProseMirror a[href^="#blankspace-doc:"]:hover,
-html.dark .ProseMirror a.internal-link:hover {
-  background-color: #433970 !important;
-  color: #D5CFFB !important;
-  border-color: #7E61E7 !important;
+.ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  float: left;
+  color: #a5a3b5;
+  pointer-events: none;
+  height: 0;
 }
-
-html.dark .blankspace-link-card {
-  background-color: #292936 !important;
-  border-color: #3A3948 !important;
-  color: #E8E7EF !important;
-}
-
-/* Canvas cards use a restrained surface palette in dark mode. */
-html:not(.dark) .blankspace-canvas-card [class~="rounded-xl"] { border-radius: 0.625rem; }
-html:not(.dark) .blankspace-canvas-card [class~="rounded-2xl"] { border-radius: 0.75rem; }
-html:not(.dark) .blankspace-canvas-card [class~="shadow-xs"],
-html:not(.dark) .blankspace-canvas-card [class~="shadow-2xs"] { box-shadow: 0 1px 2px rgb(15 23 42 / 0.04); }
-html.dark .blankspace-canvas-card [class~="rounded-xl"] { border-radius: 0.625rem; }
-html.dark .blankspace-canvas-card [class~="rounded-2xl"] { border-radius: 0.75rem; }
-html.dark .blankspace-canvas-card [class~="text-slate-800"] { color: #E8E7EF; }
-html.dark .blankspace-canvas-card [class~="text-slate-700"] { color: #D1D0DD; }
-html.dark .blankspace-canvas-card [class~="text-slate-600"] { color: #C0BECC; }
-html.dark .blankspace-canvas-card [class~="text-slate-500"] { color: #A5A3B5; }
-html.dark .blankspace-canvas-card [class~="bg-white"] { background-color: #24232D; }
-html.dark .blankspace-canvas-card [class*="bg-slate-50"],
-html.dark .blankspace-canvas-card [class*="bg-slate-100"] { background-color: #292936; }
-html.dark .blankspace-canvas-card [class*="border-slate-100"],
-html.dark .blankspace-canvas-card [class*="border-slate-200"] { border-color: #3A3948; }
