@@ -29,6 +29,7 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
     openTemplateEditor,
     updateDocument,
     updatePage,
+    userTemplates,
     defaultTemplateOverrides,
     saveDefaultTemplateOverride,
     resetDefaultTemplateOverride,
@@ -40,7 +41,14 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
   const { showToast } = useToast();
 
   const isTemplateMode = Boolean(templateOverrideId);
-  const templateType = templateOverrideId || activeDocument?.templateType || 'character-sheet';
+  const editingUserTpl = templateOverrideId
+    ? userTemplates.find((u) => u.id === templateOverrideId) || null
+    : null;
+  const templateType =
+    editingUserTpl?.baseTemplateType ||
+    templateOverrideId ||
+    activeDocument?.templateType ||
+    'character-sheet';
   const tpl = TEMPLATES.find((t) => t.id === templateType);
 
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
@@ -66,7 +74,8 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
     setZoom(1);
 
     if (isTemplateMode && templateOverrideId) {
-      const overrideRaw = defaultTemplateOverrides[templateOverrideId];
+      const userTpl = userTemplates.find((u) => u.id === templateOverrideId);
+      const overrideRaw = userTpl ? userTpl.content : defaultTemplateOverrides[templateOverrideId];
       if (overrideRaw) {
         try {
           const parsed = JSON.parse(overrideRaw);
@@ -76,7 +85,7 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
           // ignore
         }
       }
-      setCards(getInitialCardsForTemplate(templateType));
+      setCards(userTpl ? [] : getInitialCardsForTemplate(templateType));
       return;
     }
 
@@ -167,8 +176,15 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
   }, [cards, commitCardsRaw]);
 
   const handleAddComponent = (def: CatalogComponentDef, x?: number, y?: number) => {
+    const el = scrollContainerRef.current;
     const offset = (cards.length % 5) * 24;
-    const card = createCardFromDef(def, x ?? 36 + offset, y ?? 36 + offset);
+    const defaultX = el
+      ? Math.max(24, Math.round(el.scrollLeft / zoom + 48 + offset))
+      : 36 + offset;
+    const defaultY = el
+      ? Math.max(24, Math.round(el.scrollTop / zoom + 48 + offset))
+      : 36 + offset;
+    const card = createCardFromDef(def, x ?? defaultX, y ?? defaultY);
     commitCardsRaw([...cards, card]);
     setSelectedId(card.id);
   };
@@ -379,13 +395,23 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
   const selectedCard = cards.find((c) => c.id === selectedId) || null;
   const backlinks = activeDocument ? getBacklinksForDocument(activeDocument.id) : [];
 
+  const maxCardBottom = Math.max(
+    420,
+    ...cards.map((c) => c.y + (c.collapsed ? 44 : Math.max(c.h, 110)))
+  );
+  const maxCardRight = Math.max(820, ...cards.map((c) => c.x + c.w));
+
   const fontClass =
     fontStyle === 'serif' ? 'font-serif' : fontStyle === 'mono' ? 'font-mono' : 'font-sans';
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-white dark:bg-[#15151C]">
       <EditorHeader
-        title={isTemplateMode ? `${tpl?.name || '템플릿'} (템플릿)` : activeDocument?.title || '문서'}
+        title={
+          isTemplateMode
+            ? `${editingUserTpl?.name || tpl?.name || '사용자 템플릿'} (템플릿)`
+            : activeDocument?.title || '문서'
+        }
         onTitleChange={(t) => activeDocument && updateDocument(activeDocument.id, { title: t })}
         templateType={templateType}
         isEditMode={isEditMode}
@@ -442,7 +468,8 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
             const compType = e.dataTransfer.getData('application/x-blankspace-component');
             if (!compType) return;
             e.preventDefault();
-            const allDefs = [...COMMON_CATALOG, ...(SPECIAL_CATALOG[templateType] || [])];
+            const allSpecial = Object.values(SPECIAL_CATALOG).flat();
+            const allDefs = [...COMMON_CATALOG, ...allSpecial];
             const def = allDefs.find((x) => x.type === compType);
             if (!def || !scrollContainerRef.current) return;
             const rect = scrollContainerRef.current.getBoundingClientRect();
@@ -465,11 +492,25 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
             style={{
               transform: `scale(${zoom})`,
               transformOrigin: '0 0',
-              minWidth: Math.max(1120, ...cards.map((c) => c.x + c.w + 48)),
-              minHeight: Math.max(820, ...cards.map((c) => c.y + (c.collapsed ? 44 : c.h) + 48)),
+              minWidth: Math.max(1120, maxCardRight + 64),
+              minHeight: Math.max(820, maxCardBottom + 180),
             }}
             className="relative"
           >
+            {/* Document Banner if set on document (수정사항.md: 문서도 배너 설정 가능, 폴더와 디자인 통일) */}
+            {!isTemplateMode && activeDocument?.coverImage && (
+              <div
+                style={{ left: 24, top: 16, width: Math.max(780, maxCardRight - 24) }}
+                className="h-28 rounded-2xl overflow-hidden border border-[#E6E3F0] dark:border-[#2E2D3D] mb-4"
+              >
+                <img
+                  src={activeDocument.coverImage}
+                  alt={activeDocument.title}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+
             {/* Magnetic Snap Alignment Guidelines */}
             {isEditMode &&
               snapGuides.x.map((gx, i) => (
@@ -488,57 +529,6 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
                 />
               ))}
 
-            {/* Visual Connector Lines between linked Formula Cards & Difficulty Curve Cards (§5-4) */}
-            <svg
-              className="absolute inset-0 pointer-events-none z-[15] overflow-visible"
-              width="100%"
-              height="100%"
-            >
-              <defs>
-                <marker
-                  id="bs-formula-arrow"
-                  viewBox="0 0 10 10"
-                  refX="8"
-                  refY="5"
-                  markerWidth="5"
-                  markerHeight="5"
-                  orient="auto-start-reverse"
-                >
-                  <path d="M 0 1 L 8 5 L 0 9 z" fill="#6A5ACD" />
-                </marker>
-              </defs>
-              {cards
-                .filter(
-                  (c) =>
-                    c.type === 'difficulty-curve-card' &&
-                    c.data?.actualSource !== 'manual' &&
-                    c.data?.linkedFormulaId
-                )
-                .map((curveCard) => {
-                  const formulaCard = cards.find((fc) => fc.id === curveCard.data?.linkedFormulaId);
-                  if (!formulaCard) return null;
-                  const fh = formulaCard.collapsed ? 44 : formulaCard.h;
-                  const ch = curveCard.collapsed ? 44 : curveCard.h;
-                  const x1 = formulaCard.x + formulaCard.w / 2;
-                  const y1 = formulaCard.y + fh / 2;
-                  const x2 = curveCard.x + curveCard.w / 2;
-                  const y2 = curveCard.y + ch / 2;
-                  const mx = (x1 + x2) / 2;
-                  return (
-                    <path
-                      key={`fconn-${formulaCard.id}-${curveCard.id}`}
-                      d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
-                      fill="none"
-                      stroke="#6A5ACD"
-                      strokeWidth="1.75"
-                      strokeDasharray="5 4"
-                      markerEnd="url(#bs-formula-arrow)"
-                      className="bs-animate-draw opacity-70"
-                    />
-                  );
-                })}
-            </svg>
-
             {cards.map((card) => (
               <CanvasCardView
                 key={card.id}
@@ -556,29 +546,40 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
               />
             ))}
 
-            {/* Backlinks Panel shown in View Mode matching PDF Page 4 */}
+            {/* Wide Horizontal Backlinks Panel placed BELOW all components so it is never covered (수정사항.md 컴포넌트 5) */}
             {!isEditMode && !isTemplateMode && (
               <div
-                style={{ left: 854, top: 24, width: 225 }}
-                className="absolute rounded-xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] p-3.5 shadow-2xs flex flex-col gap-2"
+                style={{
+                  left: 24,
+                  top: maxCardBottom + 36,
+                  width: Math.max(780, maxCardRight - 24),
+                }}
+                className="absolute rounded-2xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] p-4 shadow-2xs flex flex-col gap-2.5"
               >
-                <div className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">역링크</div>
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
+                    역링크 ({backlinks.length})
+                  </div>
+                  <span className="text-[10.5px] text-[#8A8998]">
+                    이 문서를 참조하고 있는 연결 문서 목록입니다
+                  </span>
+                </div>
                 {backlinks.length === 0 ? (
                   <p className="text-[11px] text-[#8A8998]">참조 중인 문서가 없습니다.</p>
                 ) : (
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-wrap items-center gap-2">
                     {backlinks.map((bl) => (
                       <button
                         key={bl.sourceDoc.id}
                         type="button"
                         onClick={() => bl.status === 'active' && openDocument(bl.sourceDoc.id)}
-                        className="flex items-center gap-2 text-left text-xs py-1 hover:opacity-80"
+                        className="px-3 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-[#FAF9FE] dark:bg-[#232231] flex items-center gap-2 text-left text-xs hover:border-[#6A5ACD] transition-colors"
                       >
                         <span className="px-1.5 py-0.5 rounded bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD] text-[10px] font-semibold">
                           문서
                         </span>
                         <span
-                          className={`truncate ${
+                          className={`truncate max-w-[220px] ${
                             bl.status === 'trashed'
                               ? 'line-through text-[#8A8998]'
                               : 'text-[#1B1B1F] dark:text-[#F1F0F6] font-medium'
@@ -590,9 +591,6 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
                     ))}
                   </div>
                 )}
-                <div className="text-[10.5px] text-[#8A8998] pt-1 border-t border-[#F0EEF7] dark:border-[#2A2938]">
-                  휴지통 상태는 링크에 표시됩니다.
-                </div>
               </div>
             )}
           </div>

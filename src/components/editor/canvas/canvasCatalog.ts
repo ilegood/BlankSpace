@@ -255,9 +255,9 @@ export const SPECIAL_CATALOG: Record<string, CatalogComponentDef[]> = {
       defaultData: {
         zoneTitle: '구역 제목',
         places: [
-          { id: 'p1', label: 'A', linkedDocId: 'doc-char-a' },
-          { id: 'p2', label: 'B', linkedDocId: 'doc-world-sheet' },
-          { id: 'p3', label: 'C', linkedDocId: '' },
+          { id: 'p1', label: '구역 A', description: '구역 설명', imageUrl: '', linkedDocId: 'doc-char-a' },
+          { id: 'p2', label: '구역 B', description: '구역 설명', imageUrl: '', linkedDocId: 'doc-world-sheet' },
+          { id: 'p3', label: '구역 C', description: '구역 설명', imageUrl: '', linkedDocId: '' },
         ],
       },
     },
@@ -329,6 +329,20 @@ export const SPECIAL_CATALOG: Record<string, CatalogComponentDef[]> = {
         ],
       },
     },
+    {
+      type: 'probability-card',
+      label: '확률 표 카드',
+      group: 'planning',
+      defaultW: 310,
+      defaultH: 195,
+      defaultData: {
+        items: [
+          { id: 'pb1', name: '전설 등급', value: '1', prob: '1.5%' },
+          { id: 'pb2', name: '희귀 등급', value: '3', prob: '18.5%' },
+          { id: 'pb3', name: '일반 등급', value: '10', prob: '80.0%' },
+        ],
+      },
+    },
   ],
   'design-modeling-sheet': [
     {
@@ -372,7 +386,7 @@ export const SPECIAL_CATALOG: Record<string, CatalogComponentDef[]> = {
       group: 'animation',
       defaultW: 215,
       defaultH: 255,
-      defaultData: { name: '대기', frames: 24, durationSec: 1.0, loop: true, memo: '' },
+      defaultData: { name: '대기', frames: 7, durationSec: 1.0, loop: true, linkedStripId: '', memo: '' },
     },
     {
       type: 'frame-strip-card',
@@ -380,7 +394,7 @@ export const SPECIAL_CATALOG: Record<string, CatalogComponentDef[]> = {
       group: 'animation',
       defaultW: 680,
       defaultH: 120,
-      defaultData: { frameCount: 7 },
+      defaultData: { frameCount: 7, frameImages: [] },
     },
   ],
 };
@@ -769,7 +783,7 @@ export function getInitialCardsForTemplate(templateType: string): CanvasCardItem
         y: 100,
         w: 248,
         h: 245,
-        data: { name: '대기', frames: 24, durationSec: 1.0, loop: true },
+        data: { name: '대기', frames: 7, durationSec: 1.0, loop: true, linkedStripId: 'a-strip' },
       },
       {
         id: 'a-2',
@@ -779,7 +793,7 @@ export function getInitialCardsForTemplate(templateType: string): CanvasCardItem
         y: 100,
         w: 248,
         h: 245,
-        data: { name: '이동', frames: 16, durationSec: 0.7, loop: true },
+        data: { name: '이동', frames: 7, durationSec: 0.7, loop: true, linkedStripId: 'a-strip' },
       },
       {
         id: 'a-3',
@@ -789,7 +803,7 @@ export function getInitialCardsForTemplate(templateType: string): CanvasCardItem
         y: 100,
         w: 248,
         h: 245,
-        data: { name: '공격', frames: 18, durationSec: 0.6, loop: false },
+        data: { name: '공격', frames: 7, durationSec: 0.6, loop: false, linkedStripId: 'a-strip' },
       },
       {
         id: 'a-strip',
@@ -799,7 +813,7 @@ export function getInitialCardsForTemplate(templateType: string): CanvasCardItem
         y: 362,
         w: 780,
         h: 115,
-        data: { frameCount: 7 },
+        data: { frameCount: 7, frameImages: [] },
       },
       {
         id: 'a-check',

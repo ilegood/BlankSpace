@@ -36,6 +36,7 @@ import { FileVaultEditor } from './components/editor/special/FileVaultEditor';
 
 const renderEditorByType = (templateType: string, templateOverrideId?: string | null) => {
   switch (templateType) {
+    case 'custom-blank-canvas':
     case 'character-sheet':
     case 'world-sheet':
     case 'game-design-system':
@@ -85,6 +86,7 @@ const AppShell: React.FC = () => {
     activeFolder,
     activeDocument,
     editingTemplateId,
+    userTemplates,
   } = useWorkspace();
 
   if (!isLoaded) {
@@ -99,7 +101,9 @@ const AppShell: React.FC = () => {
 
   const renderMainContent = () => {
     if (editingTemplateId) {
-      return renderEditorByType(editingTemplateId, editingTemplateId);
+      const userTpl = userTemplates.find((u) => u.id === editingTemplateId);
+      const targetType = userTpl ? userTpl.baseTemplateType : editingTemplateId;
+      return renderEditorByType(targetType, editingTemplateId);
     }
     if (activeDocument) {
       return renderEditorByType(activeDocument.templateType, null);
@@ -128,7 +132,7 @@ const AppShell: React.FC = () => {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-white dark:bg-[#15151C] text-[#1B1B1F] dark:text-[#F1F0F6]">
-      <Sidebar forceCollapsed={isInsideEditor} />
+      <Sidebar />
       <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
         {!isInsideEditor && <TopBar />}
         {renderMainContent()}

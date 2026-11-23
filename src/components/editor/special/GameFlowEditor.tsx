@@ -345,7 +345,7 @@ export const GameFlowEditor: React.FC<{ templateOverrideId?: string | null }> = 
                   <path d="M0,0 L0,6 L7,3 z" fill="#6A5ACD" />
                 </marker>
               </defs>
-              {/* Dashed links from Note nodes to their target nodes (§6-6) */}
+              {/* Dashed links from Note nodes to their target nodes (§6-6): no label, clickable to delete in Edit Mode */}
               {nodes
                 .filter((n) => n.kind === 'note' && n.targetNodeId)
                 .map((noteNode) => {
@@ -358,16 +358,32 @@ export const GameFlowEditor: React.FC<{ templateOverrideId?: string | null }> = 
                   const ty =
                     (liveDragNode?.id === targetNode.id ? liveDragNode.y : targetNode.y) + 20;
                   return (
-                    <line
+                    <g
                       key={`note-link-${noteNode.id}`}
-                      x1={nx}
-                      y1={ny}
-                      x2={tx}
-                      y2={ty}
-                      stroke="#9A8FE6"
-                      strokeWidth="1.5"
-                      strokeDasharray="4 4"
-                    />
+                      style={{ pointerEvents: 'auto', cursor: isEditMode ? 'pointer' : 'default' }}
+                      onClick={(e) => {
+                        if (!isEditMode) return;
+                        e.stopPropagation();
+                        persist(
+                          nodes.map((n) =>
+                            n.id === noteNode.id ? { ...n, targetNodeId: undefined } : n
+                          ),
+                          edges
+                        );
+                        showToast('주석 연결 점선을 삭제했습니다');
+                      }}
+                    >
+                      <line x1={nx} y1={ny} x2={tx} y2={ty} stroke="transparent" strokeWidth="14" />
+                      <line
+                        x1={nx}
+                        y1={ny}
+                        x2={tx}
+                        y2={ty}
+                        stroke="#9A8FE6"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 4"
+                      />
+                    </g>
                   );
                 })}
 

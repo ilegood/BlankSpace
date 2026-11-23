@@ -38,6 +38,7 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
   const isTemplateMode = Boolean(templateOverrideId);
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
   const [unit, setUnit] = useState<'year' | 'month' | 'day' | 'custom'>('year');
+  const [sortMode, setSortMode] = useState<'custom' | 'alpha'>('custom');
   const [events, setEvents] = useState<TimelineEvent[]>(DEFAULT_EVENTS);
   const [selectedId, setSelectedId] = useState<string | null>('ev3');
   const [isDocLinkOpen, setIsDocLinkOpen] = useState(false);
@@ -45,13 +46,8 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
   const [dragHoverIdx, setDragHoverIdx] = useState<number | null>(null);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
 
-  const sortChronologically = (list: TimelineEvent[]) =>
-    [...list].sort((a, b) => {
-      const na = Number(a.time.replace(/[^\d.-]/g, ''));
-      const nb = Number(b.time.replace(/[^\d.-]/g, ''));
-      if (!Number.isNaN(na) && !Number.isNaN(nb) && na !== nb) return na - nb;
-      return a.time.localeCompare(b.time, 'ko');
-    });
+  const sortAlphabetically = (list: TimelineEvent[]) =>
+    [...list].sort((a, b) => a.title.localeCompare(b.title, 'ko'));
 
   useEffect(() => {
     if (activePage?.content) {
@@ -74,6 +70,7 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
   };
 
   const selected = events.find((e) => e.id === selectedId) || null;
+  const colWidth = events.length > 8 ? 135 : events.length > 6 ? 150 : 175;
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-white dark:bg-[#15151C]">
@@ -88,9 +85,9 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Timeline Dot Canvas matching PDF Page 22 */}
-        <div className="flex-1 relative overflow-auto canvas-dot-grid p-6 flex flex-col justify-between">
-          <div className="flex items-center gap-3">
+        {/* Timeline Dot Canvas */}
+        <div className="flex-1 relative overflow-x-auto overflow-y-auto canvas-dot-grid p-6 flex flex-col justify-between">
+          <div className="flex items-center gap-3 flex-wrap">
             {isEditMode && (
               <button
                 type="button"
@@ -104,7 +101,8 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                     desc: '사건 설명',
                   };
                   runFlipForSortItems(320, () => {
-                    persist(sortChronologically([...events, ev]));
+                    const nextList = [...events, ev];
+                    persist(sortMode === 'alpha' ? sortAlphabetically(nextList) : nextList);
                   });
                   setSelectedId(ev.id);
                   window.setTimeout(() => titleInputRef.current?.focus(), 60);
@@ -136,7 +134,7 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                           const val = !Number.isNaN(num) && num > 0 ? num : i + 1;
                           return { ...ev, time: `${val}${sfx}` };
                         });
-                        persist(sortChronologically(updated));
+                        persist(updated);
                       });
                     }
                   }}
@@ -148,23 +146,40 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                 </button>
               ))}
             </div>
-              {isEditMode && (
-                <button
-                  type="button"
-                  onClick={() =>
-                    runFlipForSortItems(320, () => {
-                      persist(sortChronologically(events));
-                    })
-                  }
-                  className="px-3 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs font-semibold hover:border-[#6A5ACD]"
-                >
-                  시점순 정렬
-                </button>
-              )}
-            </div>
 
-          {/* Alternating Timeline Cards with Time Axis Ticks (§6-5) */}
-          <div data-export-root="true" className="relative my-auto py-16 min-w-[780px]">
+            <div className="inline-flex rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] p-0.5 text-xs">
+              <button
+                type="button"
+                onClick={() => {
+                  setSortMode('alpha');
+                  runFlipForSortItems(320, () => {
+                    persist(sortAlphabetically(events));
+                  });
+                }}
+                className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
+                  sortMode === 'alpha' ? 'bg-[#6A5ACD] text-white' : 'text-[#6E6D7A]'
+                }`}
+              >
+                가나다순
+              </button>
+              <button
+                type="button"
+                onClick={() => setSortMode('custom')}
+                className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
+                  sortMode === 'custom' ? 'bg-[#6A5ACD] text-white' : 'text-[#6E6D7A]'
+                }`}
+              >
+                직접 정렬
+              </button>
+            </div>
+          </div>
+
+          {/* Alternating Timeline Cards with Time Axis Ticks */}
+          <div
+            data-export-root="true"
+            style={{ minWidth: Math.max(720, events.length * (colWidth + 16)) }}
+            className="relative my-auto py-16 pr-6"
+          >
             <div className="relative h-[3px] bg-[#D8D4EC] dark:bg-[#32304A] w-full rounded-full">
               {events.map((ev, idx) => (
                 <span
@@ -178,7 +193,10 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                 </span>
               ))}
             </div>
-            <div className="grid grid-flow-col auto-cols-[175px] gap-4 -mt-[140px]">
+            <div
+              style={{ gridAutoColumns: `${colWidth}px` }}
+              className="grid grid-flow-col gap-4 -mt-[140px]"
+            >
               {events.map((ev, idx) => {
                 const isTop = idx % 2 === 0;
                 const isSel = selectedId === ev.id;
@@ -210,7 +228,7 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                     <div className="text-[11px] font-semibold text-[#6A5ACD] dark:text-[#9A8FE6]">
                       {ev.time}
                     </div>
-                    <div className="text-xs font-bold mt-0.5">{ev.title}</div>
+                    <div className="text-xs font-bold mt-0.5 truncate">{ev.title}</div>
                     {ev.imageUrl && (
                       <img
                         src={ev.imageUrl}
@@ -237,15 +255,12 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                       e.preventDefault();
                       const fromIdx = events.findIndex((x) => x.id === dragEventId);
                       if (fromIdx >= 0 && fromIdx !== idx) {
-                        const targetTime = events[idx].time;
-                        const fromTime = events[fromIdx].time;
                         const copy = [...events];
-                        copy[fromIdx] = { ...copy[fromIdx], time: targetTime };
-                        copy[idx] = { ...copy[idx], time: fromTime };
                         const [moved] = copy.splice(fromIdx, 1);
                         copy.splice(idx, 0, moved);
+                        setSortMode('custom');
                         runFlipForSortItems(320, () => {
-                          persist(sortChronologically(copy));
+                          persist(copy);
                         });
                       }
                       setDragEventId(null);
@@ -274,7 +289,7 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
           </div>
 
           <p className="text-center text-[11px] text-[#8A8998]">
-            시간축 방식은 제안안입니다. 사건은 시점 순서로 자동 정렬됩니다.
+            가나다순 정렬 또는 드래그를 통한 직접 정렬을 사용할 수 있으며, 사건이 많아지면 좌우로 스크롤할 수 있습니다.
           </p>
         </div>
 
@@ -292,13 +307,12 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                 ref={titleInputRef}
                 type="text"
                 value={selected.title}
-                onChange={(e) =>
-                  persist(
-                    events.map((ev) =>
-                      ev.id === selected.id ? { ...ev, title: e.target.value } : ev
-                    )
-                  )
-                }
+                onChange={(e) => {
+                  const next = events.map((ev) =>
+                    ev.id === selected.id ? { ...ev, title: e.target.value } : ev
+                  );
+                  persist(sortMode === 'alpha' ? sortAlphabetically(next) : next);
+                }}
                 className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
               />
             </label>
@@ -314,11 +328,6 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                       ev.id === selected.id ? { ...ev, time: e.target.value } : ev
                     )
                   )
-                }
-                onBlur={() =>
-                  runFlipForSortItems(320, () => {
-                    persist(sortChronologically(events));
-                  })
                 }
                 className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
               />

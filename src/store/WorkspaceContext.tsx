@@ -90,15 +90,26 @@ interface WorkspaceContextType {
   toggleProjectExpanded: (projectId: string) => void;
   setAutoSaveEnabled: (v: boolean) => void;
 
-  createProject: (name: string, description?: string, coverColor?: string) => Project;
+  createProject: (
+    name: string,
+    description?: string,
+    coverColor?: string,
+    coverImage?: string
+  ) => Project;
   updateProject: (id: string, patch: Partial<Project>) => void;
   toggleFavoriteProject: (id: string) => void;
   duplicateProject: (id: string) => Project | null;
   moveProjectToTrash: (id: string) => void;
   reorderProjects: (fromId: string, toId: string) => void;
 
-  createFolder: (name: string, description?: string) => Folder;
+  createFolder: (
+    name: string,
+    description?: string,
+    coverColor?: string,
+    coverImage?: string
+  ) => Folder;
   updateFolder: (id: string, patch: Partial<Folder>) => void;
+  toggleFavoriteFolder: (id: string) => void;
   duplicateFolder: (id: string) => Folder | null;
   moveFolderToTrash: (id: string) => { descendantCount: number };
   reorderItems: (kind: 'folder' | 'document', fromId: string, toId: string) => void;
@@ -107,7 +118,9 @@ interface WorkspaceContextType {
     title: string,
     templateType: string,
     category: TemplateCategoryType,
-    initialContent?: string
+    initialContent?: string,
+    coverColor?: string,
+    coverImage?: string
   ) => Document;
   updateDocument: (id: string, patch: Partial<Document>) => void;
   duplicateDocument: (id: string) => Document | null;
@@ -135,6 +148,7 @@ interface WorkspaceContextType {
     baseTemplateType: string,
     content: string
   ) => UserTemplate;
+  updateUserTemplate: (id: string, patch: Partial<UserTemplate>) => void;
   deleteUserTemplate: (id: string) => void;
   saveDesignPreset: (preset: Omit<DesignPresetItem, 'id'>) => DesignPresetItem;
   renameDesignPreset: (id: string, name: string) => void;
@@ -301,15 +315,25 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!activeProjectId) return [];
     return folders
       .filter((f) => !f.deletedAt && f.projectId === activeProjectId && f.parentFolderId === activeFolderId)
-      .sort((a, b) => a.order - b.order);
-  }, [folders, activeProjectId, activeFolderId]);
+      .sort((a, b) => {
+        if (sortOption === 'custom') return a.order - b.order;
+        if (sortOption === 'name-asc') return a.name.localeCompare(b.name, 'ko');
+        if (sortOption === 'created-desc') return b.createdAt - a.createdAt;
+        return b.updatedAt - a.updatedAt;
+      });
+  }, [folders, activeProjectId, activeFolderId, sortOption]);
 
   const currentDocuments = useMemo(() => {
     if (!activeProjectId) return [];
     return documents
       .filter((d) => !d.deletedAt && d.projectId === activeProjectId && d.folderId === activeFolderId)
-      .sort((a, b) => a.order - b.order);
-  }, [documents, activeProjectId, activeFolderId]);
+      .sort((a, b) => {
+        if (sortOption === 'custom') return a.order - b.order;
+        if (sortOption === 'name-asc') return a.title.localeCompare(b.title, 'ko');
+        if (sortOption === 'created-desc') return b.createdAt - a.createdAt;
+        return b.updatedAt - a.updatedAt;
+      });
+  }, [documents, activeProjectId, activeFolderId, sortOption]);
 
   const currentDocumentPages = useMemo(() => {
     if (!activeDocumentId) return [];
@@ -388,6 +412,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setActiveFolderId(doc.folderId);
     setActiveDocumentId(docId);
     setEditingTemplateId(null);
+    setIsSidebarCollapsed(true);
 
     const docPages = pagesRef.current
       .filter((p) => p.documentId === docId)
@@ -438,6 +463,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setActiveDocumentId(null);
     setActivePageId(null);
     setEditingTemplateId(templateId);
+    if (templateId) setIsSidebarCollapsed(true);
   };
 
   const toggleSidebarCollapsed = () => setIsSidebarCollapsed((prev) => !prev);
@@ -448,12 +474,18 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Project Mutations
-  const createProject = (name: string, description = '프로젝트 설명', coverColor = '#D9D5F3') => {
+  const createProject = (
+    name: string,
+    description = '',
+    coverColor = '#D9D5F3',
+    coverImage?: string
+  ) => {
     const newProj: Project = {
       id: generateId('proj'),
       name: name.trim() || '새 프로젝트',
-      description: description.trim() || '프로젝트 설명',
+      description: description.trim(),
       coverColor,
+      coverImage,
       order: 0,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -597,14 +629,21 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   // Folder Mutations
-  const createFolder = (name: string, description = '폴더 설명') => {
+  const createFolder = (
+    name: string,
+    description = '',
+    coverColor?: string,
+    coverImage?: string
+  ) => {
     if (!activeProjectId) throw new Error('No active project');
     const newFolder: Folder = {
       id: generateId('folder'),
       projectId: activeProjectId,
       parentFolderId: activeFolderId,
       name: name.trim() || '새 폴더',
-      description: description.trim() || '폴더 설명',
+      description: description.trim(),
+      coverColor,
+      coverImage,
       order: currentFolders.length,
       createdAt: Date.now(),
       updatedAt: Date.now(),
@@ -621,6 +660,12 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     );
     setFolders(next);
     persistWithStatus(() => StorageService.saveFolders(next));
+  };
+
+  const toggleFavoriteFolder = (id: string) => {
+    const folder = foldersRef.current.find((f) => f.id === id);
+    if (!folder) return;
+    updateFolder(id, { isFavorite: !folder.isFavorite });
   };
 
   const collectDescendantFolderIds = (rootId: string): Set<string> => {
@@ -763,7 +808,9 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     title: string,
     templateType: string,
     category: TemplateCategoryType,
-    initialContent?: string
+    initialContent?: string,
+    coverColor?: string,
+    coverImage?: string
   ) => {
     if (!activeProjectId) throw new Error('No active project');
     const tpl = TEMPLATES.find((t) => t.id === templateType);
@@ -773,11 +820,13 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       projectId: activeProjectId,
       folderId: activeFolderId,
       title: title.trim() || tpl?.defaultTitle || '새 문서',
-      description: tpl?.description || '',
+      description: '',
       tags: [],
       templateType,
       category,
       docKind: tpl?.docKind || 'template',
+      coverColor,
+      coverImage,
       isFavorite: false,
       order: currentDocuments.length,
       createdAt: Date.now(),
@@ -1062,6 +1111,14 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const saveDefaultTemplateOverride = (templateId: string, content: string) => {
+    if (userTemplates.some((u) => u.id === templateId)) {
+      const nextUsers = userTemplates.map((u) =>
+        u.id === templateId ? { ...u, content, updatedAt: Date.now() } : u
+      );
+      setUserTemplates(nextUsers);
+      persistWithStatus(() => StorageService.saveUserTemplates(nextUsers));
+      return;
+    }
     const next = { ...defaultTemplateOverrides, [templateId]: content };
     setDefaultTemplateOverrides(next);
     persistWithStatus(() => StorageService.saveDefaultTemplateOverrides(next));
@@ -1095,6 +1152,14 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setUserTemplates(next);
     persistWithStatus(() => StorageService.saveUserTemplates(next));
     return tpl;
+  };
+
+  const updateUserTemplate = (id: string, patch: Partial<UserTemplate>) => {
+    const next = userTemplates.map((u) =>
+      u.id === id ? { ...u, ...patch, updatedAt: Date.now() } : u
+    );
+    setUserTemplates(next);
+    persistWithStatus(() => StorageService.saveUserTemplates(next));
   };
 
   const deleteUserTemplate = (id: string) => {
@@ -1259,6 +1324,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         reorderProjects,
         createFolder,
         updateFolder,
+        toggleFavoriteFolder,
         duplicateFolder,
         moveFolderToTrash,
         reorderItems,
@@ -1278,6 +1344,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         saveDefaultTemplateOverride,
         resetDefaultTemplateOverride,
         createUserTemplate,
+        updateUserTemplate,
         deleteUserTemplate,
         saveDesignPreset,
         renameDesignPreset,

@@ -8,6 +8,7 @@ export const TopBar: React.FC = () => {
     setGlobalSearchQuery,
     navSection,
     setNavSection,
+    activeProjectId,
     viewMode,
     setViewMode,
   } = useWorkspace();
@@ -62,48 +63,50 @@ export const TopBar: React.FC = () => {
         />
       </div>
 
-      {/* Sliding segmented control for Grid / List view (§2-9, §3-1) */}
-      <div className="relative inline-grid grid-cols-2 items-center rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-0.5 shrink-0">
-        <span
-          aria-hidden="true"
-          style={{
-            transform: viewMode === 'grid' ? 'translateX(0%)' : 'translateX(100%)',
-          }}
-          className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-[10px] bg-[#1B1B1F] dark:bg-[#F1F0F6] transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            if (viewMode === 'grid') return;
-            const playFlip = runFlipForSortItems(280);
-            setViewMode('grid');
-            playFlip();
-          }}
-          className={`relative z-10 px-3.5 py-1.5 rounded-[10px] text-xs font-semibold transition-colors duration-200 ${
-            viewMode === 'grid'
-              ? 'text-white dark:text-[#15151C]'
-              : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-[#F1F0F6]'
-          }`}
-        >
-          카드
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            if (viewMode === 'list') return;
-            const playFlip = runFlipForSortItems(280);
-            setViewMode('list');
-            playFlip();
-          }}
-          className={`relative z-10 px-3.5 py-1.5 rounded-[10px] text-xs font-semibold transition-colors duration-200 ${
-            viewMode === 'list'
-              ? 'text-white dark:text-[#15151C]'
-              : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-[#F1F0F6]'
-          }`}
-        >
-          목록
-        </button>
-      </div>
+      {/* Hide Grid / List toggle on Main Project overview (projects are card-only) & inside Project/Folder views (which render their own inline controls) */}
+      {(navSection === 'favorites' || navSection === 'recent') && !activeProjectId && (
+        <div className="relative inline-grid grid-cols-2 items-center rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-0.5 shrink-0">
+          <span
+            aria-hidden="true"
+            style={{
+              transform: viewMode === 'grid' ? 'translateX(0%)' : 'translateX(100%)',
+            }}
+            className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-[10px] bg-[#1B1B1F] dark:bg-[#F1F0F6] transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
+          />
+          <button
+            type="button"
+            onClick={() => {
+              if (viewMode === 'grid') return;
+              const playFlip = runFlipForSortItems(280);
+              setViewMode('grid');
+              playFlip();
+            }}
+            className={`relative z-10 px-3.5 py-1.5 rounded-[10px] text-xs font-semibold transition-colors duration-200 ${
+              viewMode === 'grid'
+                ? 'text-white dark:text-[#15151C]'
+                : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-[#F1F0F6]'
+            }`}
+          >
+            카드
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (viewMode === 'list') return;
+              const playFlip = runFlipForSortItems(280);
+              setViewMode('list');
+              playFlip();
+            }}
+            className={`relative z-10 px-3.5 py-1.5 rounded-[10px] text-xs font-semibold transition-colors duration-200 ${
+              viewMode === 'list'
+                ? 'text-white dark:text-[#15151C]'
+                : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-[#F1F0F6]'
+            }`}
+          >
+            목록
+          </button>
+        </div>
+      )}
     </header>
   );
 };

@@ -155,9 +155,12 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
   const [deletingRowIdx, setDeletingRowIdx] = useState<number | null>(null);
   const [deletingColIdx, setDeletingColIdx] = useState<number | null>(null);
 
-  // Animation preview playback
+  // Animation preview playback & Audio playback
   const [animPlaying, setAnimPlaying] = useState(false);
   const [animFrame, setAnimFrame] = useState(0);
+  const [audioPlaying, setAudioPlaying] = useState(false);
+  const audioCardElRef = useRef<HTMLAudioElement | null>(null);
+  const cardDomRef = useRef<HTMLDivElement | null>(null);
 
   // Texture Lightbox keyboard navigation & ESC
   useEffect(() => {
@@ -185,17 +188,24 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [eyedropper]);
 
-  // Animation playback loop
+  // Animation playback loop (syncs with linked frame-strip-card if connected)
   useEffect(() => {
     if (!animPlaying) return;
-    const totalFrames = Math.max(1, Number(card.data?.frames ?? 24));
+    const linkedStrip =
+      card.type === 'animation-card' && card.data?.linkedStripId
+        ? allCards.find((c) => c.id === card.data.linkedStripId)
+        : null;
+    const totalFrames = Math.max(
+      1,
+      Number(linkedStrip?.data?.frameCount ?? card.data?.frames ?? card.data?.frameCount ?? 7)
+    );
     const durationMs = Math.max(200, Number(card.data?.durationSec ?? 1) * 1000);
     const intervalMs = Math.max(24, durationMs / totalFrames);
     const timer = window.setInterval(() => {
       setAnimFrame((prev) => {
         const next = prev + 1;
         if (next >= totalFrames) {
-          if (!card.data?.loop) {
+          if (card.type === 'animation-card' && !card.data?.loop) {
             setAnimPlaying(false);
             return 0;
           }
@@ -205,7 +215,16 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
       });
     }, intervalMs);
     return () => window.clearInterval(timer);
-  }, [animPlaying, card.data?.frames, card.data?.durationSec, card.data?.loop]);
+  }, [
+    allCards,
+    animPlaying,
+    card.data?.durationSec,
+    card.data?.frameCount,
+    card.data?.frames,
+    card.data?.linkedStripId,
+    card.data?.loop,
+    card.type,
+  ]);
 
   const startDrag = (e: React.MouseEvent) => {
     if (!isEditMode || e.button !== 0) return;
@@ -283,14 +302,50 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
     window.addEventListener('mouseup', onUp);
   };
 
+  const getMinDimensions = () => {
+    const d = card.data || {};
+    if (card.type === 'table-card') {
+      const cols = Math.max(1, (d.headers || []).length);
+      const rows = Math.max(1, (d.rows || []).length);
+      return {
+        minW: Math.max(220, cols * 86 + 32),
+        minH: Math.max(96, (rows + 1) * 32 + (isEditMode ? 52 : 24)),
+      };
+    }
+    if (card.type === 'tag-card') {
+      const tagCount = Math.max(1, (d.tags || []).length);
+      return {
+        minW: Math.max(140, Math.min(340, tagCount * 76 + 28)),
+        minH: 52,
+      };
+    }
+    if (card.type === 'stat-card') {
+      const count = Math.max(1, (d.stats || []).length);
+      return {
+        minW: 210,
+        minH: d.mode === 'radar' ? 165 : Math.max(85, count * 38 + 28),
+      };
+    }
+    if (card.type === 'texture-map-card') {
+      const mapCount = Math.max(1, (d.maps || []).length);
+      const rows = d.displayMode === 'grid' ? Math.ceil(mapCount / 3) : Math.ceil(mapCount / 6);
+      return {
+        minW: d.displayMode === 'grid' ? 280 : 380,
+        minH: Math.max(130, rows * 95 + 48),
+      };
+    }
+    return { minW: MIN_CARD_W, minH: MIN_CARD_H };
+  };
+
   const startResize = (e: React.MouseEvent) => {
     if (!isEditMode || e.button !== 0) return;
     e.stopPropagation();
 
+    const { minW, minH } = getMinDimensions();
     const startX = e.clientX;
     const startY = e.clientY;
-    const origW = card.w;
-    const origH = card.h;
+    const origW = Math.max(minW, card.w);
+    const origH = Math.max(minH, card.h);
     const ratio = origW / Math.max(1, origH);
     let finalW = origW;
     let finalH = origH;
@@ -303,8 +358,8 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
       if (ev.shiftKey) {
         nextH = Math.round(nextW / ratio);
       }
-      const clampedW = Math.max(MIN_CARD_W, nextW);
-      const clampedH = Math.max(MIN_CARD_H, nextH);
+      const clampedW = Math.max(minW, nextW);
+      const clampedH = Math.max(minH, nextH);
       const clamped = clampedW !== nextW || clampedH !== nextH;
 
       finalW = clampedW;
@@ -340,15 +395,20 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
     const d = card.data || {};
 
     switch (card.type) {
-      case 'profile-card':
+      case 'profile-card': {
+        const extraFields: { id: string; label: string; value: string }[] = d.fields || [];
         return (
-          <div className="flex flex-col gap-3 h-full">
-            <div className="flex-1 min-h-[140px] rounded-xl bg-[#EBE8F5] dark:bg-[#2B2844] overflow-hidden flex items-center justify-center">
+          <div className="flex flex-col gap-2.5 h-full">
+            <div
+              className={`min-h-[140px] rounded-xl overflow-hidden flex items-center justify-center ${
+                d.imageUrl ? 'bg-transparent' : 'bg-[#EBE8F5] dark:bg-[#2B2844]'
+              }`}
+            >
               {d.imageUrl ? (
                 <img
                   src={d.imageUrl}
                   alt={d.name}
-                  className="bs-animate-fade w-full h-full object-cover"
+                  className="bs-animate-fade w-full h-full object-contain max-h-[200px]"
                 />
               ) : (
                 <span className="text-[11px] text-[#8A8998]">프로필 이미지</span>
@@ -358,19 +418,32 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
               <div className="text-[14px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
                 {d.name || '캐릭터 이름'}
               </div>
-              <div className="text-xs text-[#8A8998] mt-0.5">{d.nickname || '별명'}</div>
+              {d.nickname && <div className="text-xs text-[#8A8998] mt-0.5">{d.nickname}</div>}
             </div>
+            {extraFields.length > 0 && (
+              <div className="flex flex-col divide-y divide-[#F0EEF7] dark:divide-[#2A2938] text-xs pt-1 border-t border-[#F0EEF7] dark:border-[#2A2938]">
+                {extraFields.map((f) => (
+                  <div key={f.id} className="py-1 flex items-center justify-between gap-2">
+                    <span className="font-semibold text-[#4E4D59] dark:text-[#B4B2C4]">
+                      {f.label}
+                    </span>
+                    <span className="text-[#8A8998] text-right">{f.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         );
+      }
 
       case 'stat-card': {
         const stats: { id: string; label: string; value: number }[] = d.stats || [];
         const mode = d.mode || 'bar';
 
         if (mode === 'radar') {
-          const cx = 60;
-          const cy = 54;
-          const r = 38;
+          const cx = 80;
+          const cy = 72;
+          const r = 56;
           const count = Math.max(3, stats.length);
           const pts = Array.from({ length: count }).map((_, i) => {
             const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
@@ -383,8 +456,8 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
           });
 
           return (
-            <div className="bs-animate-fade flex flex-col items-center justify-center gap-1 pt-1">
-              <svg width="120" height="106" viewBox="0 0 120 106">
+            <div className="bs-animate-fade flex flex-col items-center justify-center">
+              <svg width="160" height="144" viewBox="0 0 160 144" className="overflow-visible">
                 <polygon
                   points={outerPts.join(' ')}
                   fill="#F3F1FB"
@@ -398,14 +471,32 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
                   strokeWidth="2"
                   className="transition-all duration-200"
                 />
+                {Array.from({ length: count }).map((_, i) => {
+                  const angle = (Math.PI * 2 * i) / count - Math.PI / 2;
+                  const lx = cx + Math.cos(angle) * (r + 14);
+                  const ly = cy + Math.sin(angle) * (r + 12);
+                  return (
+                    <text
+                      key={i}
+                      x={lx}
+                      y={ly}
+                      textAnchor="middle"
+                      dominantBaseline="middle"
+                      fontSize="9.5"
+                      fill="#6E6D7A"
+                      fontWeight="600"
+                    >
+                      {stats[i]?.label || `항목 ${i + 1}`}
+                    </text>
+                  );
+                })}
               </svg>
-              <span className="text-[11px] text-[#8A8998]">항목과 수치 사용자 지정</span>
             </div>
           );
         }
 
         return (
-          <div className="bs-animate-fade flex flex-col gap-2.5 pt-1">
+          <div className="bs-animate-fade flex flex-col gap-2">
             {stats.map((st) => (
               <div key={st.id} className="flex flex-col gap-1">
                 <div className="flex items-center justify-between text-xs">
@@ -490,33 +581,64 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
 
       case 'image-card':
         return (
-          <div className="flex flex-col gap-2 h-full">
-            <div className="flex-1 min-h-[100px] rounded-xl bg-[#EBE8F5] dark:bg-[#2B2844] overflow-hidden flex items-center justify-center">
+          <div className="flex flex-col h-full">
+            <div
+              className={`flex-1 min-h-[100px] rounded-xl overflow-hidden flex items-center justify-center ${
+                d.imageUrl ? 'bg-transparent' : 'bg-[#EBE8F5] dark:bg-[#2B2844]'
+              }`}
+            >
               {d.imageUrl ? (
                 <img
                   src={d.imageUrl}
-                  alt={d.caption || ''}
-                  className="bs-animate-fade w-full h-full object-cover"
+                  alt=""
+                  className="bs-animate-fade w-full h-full object-contain"
                 />
               ) : (
                 <span className="text-[11px] text-[#8A8998]">이미지</span>
               )}
             </div>
-            {d.caption && <span className="text-[11px] text-[#8A8998]">{d.caption}</span>}
           </div>
         );
+
+      case 'gallery-card': {
+        const images: { id: string; url: string }[] = d.images || [];
+        return (
+          <div
+            className={`grid gap-1.5 h-full min-h-[120px] ${
+              images.length <= 2 ? 'grid-cols-2' : 'grid-cols-2'
+            }`}
+          >
+            {images.map((img, i) => (
+              <div
+                key={img.id || i}
+                className={`rounded-xl overflow-hidden flex items-center justify-center ${
+                  img.url ? 'bg-transparent' : 'bg-[#EBE8F5] dark:bg-[#2B2844]'
+                } ${images.length === 3 && i === 0 ? 'row-span-2 min-h-[120px]' : 'min-h-[64px]'}`}
+              >
+                {img.url ? (
+                  <img src={img.url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  <span className="text-[10px] text-[#8A8998]">사진 {i + 1}</span>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      }
 
       case 'link-preview-card': {
         const linked = documents.find((doc) => doc.id === d.targetDocId);
         const status = d.targetDocId ? getDocumentStatus(d.targetDocId) : 'active';
         return (
           <div className="flex flex-col gap-2.5 h-full relative">
-            <div className="flex-1 min-h-[70px] rounded-xl bg-[#EBE8F5] dark:bg-[#2B2844] flex items-center justify-center">
-              {status !== 'active' && (
+            <div className="flex-1 min-h-[70px] rounded-xl bg-[#EBE8F5] dark:bg-[#2B2844] overflow-hidden flex items-center justify-center">
+              {linked?.coverImage ? (
+                <img src={linked.coverImage} alt={linked.title} className="w-full h-full object-cover" />
+              ) : status !== 'active' ? (
                 <span className="text-[10.5px] font-semibold text-rose-500">
                   {status === 'trashed' ? '휴지통에 있음' : '삭제됨'}
                 </span>
-              )}
+              ) : null}
             </div>
             <div className="flex items-center justify-between gap-2">
               <span
@@ -527,9 +649,6 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
                 }`}
               >
                 {linked?.title || d.targetDocTitle || '연결된 문서 이름'}
-              </span>
-              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD]">
-                {d.docLabel || '문서'}
               </span>
             </div>
             <button
@@ -587,61 +706,27 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
         );
 
       case 'zone-card': {
-        const places: { id: string; label: string; linkedDocId?: string }[] = d.places || [];
-        const activePlace = places.find((p) => p.id === activeZonePlaceId) || null;
+        const places: {
+          id: string;
+          label: string;
+          description?: string;
+          imageUrl?: string;
+          linkedDocId?: string;
+        }[] = d.places || [];
         return (
           <div className="flex flex-col gap-2.5 pt-1 relative" data-no-card-drag>
-            <div className="flex items-center justify-between gap-2">
-              {isEditMode ? (
-                <input
-                  type="text"
-                  value={d.zoneTitle || ''}
-                  onChange={(e) => onUpdate({ data: { ...d, zoneTitle: e.target.value } })}
-                  placeholder="구역 제목"
-                  className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6] bg-transparent border-b border-transparent focus:border-[#6A5ACD] focus:outline-none"
-                />
-              ) : (
-                <div className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
-                  {d.zoneTitle || '구역 제목'}
-                </div>
-              )}
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {places.map((p, idx) => {
+            {d.zoneTitle && (
+              <div className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
+                {d.zoneTitle}
+              </div>
+            )}
+            <div className="grid grid-flow-col auto-cols-[125px] gap-2.5 overflow-x-auto pb-1">
+              {places.map((p) => {
                 const isLinked = Boolean(p.linkedDocId);
-                const isEditingThis = isEditMode && activeZonePlaceId === p.id;
                 return (
                   <div
                     key={p.id}
-                    draggable={isEditMode}
-                    onDragStart={(e) => {
-                      if (!isEditMode) return;
-                      e.stopPropagation();
-                      setDragZonePlaceIdx(idx);
-                      e.dataTransfer.effectAllowed = 'move';
-                    }}
-                    onDragOver={(e) => {
-                      if (!isEditMode || dragZonePlaceIdx === null) return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                    }}
-                    onDrop={(e) => {
-                      if (!isEditMode || dragZonePlaceIdx === null) return;
-                      e.preventDefault();
-                      e.stopPropagation();
-                      if (dragZonePlaceIdx !== idx) {
-                        const next = [...places];
-                        const [moved] = next.splice(dragZonePlaceIdx, 1);
-                        next.splice(idx, 0, moved);
-                        onUpdate({ data: { ...d, places: next } });
-                      }
-                      setDragZonePlaceIdx(null);
-                    }}
-                    onDragEnd={() => setDragZonePlaceIdx(null)}
-                    className={`relative transition-transform duration-150 ${
-                      dragZonePlaceIdx === idx ? 'opacity-40' : ''
-                    }`}
+                    className="rounded-xl border border-[#ECEAF5] dark:border-[#2C2B3B] bg-[#FAF9FE] dark:bg-[#181822] p-2 flex flex-col gap-1.5 relative"
                   >
                     <button
                       type="button"
@@ -649,7 +734,6 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
                         e.stopPropagation();
                         if (isEditMode) {
                           onSelect();
-                          setActiveZonePlaceId(activeZonePlaceId === p.id ? null : p.id);
                           return;
                         }
                         if (p.linkedDocId) {
@@ -659,106 +743,39 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
                           window.setTimeout(() => setUnlinkedZoneTipId(null), 2000);
                         }
                       }}
-                      title={
-                        isEditMode
-                          ? `${p.label} (클릭해 편집 · 드래그해 순서 변경)`
-                          : isLinked
-                            ? `${p.label} 문서 열기`
-                            : '연결된 문서 없음'
-                      }
-                      className={`min-w-[32px] h-8 px-2.5 rounded-lg text-xs font-bold transition-all duration-120 ${
-                        isLinked
-                          ? 'bg-[#6A5ACD] text-white hover:bg-[#5A49B8] hover:-translate-y-px'
-                          : 'border border-[#DCD8EC] dark:border-[#3A3850] text-[#4E4D59] dark:text-[#B4B2C4] hover:border-[#B6ACEA]'
-                      } ${isEditingThis ? 'ring-2 ring-[#6A5ACD]' : ''}`}
+                      className={`w-full h-20 rounded-lg overflow-hidden flex items-center justify-center transition-all ${
+                        p.imageUrl ? 'bg-transparent' : 'bg-[#EBE8F5] dark:bg-[#2B2844]'
+                      } ${isLinked ? 'hover:ring-2 hover:ring-[#6A5ACD]' : ''}`}
                     >
-                      {p.label}
+                      {p.imageUrl ? (
+                        <img
+                          src={p.imageUrl}
+                          alt={p.label}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span className="text-[10px] text-[#8A8998]">
+                          {isLinked ? '연결됨 · 사진' : '사진'}
+                        </span>
+                      )}
                     </button>
+                    <div className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
+                      {p.label}
+                    </div>
+                    {p.description && (
+                      <div className="text-[10.5px] text-[#8A8998] line-clamp-2">
+                        {p.description}
+                      </div>
+                    )}
                     {unlinkedZoneTipId === p.id && !isEditMode && (
-                      <div className="bs-animate-popover absolute left-0 top-9 z-40 whitespace-nowrap px-2.5 py-1 rounded-lg bg-[#1B1B1F] text-white text-[10.5px] shadow-lg">
+                      <div className="bs-animate-popover absolute left-1 top-20 z-40 whitespace-nowrap px-2 py-1 rounded-lg bg-[#1B1B1F] text-white text-[10px] shadow-lg">
                         연결된 문서가 없습니다
                       </div>
                     )}
                   </div>
                 );
               })}
-
-              {isEditMode && (
-                <button
-                  type="button"
-                  title="장소 추가"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const newPlace = {
-                      id: `zp-${Date.now()}`,
-                      label: `장소 ${places.length + 1}`,
-                      linkedDocId: '',
-                    };
-                    onUpdate({ data: { ...d, places: [...places, newPlace] } });
-                    setActiveZonePlaceId(newPlace.id);
-                  }}
-                  className="h-8 px-2.5 rounded-lg border border-dashed border-[#B6ACEA] dark:border-[#494375] text-xs font-bold text-[#6A5ACD] dark:text-[#9A8FE6] hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845] inline-flex items-center gap-1"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>추가</span>
-                </button>
-              )}
             </div>
-
-            {/* Inline Place Edit Popover in Edit Mode (§5-2) */}
-            {isEditMode && activePlace && (
-              <div
-                onClick={(e) => e.stopPropagation()}
-                className="bs-animate-popover mt-1 p-2.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-[#FAF9FE] dark:bg-[#171720] flex flex-col gap-2 text-xs z-30"
-              >
-                <div className="flex items-center justify-between gap-1">
-                  <input
-                    type="text"
-                    autoFocus
-                    value={activePlace.label}
-                    onChange={(e) => {
-                      const next = places.map((x) =>
-                        x.id === activePlace.id ? { ...x, label: e.target.value } : x
-                      );
-                      onUpdate({ data: { ...d, places: next } });
-                    }}
-                    placeholder="장소 이름"
-                    className="flex-1 h-7 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs font-bold"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const next = places.filter((x) => x.id !== activePlace.id);
-                      onUpdate({ data: { ...d, places: next } });
-                      setActiveZonePlaceId(null);
-                    }}
-                    className="p-1 rounded text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                    title="장소 삭제"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <select
-                  value={activePlace.linkedDocId || ''}
-                  onChange={(e) => {
-                    const next = places.map((x) =>
-                      x.id === activePlace.id ? { ...x, linkedDocId: e.target.value } : x
-                    );
-                    onUpdate({ data: { ...d, places: next } });
-                  }}
-                  className="h-7 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-[11px]"
-                >
-                  <option value="">연결된 문서 없음 (윤곽 버튼)</option>
-                  {documents
-                    .filter((doc) => !doc.deletedAt)
-                    .map((doc) => (
-                      <option key={doc.id} value={doc.id}>
-                        {doc.title}
-                      </option>
-                    ))}
-                </select>
-              </div>
-            )}
           </div>
         );
       }
@@ -834,6 +851,34 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
             </div>
           </div>
         );
+
+      case 'probability-card': {
+        const items: { id: string; name: string; value: string; prob: string }[] = d.items || [];
+        return (
+          <div className="flex flex-col gap-2 pt-1 text-xs">
+            <div className="grid grid-cols-3 text-[11px] font-semibold text-[#8A8998] px-2 py-1 rounded-lg bg-[#F6F5FB] dark:bg-[#262436]">
+              <span>이름</span>
+              <span className="text-center">값</span>
+              <span className="text-right">확률</span>
+            </div>
+            <div className="flex flex-col divide-y divide-[#F0EEF7] dark:divide-[#2A2938]">
+              {items.map((it) => (
+                <div key={it.id} className="grid grid-cols-3 items-center py-1.5 px-2">
+                  <span className="font-semibold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
+                    {it.name}
+                  </span>
+                  <span className="text-center tabular-nums text-[#555464] dark:text-[#B4B2C4]">
+                    {it.value}
+                  </span>
+                  <span className="text-right font-bold tabular-nums text-[#6A5ACD] dark:text-[#9A8FE6]">
+                    {it.prob}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      }
 
       case 'formula-card': {
         const valA = Number(d.varA || 0);
@@ -1199,6 +1244,15 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
                 <div
                   data-eyedropper-overlay="true"
                   data-export-ignore="true"
+                  onWheel={(ev) => {
+                    const scrollBox = cardDomRef.current?.closest('.overflow-auto') as HTMLElement | null;
+                    if (scrollBox) {
+                      scrollBox.scrollTop += ev.deltaY;
+                      scrollBox.scrollLeft += ev.deltaX;
+                    } else {
+                      window.scrollBy(ev.deltaX, ev.deltaY);
+                    }
+                  }}
                   onMouseMove={(ev) => {
                     const sampled = sampleColorAtPoint(ev.clientX, ev.clientY);
                     setEyedropper((prev) =>
@@ -1668,31 +1722,71 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
       }
 
       case 'animation-card': {
-        const totalFrames = Math.max(1, Number(d.frames ?? 24));
-        const pct = ((animFrame % totalFrames) / totalFrames) * 100;
+        const linkedStrip = d.linkedStripId
+          ? allCards.find((c) => c.id === d.linkedStripId && c.type === 'frame-strip-card')
+          : null;
+        const stripImages: string[] = linkedStrip?.data?.frameImages || [];
+        const totalFrames = Math.max(
+          1,
+          Number(linkedStrip?.data?.frameCount ?? d.frames ?? 7)
+        );
+        const curIdx = animFrame % totalFrames;
+        const curImg = stripImages[curIdx] || '';
+        const pct = (curIdx / totalFrames) * 100;
+
+        if (!linkedStrip) {
+          return (
+            <div className="flex flex-col items-center justify-center gap-2 py-6 text-center text-xs">
+              <div className="w-10 h-10 rounded-full bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD] flex items-center justify-center font-bold">
+                !
+              </div>
+              <div className="font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
+                프레임 스트립 연결 필요
+              </div>
+              <p className="text-[11px] text-[#8A8998] leading-snug">
+                편집 모드 우측 패널에서 프레임 스트립 컴포넌트를 연결하면 애니메이션을 재생할 수 있습니다.
+              </p>
+            </div>
+          );
+        }
+
         return (
           <div className="flex flex-col gap-2 text-xs">
-            <div className="relative h-24 rounded-xl bg-[#EBE8F5] dark:bg-[#2B2844] flex items-center justify-center overflow-hidden">
-              <div
-                className="w-6 h-6 rounded-lg bg-[#9A8FE6]/60 transition-transform duration-100"
-                style={{
-                  transform: animPlaying
-                    ? `translateX(${Math.sin((animFrame / totalFrames) * Math.PI * 2) * 32}px) scale(${1 + 0.1 * Math.cos((animFrame / totalFrames) * Math.PI * 4)})`
-                    : undefined,
-                }}
-              />
+            <div
+              className={`relative h-28 rounded-xl flex items-center justify-center overflow-hidden ${
+                curImg ? 'bg-transparent' : 'bg-[#EBE8F5] dark:bg-[#2B2844]'
+              }`}
+            >
+              {curImg ? (
+                <img
+                  src={curImg}
+                  alt={`Frame ${curIdx + 1}`}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <div
+                  className="w-7 h-7 rounded-lg bg-[#9A8FE6]/60 transition-transform duration-100 flex items-center justify-center text-[10px] font-bold text-white"
+                  style={{
+                    transform: animPlaying
+                      ? `translateX(${Math.sin((curIdx / totalFrames) * Math.PI * 2) * 28}px)`
+                      : undefined,
+                  }}
+                >
+                  #{curIdx + 1}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setAnimPlaying((p) => !p);
                 }}
-                className="absolute w-9 h-9 rounded-full bg-[#6A5ACD] hover:bg-[#5A49B8] text-white flex items-center justify-center shadow"
+                className="absolute bottom-2.5 right-2.5 w-8 h-8 rounded-full bg-[#6A5ACD] hover:bg-[#5A49B8] text-white flex items-center justify-center shadow"
               >
                 {animPlaying ? (
-                  <Pause className="w-4 h-4 fill-white" />
+                  <Pause className="w-3.5 h-3.5 fill-white" />
                 ) : (
-                  <Play className="w-4 h-4 fill-white ml-0.5" />
+                  <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
                 )}
               </button>
               <div className="absolute bottom-0 inset-x-0 h-1 bg-black/10">
@@ -1702,12 +1796,14 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
             <div className="flex items-center justify-between font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
               <span>{d.name || '대기'}</span>
               <span className="text-[10.5px] font-mono text-[#6A5ACD]">
-                {animFrame + 1}/{totalFrames}f
+                {curIdx + 1}/{totalFrames}f
               </span>
             </div>
             <div className="flex justify-between text-[11px] border-t border-[#F0EEF7] dark:border-[#2A2938] pt-1">
               <span className="text-[#8A8998]">길이</span>
-              <span>{d.durationSec ?? 1.0}초 · {d.loop ? '반복' : '1회'}</span>
+              <span>
+                {d.durationSec ?? 1.0}초 · {d.loop ? '반복' : '1회'}
+              </span>
             </div>
           </div>
         );
@@ -1715,11 +1811,36 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
 
       case 'frame-strip-card': {
         const count = Math.max(1, Number(d.frameCount || 7));
+        const frameImages: string[] = d.frameImages || [];
         const activeIdx = animPlaying ? animFrame % count : -1;
+
+        const uploadFrameImg = (fIdx: number) => {
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = 'image/*';
+          input.onchange = () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            const r = new FileReader();
+            r.onload = () => {
+              if (typeof r.result === 'string') {
+                const nextImgs = Array.from({ length: count }).map(
+                  (_, i) => (i === fIdx ? (r.result as string) : frameImages[i] || '')
+                );
+                onUpdate({ data: { ...d, frameImages: nextImgs } });
+              }
+            };
+            r.readAsDataURL(file);
+          };
+          input.click();
+        };
+
         return (
-          <div className="flex flex-col gap-1.5 pt-1 h-[calc(100%-24px)]" data-no-card-drag>
+          <div className="flex flex-col gap-1.5 pt-1" data-no-card-drag>
             <div className="flex items-center justify-between text-[10.5px] text-[#8A8998]">
-              <span>프레임 {count}개</span>
+              <span>
+                프레임 {count}개 {isEditMode && '· 각 프레임을 클릭해 이미지 업로드'}
+              </span>
               <button
                 type="button"
                 onClick={(e) => {
@@ -1731,23 +1852,39 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
                 {animPlaying ? '⏸ 일시정지' : '▶ 스트립 재생'}
               </button>
             </div>
-            <div className="grid grid-cols-7 gap-2 flex-1">
+            <div className="grid grid-cols-7 gap-2">
               {Array.from({ length: count }).map((_, i) => {
                 const isCurrent = activeIdx === i;
+                const imgUrl = frameImages[i] || '';
                 return (
                   <div
                     key={i}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setAnimFrame(i);
+                      if (isEditMode) {
+                        uploadFrameImg(i);
+                      } else {
+                        setAnimFrame(i);
+                      }
                     }}
-                    className={`rounded-lg bg-[#EBE8F5] dark:bg-[#2B2844] min-h-[42px] flex items-end justify-center pb-1 text-[9.5px] font-mono transition-all duration-120 cursor-pointer ${
+                    className={`relative rounded-lg overflow-hidden min-h-[54px] flex items-end justify-center pb-1 text-[9.5px] font-mono transition-all duration-120 cursor-pointer ${
+                      imgUrl ? 'bg-transparent border border-[#E6E3F0] dark:border-[#323244]' : 'bg-[#EBE8F5] dark:bg-[#2B2844]'
+                    } ${
                       isCurrent
-                        ? 'ring-2 ring-[#6A5ACD] bg-[#DCD6F7] dark:bg-[#3A355E] text-[#6A5ACD] dark:text-white font-bold scale-[1.03]'
+                        ? 'ring-2 ring-[#6A5ACD] text-[#6A5ACD] dark:text-white font-bold scale-[1.03]'
                         : 'text-[#8A8998]'
                     }`}
                   >
-                    #{i + 1}
+                    {imgUrl && (
+                      <img
+                        src={imgUrl}
+                        alt={`#${i + 1}`}
+                        className="absolute inset-0 w-full h-full object-contain"
+                      />
+                    )}
+                    <span className="relative z-10 px-1 rounded bg-black/40 text-white text-[9px]">
+                      #{i + 1}
+                    </span>
                   </div>
                 );
               })}
@@ -2096,6 +2233,92 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
         );
       }
 
+      case 'external-link-card':
+        return (
+          <div className="flex flex-col justify-between gap-2 pt-1 text-xs">
+            <div>
+              <div className="font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
+                {d.title || '외부 링크 제목'}
+              </div>
+              <div className="text-[11px] text-[#8A8998] truncate mt-0.5">
+                {d.domain || d.url || 'https://example.com'}
+              </div>
+            </div>
+            <a
+              href={d.url || 'https://example.com'}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="text-xs font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] hover:underline"
+            >
+              외부 링크 열기 ↗
+            </a>
+          </div>
+        );
+
+      case 'video-card':
+        return (
+          <div className="flex flex-col gap-1.5 h-full">
+            <div className="flex-1 min-h-[120px] rounded-xl bg-[#EBE8F5] dark:bg-[#2B2844] overflow-hidden flex items-center justify-center">
+              {d.videoUrl ? (
+                <video
+                  src={d.videoUrl}
+                  controls
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-full h-full object-contain"
+                />
+              ) : (
+                <span className="text-[11px] text-[#8A8998]">동영상 (우측 패널에서 업로드)</span>
+              )}
+            </div>
+          </div>
+        );
+
+      case 'audio-card':
+        return (
+          <div className="flex items-center justify-between gap-3 pt-1 text-xs" data-no-card-drag>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!d.audioUrl) return;
+                if (!audioCardElRef.current) {
+                  audioCardElRef.current = new Audio(d.audioUrl);
+                  audioCardElRef.current.onended = () => setAudioPlaying(false);
+                }
+                if (audioPlaying) {
+                  audioCardElRef.current.pause();
+                  setAudioPlaying(false);
+                } else {
+                  audioCardElRef.current.src = d.audioUrl;
+                  audioCardElRef.current.play().catch(() => {});
+                  setAudioPlaying(true);
+                }
+              }}
+              className="w-9 h-9 rounded-full bg-[#6A5ACD] text-white flex items-center justify-center shrink-0"
+            >
+              {audioPlaying ? (
+                <Pause className="w-4 h-4 fill-white" />
+              ) : (
+                <Play className="w-4 h-4 fill-white ml-0.5" />
+              )}
+            </button>
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
+                {d.fileName || '오디오 파일'}
+              </div>
+              <div className="text-[11px] text-[#8A8998]">{d.duration || '0:00'}</div>
+            </div>
+          </div>
+        );
+
+      case 'memo-card':
+        return (
+          <div className="text-xs leading-relaxed text-[#4E4D59] dark:text-[#B4B2C4] whitespace-pre-wrap">
+            {d.text || '빠른 메모를 남겨보세요.'}
+          </div>
+        );
+
       default:
         return (
           <div className="text-xs text-[#8A8998] pt-1">
@@ -2105,14 +2328,57 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
     }
   };
 
-  const renderRect = liveRect || { x: card.x, y: card.y, w: card.w, h: card.h };
+  const { minW, minH } = getMinDimensions();
+  const renderRect = liveRect || {
+    x: card.x,
+    y: card.y,
+    w: Math.max(minW, card.w),
+    h: Math.max(minH, card.h),
+  };
   const hasFloatingPopover =
     (isEditMode && card.type === 'palette-card' && activeSwatchIdx !== null) ||
     Boolean(deletedDocNotice) ||
     Boolean(unlinkedZoneTipId);
 
+  // Formula <-> Difficulty Curve shared border color when linked (수정사항.md 게임 기획서 4)
+  const FORMULA_LINK_COLORS = ['#059669', '#D97706', '#2563EB', '#E11D48'];
+  const linkedFormulaColor = (() => {
+    if (
+      card.type === 'difficulty-curve-card' &&
+      card.data?.actualSource !== 'manual' &&
+      card.data?.linkedFormulaId
+    ) {
+      const fIdx = allCards
+        .filter((c) => c.type === 'formula-card')
+        .findIndex((c) => c.id === card.data.linkedFormulaId);
+      if (fIdx >= 0) return FORMULA_LINK_COLORS[fIdx % FORMULA_LINK_COLORS.length];
+    }
+    if (card.type === 'formula-card') {
+      const isLinkedByCurve = allCards.some(
+        (c) =>
+          c.type === 'difficulty-curve-card' &&
+          c.data?.actualSource !== 'manual' &&
+          c.data?.linkedFormulaId === card.id
+      );
+      if (isLinkedByCurve) {
+        const fIdx = allCards
+          .filter((c) => c.type === 'formula-card')
+          .findIndex((c) => c.id === card.id);
+        return FORMULA_LINK_COLORS[Math.max(0, fIdx) % FORMULA_LINK_COLORS.length];
+      }
+    }
+    return undefined;
+  })();
+
+  const shouldPopoverFlipUp = (() => {
+    if (!cardDomRef.current) return renderRect.y > 420;
+    const rect = cardDomRef.current.getBoundingClientRect();
+    return rect.bottom + 240 > window.innerHeight;
+  })();
+
   return (
     <div
+      ref={cardDomRef}
       data-card-id={card.id}
       onMouseDown={startDrag}
       onClick={(e) => {
@@ -2122,19 +2388,18 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
       style={{
         left: renderRect.x,
         top: renderRect.y,
-        width: renderRect.w,
-        height: card.collapsed
-          ? 44
-          : card.type === 'palette-card'
-            ? 'auto'
-            : renderRect.h,
-        minHeight: card.collapsed
-          ? 44
-          : card.type === 'palette-card'
-            ? Math.max(102, renderRect.h)
-            : undefined,
+        width: card.type === 'tag-card' ? 'auto' : renderRect.w,
+        minWidth: card.type === 'tag-card' ? minW : undefined,
+        maxWidth: card.type === 'tag-card' ? Math.max(renderRect.w, 380) : undefined,
+        height: card.collapsed ? 40 : 'auto',
+        minHeight: card.collapsed ? 40 : Math.max(minH, renderRect.h),
         borderRadius: `${card.style?.borderRadius ?? 12}px`,
-        borderWidth: `${card.style?.borderWidth ?? (isSelected && isEditMode ? 2 : 1)}px`,
+        borderWidth: `${
+          linkedFormulaColor
+            ? 2
+            : card.style?.borderWidth ?? (isSelected && isEditMode ? 2 : 1)
+        }px`,
+        borderColor: linkedFormulaColor || undefined,
         padding: `${card.style?.padding ?? 14}px`,
       }}
       className={`absolute bg-white dark:bg-[#1E1E29] border transition-shadow flex flex-col ${
@@ -2147,50 +2412,47 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
             : 'border-[#E6E3F0] dark:border-[#2E2D3D] shadow-2xs z-10'
       } ${isEditMode ? 'cursor-move' : 'cursor-default'}`}
     >
-      {/* Card Header */}
-      {card.type !== 'section-heading' && (
-        <div className="flex items-center justify-between gap-2 shrink-0 mb-1.5">
-          <span className="text-[11px] font-medium text-[#8A8998] dark:text-[#8E8C9F] truncate">
-            {card.title}
-            {card.collapsed ? ' (접힘)' : ''}
-          </span>
-          <div className="flex items-center gap-1">
-            {isEditMode && !card.collapsed && card.type === 'palette-card' && (
-              <button
-                type="button"
-                data-export-ignore="true"
-                title="색상 추가"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  const colors: string[] = card.data?.colors || [];
-                  const next = [...colors, '#6A5ACD'];
-                  onUpdate({ data: { ...card.data, colors: next } });
-                  setActiveSwatchIdx(next.length - 1);
-                  setHexDraft('#6A5ACD');
-                }}
-                className="px-1.5 py-0.5 rounded-md border border-dashed border-[#B6ACEA] dark:border-[#494375] text-[10px] font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845] inline-flex items-center gap-0.5"
-              >
-                <Plus className="w-2.5 h-2.5" />
-                <span>추가</span>
-              </button>
-            )}
-            {card.collapsible && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onUpdate({ collapsed: !card.collapsed });
-                }}
-                className="p-0.5 rounded text-[#8A8998] hover:text-[#1B1B1F] dark:hover:text-white"
-              >
-                {card.collapsed ? (
-                  <ChevronRight className="w-3.5 h-3.5" />
-                ) : (
-                  <ChevronDown className="w-3.5 h-3.5" />
-                )}
-              </button>
-            )}
-          </div>
+      {/* Component Title is NOT displayed on canvas per 수정사항.md (컴포넌트 1). Only show floating controls if needed */}
+      {(card.collapsible || (isEditMode && !card.collapsed && card.type === 'palette-card')) && (
+        <div className="flex items-center justify-end gap-1 shrink-0 mb-1">
+          {card.collapsed && (
+            <span className="text-[11px] text-[#8A8998] mr-auto">접힌 컴포넌트</span>
+          )}
+          {isEditMode && !card.collapsed && card.type === 'palette-card' && (
+            <button
+              type="button"
+              data-export-ignore="true"
+              title="색상 추가"
+              onClick={(e) => {
+                e.stopPropagation();
+                const colors: string[] = card.data?.colors || [];
+                const next = [...colors, '#6A5ACD'];
+                onUpdate({ data: { ...card.data, colors: next } });
+                setActiveSwatchIdx(next.length - 1);
+                setHexDraft('#6A5ACD');
+              }}
+              className="px-1.5 py-0.5 rounded-md border border-dashed border-[#B6ACEA] dark:border-[#494375] text-[10px] font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845] inline-flex items-center gap-0.5"
+            >
+              <Plus className="w-2.5 h-2.5" />
+              <span>추가</span>
+            </button>
+          )}
+          {card.collapsible && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdate({ collapsed: !card.collapsed });
+              }}
+              className="p-0.5 rounded text-[#8A8998] hover:text-[#1B1B1F] dark:hover:text-white"
+            >
+              {card.collapsed ? (
+                <ChevronRight className="w-3.5 h-3.5" />
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5" />
+              )}
+            </button>
+          )}
         </div>
       )}
 
@@ -2199,7 +2461,7 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
         <div className="flex-1 min-h-0 overflow-visible">{renderCardBody()}</div>
       )}
 
-      {/* Floating Palette Swatch Edit & Delete Popover (rendered outside card bounds so it is never clipped) */}
+      {/* Floating Palette Swatch Edit & Delete Popover (auto flips above card when near bottom of screen, 수정사항.md 공통 12) */}
       {isEditMode &&
         !card.collapsed &&
         card.type === 'palette-card' &&
@@ -2209,7 +2471,9 @@ export const CanvasCardView: React.FC<CanvasCardViewProps> = ({
             data-export-ignore="true"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
-            className="bs-animate-popover absolute left-0 top-full mt-2 z-50 min-w-[285px] p-3 rounded-2xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] shadow-2xl flex flex-col gap-2.5"
+            className={`bs-animate-popover absolute left-0 ${
+              shouldPopoverFlipUp ? 'bottom-full mb-2' : 'top-full mt-2'
+            } z-50 min-w-[285px] p-3 rounded-2xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] shadow-2xl flex flex-col gap-2.5`}
           >
             <div className="flex items-center justify-between text-[11px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
               <span>색상 #{activeSwatchIdx + 1} 편집</span>

@@ -2,7 +2,7 @@ import React from 'react';
 import { PanelLeft, ChevronsRight } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 
-export const Sidebar: React.FC<{ forceCollapsed?: boolean }> = ({ forceCollapsed = false }) => {
+export const Sidebar: React.FC = () => {
   const {
     navSection,
     setNavSection,
@@ -13,14 +13,13 @@ export const Sidebar: React.FC<{ forceCollapsed?: boolean }> = ({ forceCollapsed
     expandedProjectIds,
     isSidebarCollapsed,
     toggleSidebarCollapsed,
-    setSidebarCollapsed,
     openProject,
     openFolder,
     openTemplateEditor,
     openDocument,
   } = useWorkspace();
 
-  const collapsed = forceCollapsed || isSidebarCollapsed;
+  const collapsed = isSidebarCollapsed;
 
   if (collapsed) {
     return (
@@ -39,15 +38,7 @@ export const Sidebar: React.FC<{ forceCollapsed?: boolean }> = ({ forceCollapsed
         </button>
         <button
           type="button"
-          onClick={() => {
-            if (forceCollapsed) {
-              openDocument(null);
-              openTemplateEditor(null);
-              setSidebarCollapsed(false);
-            } else {
-              toggleSidebarCollapsed();
-            }
-          }}
+          onClick={toggleSidebarCollapsed}
           title="사이드바 펼치기"
           className="p-1.5 rounded-lg text-[#6E6D7A] dark:text-[#9E9CAF] hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
         >

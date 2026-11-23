@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { ChevronUp, ChevronDown, Trash2 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 import { DocumentLinkModal } from '../../modals/DocumentLinkModal';
@@ -72,8 +73,8 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
   const [state, setState] = useState<RelationsDocState>(DEFAULT_REL_STATE);
   const [inspectorTab, setInspectorTab] = useState<'edge' | 'character' | 'legend'>('edge');
-  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>('e1');
-  const [selectedLegendId, setSelectedLegendId] = useState<string>('leg-2');
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [selectedLegendId, setSelectedLegendId] = useState<string>('leg-1');
   const [highlightNodeId, setHighlightNodeId] = useState<string | null>(null);
   const [highlightMode, setHighlightMode] = useState<'out' | 'in' | null>(null);
   const [highlightedLegendId, setHighlightedLegendId] = useState<string | null>(null);
@@ -93,6 +94,7 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
         setHighlightedLegendId(null);
         setPickStep(null);
         setPickFromId(null);
+        setSelectedEdgeId(null);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -130,7 +132,6 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
   };
 
   const handleNodeClick = (nodeId: string) => {
-    // Two-character picking mode for "+ 관계선 추가"
     if (pickStep) {
       if (pickStep === 'from') {
         setPickFromId(nodeId);
@@ -139,6 +140,17 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
       }
       if (nodeId === pickFromId) {
         showToast('서로 다른 두 캐릭터를 선택해 주세요', { variant: 'error' });
+        return;
+      }
+      const existingSameDir = state.edges.find(
+        (ed) => ed.fromId === pickFromId && ed.toId === nodeId
+      );
+      if (existingSameDir) {
+        setSelectedEdgeId(existingSameDir.id);
+        setInspectorTab('edge');
+        setPickStep(null);
+        setPickFromId(null);
+        showToast('기존 관계선을 선택했습니다');
         return;
       }
       const newEdge: RelEdge = {
@@ -215,13 +227,16 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Canvas Stage */}
-        <div className="flex-1 relative overflow-auto bg-[#FAF9FE] dark:bg-[#15151C]">
-          {/* Top-left Add Edge & Center Helper Banner matching PDF Pages 9, 17, 19 */}
+        <div
+          className="flex-1 relative overflow-auto bg-[#FAF9FE] dark:bg-[#15151C]"
+          onClick={() => setSelectedEdgeId(null)}
+        >
           <div className="p-4 flex items-center justify-between gap-4 relative z-20">
             {isEditMode ? (
               <button
                 type="button"
-                onClick={() => {
+                onClick={(e) => {
+                  e.stopPropagation();
                   if (state.nodes.length < 2) {
                     showToast('관계선을 만들려면 캐릭터가 2명 이상 필요합니다', { variant: 'error' });
                     return;
@@ -264,7 +279,7 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
               </div>
             ) : (
               <span className="text-[11.5px] text-[#8A8998]">
-                캐릭터는 자동 배치되며 옮길 수 없습니다. 프로필을 누르면 관계선을 단계별로 강조합니다.
+                관계선을 클릭하면 관계 이름이 표시됩니다. 프로필을 누르면 관계선을 단계별로 강조합니다.
               </span>
             )}
             <div className="w-24" />
@@ -308,6 +323,35 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
                     <path d="M0,0 L0,6 L7,3 z" fill={l.color} />
                   </marker>
                 ))}
+                {state.edges.map((edge) => {
+                  const rev = state.edges.find(
+                    (o) => o.fromId === edge.toId && o.toId === edge.fromId
+                  );
+                  if (!rev) return null;
+                  const i1 = state.nodes.findIndex((n) => n.id === edge.fromId);
+                  const i2 = state.nodes.findIndex((n) => n.id === edge.toId);
+                  if (i1 < 0 || i2 < 0) return null;
+                  const p1 = nodePos(i1);
+                  const p2 = nodePos(i2);
+                  const leg1 = state.legends.find((l) => l.id === edge.legendId) || state.legends[0];
+                  const leg2 = state.legends.find((l) => l.id === rev.legendId) || state.legends[0];
+                  const c1 = edge.color || leg1?.color || '#6A5ACD';
+                  const c2 = rev.color || leg2?.color || '#6A5ACD';
+                  return (
+                    <linearGradient
+                      key={`grad-${edge.id}`}
+                      id={`grad-${edge.id}`}
+                      gradientUnits="userSpaceOnUse"
+                      x1={p1.x}
+                      y1={p1.y}
+                      x2={p2.x}
+                      y2={p2.y}
+                    >
+                      <stop offset="0%" stopColor={c1} />
+                      <stop offset="100%" stopColor={c2} />
+                    </linearGradient>
+                  );
+                })}
               </defs>
 
               {state.edges.map((edge) => {
@@ -320,6 +364,15 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
                 const color = edge.color || legend?.color || '#6A5ACD';
                 const style = edge.lineStyle || legend?.lineStyle || 'solid';
 
+                const rev = state.edges.find(
+                  (o) => o.fromId === edge.toId && o.toId === edge.fromId
+                );
+                const revLegend = rev
+                  ? state.legends.find((l) => l.id === rev.legendId) || state.legends[0]
+                  : null;
+                const revStyle = rev ? rev.lineStyle || revLegend?.lineStyle || 'solid' : style;
+                const isPairSecondary = Boolean(rev && edge.id > rev.id);
+
                 let dimmed = false;
                 if (highlightedLegendId && edge.legendId !== highlightedLegendId) dimmed = true;
                 if (highlightNodeId) {
@@ -330,47 +383,97 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
 
                 const mx = (p1.x + p2.x) / 2;
                 const my = (p1.y + p2.y) / 2;
+                const isSelected = selectedEdgeId === edge.id;
 
                 return (
                   <g
                     key={edge.id}
                     style={{ opacity: dimmed ? 0.16 : 1, cursor: 'pointer', pointerEvents: 'auto' }}
                     className="transition-opacity duration-200"
-                    onClick={() => {
-                      setSelectedEdgeId(edge.id);
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedEdgeId((prev) => (prev === edge.id ? null : edge.id));
                       setInspectorTab('edge');
                     }}
                   >
-                    <line
-                      x1={p1.x}
-                      y1={p1.y}
-                      x2={p2.x}
-                      y2={p2.y}
-                      stroke={color}
-                      strokeWidth={edge.width}
-                      strokeDasharray={dashArray(style) || '500'}
-                      className={!dashArray(style) ? 'bs-animate-draw' : ''}
-                      markerEnd={`url(#arrow-${legend?.id || 'leg-1'})`}
-                    />
-                    <rect
-                      x={mx - 28}
-                      y={my - 10}
-                      width="56"
-                      height="20"
-                      rx="6"
-                      fill="white"
-                      stroke="#E6E3F0"
-                    />
-                    <text
-                      x={mx}
-                      y={my + 4}
-                      textAnchor="middle"
-                      fontSize="10"
-                      fill="#4E4D59"
-                      fontWeight="600"
-                    >
-                      {edge.label}
-                    </text>
+                    {/* Invisible hit area */}
+                    <line x1={p1.x} y1={p1.y} x2={p2.x} y2={p2.y} stroke="transparent" strokeWidth={14} />
+
+                    {rev ? (
+                      !isPairSecondary || highlightNodeId ? (
+                        style !== revStyle ? (
+                          <>
+                            <line
+                              x1={p1.x}
+                              y1={p1.y}
+                              x2={mx}
+                              y2={my}
+                              stroke={`url(#grad-${edge.id})`}
+                              strokeWidth={isSelected ? edge.width + 1.2 : edge.width}
+                              strokeDasharray={dashArray(style)}
+                            />
+                            <line
+                              x1={mx}
+                              y1={my}
+                              x2={p2.x}
+                              y2={p2.y}
+                              stroke={`url(#grad-${edge.id})`}
+                              strokeWidth={isSelected ? edge.width + 1.2 : edge.width}
+                              strokeDasharray={dashArray(revStyle)}
+                              markerEnd={`url(#arrow-${legend?.id || 'leg-1'})`}
+                            />
+                          </>
+                        ) : (
+                          <line
+                            x1={p1.x}
+                            y1={p1.y}
+                            x2={p2.x}
+                            y2={p2.y}
+                            stroke={`url(#grad-${edge.id})`}
+                            strokeWidth={isSelected ? edge.width + 1.2 : edge.width}
+                            strokeDasharray={dashArray(style)}
+                            markerEnd={`url(#arrow-${legend?.id || 'leg-1'})`}
+                          />
+                        )
+                      ) : null
+                    ) : (
+                      <line
+                        x1={p1.x}
+                        y1={p1.y}
+                        x2={p2.x}
+                        y2={p2.y}
+                        stroke={color}
+                        strokeWidth={isSelected ? edge.width + 1.2 : edge.width}
+                        strokeDasharray={dashArray(style)}
+                        markerEnd={`url(#arrow-${legend?.id || 'leg-1'})`}
+                      />
+                    )}
+
+                    {/* Only render relationship label when this edge is clicked/selected */}
+                    {isSelected && (
+                      <g>
+                        <rect
+                          x={mx - 36}
+                          y={my - 11}
+                          width="72"
+                          height="22"
+                          rx="6"
+                          fill="white"
+                          stroke="#6A5ACD"
+                          strokeWidth="1.5"
+                        />
+                        <text
+                          x={mx}
+                          y={my + 4}
+                          textAnchor="middle"
+                          fontSize="10"
+                          fill="#4E3FB5"
+                          fontWeight="700"
+                        >
+                          {edge.label}
+                        </text>
+                      </g>
+                    )}
                   </g>
                 );
               })}
@@ -378,7 +481,7 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
 
             {autoLayoutNotice && (
               <div className="bs-animate-popover fixed top-20 left-1/2 -translate-x-1/2 z-50 px-3.5 py-1.5 rounded-full bg-[#1B1B1F] text-white text-xs font-medium shadow-lg">
-                캐릭터는 원형에 자동 배치되므로 드래그할 수 없습니다
+                캐릭터는 원형에 자동 배치됩니다. 우측 캐릭터 탭에서 순서를 변경할 수 있습니다.
               </div>
             )}
 
@@ -407,10 +510,14 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
                     window.addEventListener('mousemove', onMove);
                     window.addEventListener('mouseup', onUp);
                   }}
-                  onDoubleClick={() => {
+                  onDoubleClick={(e) => {
+                    e.stopPropagation();
                     if (!isEditMode && node.linkedDocId) openDocument(node.linkedDocId);
                   }}
-                  onClick={() => handleNodeClick(node.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleNodeClick(node.id);
+                  }}
                   style={{
                     left: p.x - nodeSize / 2,
                     top: p.y - nodeSize / 2,
@@ -434,9 +541,12 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
             })}
           </div>
 
-          {/* Bottom-left Legend Box matching PDF Page 9 */}
+          {/* Bottom-left Legend Box */}
           {state.showLegend && (
-            <div className="fixed bottom-5 left-16 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-3.5 shadow-sm flex flex-col gap-2 z-20">
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="fixed bottom-5 left-16 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-3.5 shadow-sm flex flex-col gap-2 z-20"
+            >
               <div className="text-[11px] font-bold text-[#6E6D7A]">관계 범례</div>
               {state.legends.map((l) => (
                 <button
@@ -462,7 +572,10 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
           )}
 
           {/* Bottom-right Zoom Controls */}
-          <div className="fixed bottom-5 right-[315px] inline-flex items-center gap-1 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] px-2 py-1 text-xs z-20">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="fixed bottom-5 right-[315px] inline-flex items-center gap-1 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] px-2 py-1 text-xs z-20"
+          >
             <button type="button" onClick={() => setZoom((z) => Math.max(60, z - 10))} className="px-1.5">
               −
             </button>
@@ -473,7 +586,7 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
           </div>
         </div>
 
-        {/* Right 3-Tab Inspector in Edit Mode matching PDF Pages 9, 12, 15 */}
+        {/* Right 3-Tab Inspector in Edit Mode */}
         {isEditMode && (
           <aside className="w-[290px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-4 overflow-y-auto select-none">
             <div className="flex items-center gap-1.5">
@@ -497,83 +610,125 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
               ))}
             </div>
 
-            {inspectorTab === 'edge' && selectedEdge && (
-              <div className="flex flex-col gap-3 text-xs">
-                <div className="font-bold text-sm">관계선 수정</div>
-                <label className="flex items-center justify-between">
-                  <span>관계 이름</span>
-                  <input
-                    type="text"
-                    value={selectedEdge.label}
-                    onChange={(e) =>
-                      persist({
-                        ...state,
-                        edges: state.edges.map((ed) =>
-                          ed.id === selectedEdge.id ? { ...ed, label: e.target.value } : ed
-                        ),
-                      })
-                    }
-                    className="w-36 h-8 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
-                  />
-                </label>
-
-                <label className="flex items-center justify-between">
-                  <span>관계 유형</span>
-                  <select
-                    value={selectedEdge.legendId}
-                    onChange={(e) =>
-                      persist({
-                        ...state,
-                        edges: state.edges.map((ed) =>
-                          ed.id === selectedEdge.id ? { ...ed, legendId: e.target.value } : ed
-                        ),
-                      })
-                    }
-                    className="w-36 h-8 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
-                  >
-                    {state.legends.map((l) => (
-                      <option key={l.id} value={l.id}>
-                        {l.name}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-
-                <div>
-                  <div className="text-[11px] text-[#8A8998] mb-1">선 스타일</div>
-                  <div className="grid grid-cols-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] p-0.5">
-                    {(['solid', 'dashed', 'dotted'] as const).map((st) => (
-                      <button
-                        key={st}
-                        type="button"
-                        onClick={() =>
-                          persist({
-                            ...state,
-                            edges: state.edges.map((ed) =>
-                              ed.id === selectedEdge.id ? { ...ed, lineStyle: st } : ed
-                            ),
-                          })
-                        }
-                        className={`py-1 rounded-lg ${
-                          (selectedEdge.lineStyle || 'solid') === st
-                            ? 'bg-[#6A5ACD] text-white font-semibold'
-                            : ''
-                        }`}
-                      >
-                        {st === 'solid' ? '실선' : st === 'dashed' ? '점선' : '파선'}
-                      </button>
-                    ))}
+            {inspectorTab === 'edge' && (
+              selectedEdge ? (
+                <div className="flex flex-col gap-3 text-xs">
+                  <div className="font-bold text-sm">
+                    관계선 수정 ({state.nodes.find((n) => n.id === selectedEdge.fromId)?.name} →{' '}
+                    {state.nodes.find((n) => n.id === selectedEdge.toId)?.name})
                   </div>
-                </div>
+                  <label className="flex items-center justify-between">
+                    <span>관계 이름</span>
+                    <input
+                      type="text"
+                      value={selectedEdge.label}
+                      onChange={(e) =>
+                        persist({
+                          ...state,
+                          edges: state.edges.map((ed) =>
+                            ed.id === selectedEdge.id ? { ...ed, label: e.target.value } : ed
+                          ),
+                        })
+                      }
+                      className="w-36 h-8 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29]"
+                    />
+                  </label>
 
-                <button
-                  type="button"
-                  onClick={() => deleteEdgeWithUndo(selectedEdge.id)}
-                  className="self-start px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold"
-                >
-                  관계선 삭제
-                </button>
-              </div>
+                  <label className="flex items-center justify-between">
+                    <span>관계 유형</span>
+                    <select
+                      value={selectedEdge.legendId}
+                      onChange={(e) => {
+                        const leg = state.legends.find((l) => l.id === e.target.value);
+                        persist({
+                          ...state,
+                          edges: state.edges.map((ed) =>
+                            ed.id === selectedEdge.id
+                              ? { ...ed, legendId: e.target.value, lineStyle: leg?.lineStyle || ed.lineStyle }
+                              : ed
+                          ),
+                        });
+                      }}
+                      className="w-36 h-8 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29]"
+                    >
+                      {state.legends.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div>
+                    <div className="text-[11px] text-[#8A8998] mb-1">선 스타일</div>
+                    <div className="grid grid-cols-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] p-0.5">
+                      {(['solid', 'dashed', 'dotted'] as const).map((st) => (
+                        <button
+                          key={st}
+                          type="button"
+                          onClick={() =>
+                            persist({
+                              ...state,
+                              edges: state.edges.map((ed) =>
+                                ed.id === selectedEdge.id ? { ...ed, lineStyle: st } : ed
+                              ),
+                            })
+                          }
+                          className={`py-1 rounded-lg ${
+                            (selectedEdge.lineStyle || 'solid') === st
+                              ? 'bg-[#6A5ACD] text-white font-semibold'
+                              : ''
+                          }`}
+                        >
+                          {st === 'solid' ? '실선' : st === 'dashed' ? '점선' : '파선'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Quick button to add or select reverse direction B -> A */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const rev = state.edges.find(
+                        (ed) =>
+                          ed.fromId === selectedEdge.toId && ed.toId === selectedEdge.fromId
+                      );
+                      if (rev) {
+                        setSelectedEdgeId(rev.id);
+                      } else {
+                        const newRev: RelEdge = {
+                          id: `e-${Date.now()}`,
+                          fromId: selectedEdge.toId,
+                          toId: selectedEdge.fromId,
+                          label: '반대 방향 관계',
+                          legendId: state.legends[1]?.id || state.legends[0]?.id || 'leg-1',
+                          direction: 'right',
+                          width: 2.5,
+                        };
+                        persist({ ...state, edges: [...state.edges, newRev] });
+                        setSelectedEdgeId(newRev.id);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-[#6A5ACD] font-semibold hover:bg-[#F3F1FB]"
+                  >
+                    ⇄ 반대 방향 ({state.nodes.find((n) => n.id === selectedEdge.toId)?.name} →{' '}
+                    {state.nodes.find((n) => n.id === selectedEdge.fromId)?.name}) 설정
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => deleteEdgeWithUndo(selectedEdge.id)}
+                    className="self-start px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold"
+                  >
+                    관계선 삭제
+                  </button>
+                </div>
+              ) : (
+                <div className="text-xs text-[#8A8998]">
+                  캔버스에서 관계선을 클릭하거나 좌측 상단 &apos;+ 관계선 추가&apos;를 눌러주세요.
+                </div>
+              )
             )}
 
             {inspectorTab === 'character' && (
@@ -588,12 +743,40 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
                 </button>
 
                 <div className="divide-y divide-[#F0EEF7] dark:divide-[#2A2938]">
-                  {state.nodes.map((n) => (
-                    <div key={n.id} className="py-2 flex items-center justify-between gap-2">
+                  {state.nodes.map((n, idx) => (
+                    <div key={n.id} className="py-2 flex items-center justify-between gap-1.5">
                       <span className="font-medium truncate">{n.name}</span>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <span className="px-2 py-0.5 rounded bg-[#F3F1FB] dark:bg-[#2C2845] text-[10.5px] text-[#6A5ACD]">
-                          {n.linkedDocId ? '문서 연결' : '임시'}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          title="순서 위로"
+                          onClick={() => {
+                            if (idx === 0) return;
+                            const nextNodes = [...state.nodes];
+                            [nextNodes[idx - 1], nextNodes[idx]] = [nextNodes[idx], nextNodes[idx - 1]];
+                            persist({ ...state, nodes: nextNodes });
+                          }}
+                          className="p-0.5 text-[#8A8998] hover:text-[#1B1B1F] dark:hover:text-white disabled:opacity-25"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === state.nodes.length - 1}
+                          title="순서 아래로"
+                          onClick={() => {
+                            if (idx >= state.nodes.length - 1) return;
+                            const nextNodes = [...state.nodes];
+                            [nextNodes[idx], nextNodes[idx + 1]] = [nextNodes[idx + 1], nextNodes[idx]];
+                            persist({ ...state, nodes: nextNodes });
+                          }}
+                          className="p-0.5 text-[#8A8998] hover:text-[#1B1B1F] dark:hover:text-white disabled:opacity-25"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                        <span className="px-1.5 py-0.5 rounded bg-[#F3F1FB] dark:bg-[#2C2845] text-[10px] text-[#6A5ACD]">
+                          {n.linkedDocId ? '문서' : '임시'}
                         </span>
                         <button
                           type="button"
@@ -614,7 +797,7 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
                     value={newCharName}
                     onChange={(e) => setNewCharName(e.target.value)}
                     placeholder="캐릭터 이름"
-                    className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+                    className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29]"
                   />
                   <button
                     type="button"
@@ -647,22 +830,134 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
                   </button>
                 </div>
 
-                <div className="flex flex-col gap-1.5">
-                  {state.legends.map((l) => (
-                    <button
+                <div className="flex flex-col gap-2">
+                  {state.legends.map((l, idx) => (
+                    <div
                       key={l.id}
-                      type="button"
                       onClick={() => setSelectedLegendId(l.id)}
-                      className={`p-2 rounded-xl border flex items-center justify-between ${
+                      className={`p-2.5 rounded-xl border flex flex-col gap-2 cursor-pointer ${
                         selectedLegend?.id === l.id
-                          ? 'border-[#6A5ACD] bg-[#F3F1FB] dark:bg-[#2C2845]'
+                          ? 'border-[#6A5ACD] bg-[#F3F1FB]/60 dark:bg-[#2C2845]/50'
                           : 'border-[#E6E3F0] dark:border-[#2E2D3D]'
                       }`}
                     >
-                      <span>{l.name}</span>
-                      <span className="w-4 h-4 rounded" style={{ backgroundColor: l.color }} />
-                    </button>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={l.color}
+                          onChange={(e) =>
+                            persist({
+                              ...state,
+                              legends: state.legends.map((item) =>
+                                item.id === l.id ? { ...item, color: e.target.value } : item
+                              ),
+                            })
+                          }
+                          className="w-6 h-6 rounded border-0 cursor-pointer bg-transparent shrink-0"
+                        />
+                        <input
+                          type="text"
+                          value={l.name}
+                          onChange={(e) =>
+                            persist({
+                              ...state,
+                              legends: state.legends.map((item) =>
+                                item.id === l.id ? { ...item, name: e.target.value } : item
+                              ),
+                            })
+                          }
+                          className="flex-1 min-w-0 h-7 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29]"
+                        />
+                        <button
+                          type="button"
+                          disabled={idx === 0}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (idx === 0) return;
+                            const next = [...state.legends];
+                            [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                            persist({ ...state, legends: next });
+                          }}
+                          className="p-0.5 text-[#8A8998] disabled:opacity-25"
+                        >
+                          <ChevronUp className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          disabled={idx === state.legends.length - 1}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (idx >= state.legends.length - 1) return;
+                            const next = [...state.legends];
+                            [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                            persist({ ...state, legends: next });
+                          }}
+                          className="p-0.5 text-[#8A8998] disabled:opacity-25"
+                        >
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        </button>
+                        {state.legends.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const remaining = state.legends.filter((item) => item.id !== l.id);
+                              persist({
+                                ...state,
+                                legends: remaining,
+                                edges: state.edges.map((ed) =>
+                                  ed.legendId === l.id
+                                    ? { ...ed, legendId: remaining[0].id }
+                                    : ed
+                                ),
+                              });
+                            }}
+                            className="p-0.5 text-[#8A8998] hover:text-rose-500"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-3 rounded-lg border border-[#E6E3F0] dark:border-[#323244] p-0.5 text-[11px]">
+                        {(['solid', 'dashed', 'dotted'] as const).map((st) => (
+                          <button
+                            key={st}
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              persist({
+                                ...state,
+                                legends: state.legends.map((item) =>
+                                  item.id === l.id ? { ...item, lineStyle: st } : item
+                                ),
+                              });
+                            }}
+                            className={`py-0.5 rounded ${
+                              l.lineStyle === st ? 'bg-[#6A5ACD] text-white font-semibold' : ''
+                            }`}
+                          >
+                            {st === 'solid' ? '실선' : st === 'dashed' ? '점선' : '파선'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const newLeg: RelLegend = {
+                        id: `leg-${Date.now()}`,
+                        name: `관계 유형 ${state.legends.length + 1}`,
+                        color: '#E11D48',
+                        lineStyle: 'solid',
+                      };
+                      persist({ ...state, legends: [...state.legends, newLeg] });
+                      setSelectedLegendId(newLeg.id);
+                    }}
+                    className="py-2 rounded-xl border border-dashed border-[#B6ACEA] text-[#6A5ACD] font-semibold hover:bg-[#F3F1FB]"
+                  >
+                    + 범례 추가
+                  </button>
                 </div>
               </div>
             )}

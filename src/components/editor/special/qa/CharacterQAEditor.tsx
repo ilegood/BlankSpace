@@ -1,8 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Upload } from 'lucide-react';
 import { useWorkspace } from '../../../../store/WorkspaceContext';
 import { EditorHeader } from '../../EditorHeader';
 import { DocumentLinkModal } from '../../../modals/DocumentLinkModal';
+import { useToast } from '../../../toast/ToastContext';
 
 interface QACategory {
   id: string;
@@ -13,6 +14,7 @@ interface QACategory {
 interface QADocState {
   linkedCharDocId?: string;
   linkedCharName?: string;
+  characterAvatarUrl?: string;
   categories: QACategory[];
 }
 
@@ -49,6 +51,7 @@ export const CharacterQAEditor: React.FC<{ templateOverrideId?: string | null }>
 }) => {
   const { activeDocument, activePage, openDocument, openTemplateEditor, updateDocument, updatePage } =
     useWorkspace();
+  const { showToast } = useToast();
 
   const isTemplateMode = Boolean(templateOverrideId);
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
@@ -56,6 +59,9 @@ export const CharacterQAEditor: React.FC<{ templateOverrideId?: string | null }>
   const [activeCatId, setActiveCatId] = useState('cat-taste');
   const [customQ, setCustomQ] = useState('');
   const [isLinkOpen, setIsLinkOpen] = useState(false);
+  const [isAddingCat, setIsAddingCat] = useState(false);
+  const [newCatName, setNewCatName] = useState('');
+  const avatarInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (activePage?.content) {
@@ -111,45 +117,97 @@ export const CharacterQAEditor: React.FC<{ templateOverrideId?: string | null }>
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Left Question Categories matching PDF Pages 10 & 13 */}
-        <aside className="w-48 shrink-0 border-r border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-4 flex flex-col gap-1.5">
+        {/* Left Question Categories */}
+        <aside className="w-48 shrink-0 border-r border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-4 flex flex-col gap-1.5 overflow-y-auto">
           <div className="px-2 pb-1 text-[11px] font-semibold text-[#8A8998]">질문 분류</div>
           {state.categories.map((cat) => {
             const active = cat.id === activeCategory?.id;
             return (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => setActiveCatId(cat.id)}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors ${
-                  active
-                    ? 'bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD] dark:text-[#9A8FE6] font-semibold'
-                    : 'text-[#4E4D59] dark:text-[#B4B2C4] hover:bg-black/5'
-                }`}
-              >
-                {isEditMode && <span className="mr-1.5 text-[#9E9CAF]">⋮⋮</span>}
-                {cat.name}
-              </button>
+              <div key={cat.id} className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveCatId(cat.id)}
+                  className={`flex-1 text-left px-3 py-2 rounded-xl text-xs transition-colors truncate ${
+                    active
+                      ? 'bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD] dark:text-[#9A8FE6] font-semibold'
+                      : 'text-[#4E4D59] dark:text-[#B4B2C4] hover:bg-black/5'
+                  }`}
+                >
+                  {isEditMode && <span className="mr-1.5 text-[#9E9CAF]">⋮⋮</span>}
+                  {cat.name}
+                </button>
+                {isEditMode && state.categories.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextCats = state.categories.filter((c) => c.id !== cat.id);
+                      persist({ ...state, categories: nextCats });
+                      if (activeCatId === cat.id) setActiveCatId(nextCats[0].id);
+                      showToast(`'${cat.name}' 분류를 삭제했습니다`);
+                    }}
+                    className="p-1 text-[#8A8998] hover:text-rose-500"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             );
           })}
           {isEditMode && (
-            <button
-              type="button"
-              onClick={() => {
-                const name = window.prompt('새 분류 이름');
-                if (!name?.trim()) return;
-                const newCat: QACategory = {
-                  id: `cat-${Date.now()}`,
-                  name: name.trim(),
-                  questions: [],
-                };
-                persist({ ...state, categories: [...state.categories, newCat] });
-                setActiveCatId(newCat.id);
-              }}
-              className="mt-1 px-3 py-2 text-left text-xs font-semibold text-[#6A5ACD] hover:underline"
-            >
-              + 분류 추가
-            </button>
+            isAddingCat ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newCatName.trim()) return;
+                  const newCat: QACategory = {
+                    id: `cat-${Date.now()}`,
+                    name: newCatName.trim(),
+                    questions: [],
+                  };
+                  persist({ ...state, categories: [...state.categories, newCat] });
+                  setActiveCatId(newCat.id);
+                  setNewCatName('');
+                  setIsAddingCat(false);
+                  showToast(`'${newCat.name}' 분류를 추가했습니다`);
+                }}
+                className="mt-1 flex flex-col gap-1.5"
+              >
+                <input
+                  type="text"
+                  autoFocus
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  placeholder="새 분류 이름"
+                  className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs"
+                />
+                <div className="flex gap-1">
+                  <button
+                    type="submit"
+                    className="flex-1 py-1 rounded-lg bg-[#6A5ACD] text-white text-xs font-semibold"
+                  >
+                    추가
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingCat(false);
+                      setNewCatName('');
+                    }}
+                    className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs"
+                  >
+                    취소
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAddingCat(true)}
+                className="mt-1 px-3 py-2 text-left text-xs font-semibold text-[#6A5ACD] hover:underline"
+              >
+                + 분류 추가
+              </button>
+            )
           )}
         </aside>
 
@@ -163,23 +221,95 @@ export const CharacterQAEditor: React.FC<{ templateOverrideId?: string | null }>
               <h2 className="text-[20px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
                 {activeCategory?.name}
               </h2>
-              <button
-                type="button"
-                onClick={() =>
-                  isEditMode
-                    ? setIsLinkOpen(true)
-                    : state.linkedCharDocId && openDocument(state.linkedCharDocId)
-                }
-                className="flex items-center gap-2.5 text-left"
-              >
-                <span className="w-8 h-8 rounded-full bg-[#EBE8F5] dark:bg-[#2C2845]" />
-                <div>
-                  <div className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
-                    {state.linkedCharName || '캐릭터 이름'}
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (isEditMode) {
+                      avatarInputRef.current?.click();
+                    } else if (state.linkedCharDocId) {
+                      openDocument(state.linkedCharDocId);
+                    }
+                  }}
+                  title={isEditMode ? '프로필 이미지 업로드' : '연결된 캐릭터 문서 열기'}
+                  className="w-10 h-10 rounded-full bg-[#EBE8F5] dark:bg-[#2C2845] overflow-hidden flex items-center justify-center border border-[#E6E3F0] dark:border-[#323244] shrink-0 relative group"
+                >
+                  {state.characterAvatarUrl ? (
+                    <img
+                      src={state.characterAvatarUrl}
+                      alt={state.linkedCharName || '캐릭터'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Upload className="w-3.5 h-3.5 text-[#6A5ACD] opacity-60 group-hover:opacity-100" />
+                  )}
+                </button>
+                <input
+                  ref={avatarInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                      if (typeof reader.result === 'string') {
+                        persist({ ...state, characterAvatarUrl: reader.result });
+                      }
+                    };
+                    reader.readAsDataURL(f);
+                  }}
+                />
+                <div className="flex flex-col">
+                  {isEditMode ? (
+                    <input
+                      type="text"
+                      value={state.linkedCharName || ''}
+                      onChange={(e) => persist({ ...state, linkedCharName: e.target.value })}
+                      placeholder="캐릭터 이름 직접 입력"
+                      className="h-7 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs font-bold"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => state.linkedCharDocId && openDocument(state.linkedCharDocId)}
+                      className="text-left text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6] hover:text-[#6A5ACD]"
+                    >
+                      {state.linkedCharName || '캐릭터 이름'}
+                    </button>
+                  )}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    {isEditMode ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setIsLinkOpen(true)}
+                          className="text-[11px] text-[#6A5ACD] font-semibold hover:underline"
+                        >
+                          {state.linkedCharDocId ? '연결 문서 변경' : '+ 캐릭터 문서 연결'}
+                        </button>
+                        {state.linkedCharDocId && (
+                          <button
+                            type="button"
+                            onClick={() =>
+                              persist({ ...state, linkedCharDocId: undefined })
+                            }
+                            className="text-[11px] text-rose-500 hover:underline"
+                          >
+                            연결 해제
+                          </button>
+                        )}
+                      </>
+                    ) : (
+                      <span className="text-[11px] text-[#8A8998]">
+                        {state.linkedCharDocId ? '캐릭터 문서 연결됨' : '직접 설정된 캐릭터'}
+                      </span>
+                    )}
                   </div>
-                  <div className="text-[11px] text-[#8A8998]">캐릭터 문서 연결</div>
                 </div>
-              </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -291,7 +421,7 @@ export const CharacterQAEditor: React.FC<{ templateOverrideId?: string | null }>
           </div>
         </div>
 
-        {/* Right Panel in Edit Mode matching PDF Page 13 */}
+        {/* Right Panel in Edit Mode */}
         {isEditMode && (
           <aside className="w-[270px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-4 select-none">
             <div>
@@ -344,9 +474,14 @@ export const CharacterQAEditor: React.FC<{ templateOverrideId?: string | null }>
       <DocumentLinkModal
         isOpen={isLinkOpen}
         onClose={() => setIsLinkOpen(false)}
-        onSelect={(doc) =>
-          persist({ ...state, linkedCharDocId: doc.id, linkedCharName: doc.title })
-        }
+        onSelect={(doc) => {
+          persist({
+            ...state,
+            linkedCharDocId: doc.id,
+            linkedCharName: doc.title,
+          });
+          showToast(`'${doc.title}' 문서를 연결했습니다`);
+        }}
       />
     </div>
   );

@@ -3,6 +3,7 @@ import { X, ChevronDown } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 import { DocumentLinkModal } from '../../modals/DocumentLinkModal';
+import { useToast } from '../../toast/ToastContext';
 
 interface MapMarker {
   id: string;
@@ -43,6 +44,7 @@ export const WorldMapEditor: React.FC<{ templateOverrideId?: string | null }> = 
 }) => {
   const { activeDocument, activePage, openDocument, openTemplateEditor, updateDocument, updatePage } =
     useWorkspace();
+  const { showToast } = useToast();
 
   const isTemplateMode = Boolean(templateOverrideId);
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
@@ -54,6 +56,8 @@ export const WorldMapEditor: React.FC<{ templateOverrideId?: string | null }> = 
   const [descOpen, setDescOpen] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [isDocLinkOpen, setIsDocLinkOpen] = useState(false);
+  const [isAddingPage, setIsAddingPage] = useState(false);
+  const [newPageName, setNewPageName] = useState('');
   const [draggingMarkerPos, setDraggingMarkerPos] = useState<{
     id: string;
     x: number;
@@ -144,8 +148,8 @@ export const WorldMapEditor: React.FC<{ templateOverrideId?: string | null }> = 
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        {/* Left Pages Sidebar matching PDF Pages 21 & 25 */}
-        <aside className="w-44 shrink-0 border-r border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-4 flex flex-col gap-1.5">
+        {/* Left Pages Sidebar */}
+        <aside className="w-44 shrink-0 border-r border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-4 flex flex-col gap-1.5 overflow-y-auto">
           <div className="px-2 pb-1 text-[11px] font-semibold text-[#8A8998]">페이지</div>
           {mapPages.map((mp) => (
             <button
@@ -166,25 +170,67 @@ export const WorldMapEditor: React.FC<{ templateOverrideId?: string | null }> = 
             </button>
           ))}
           {isEditMode && (
-            <button
-              type="button"
-              onClick={() => {
-                const name = window.prompt('새 지도 페이지 이름');
-                if (!name?.trim()) return;
-                const np: MapPageItem = { id: `mp-${Date.now()}`, name: name.trim(), markers: [] };
-                persist([...mapPages, np]);
-                setActiveMapId(np.id);
-              }}
-              className="mt-1 px-3 py-2 text-left text-xs font-semibold text-[#6A5ACD] hover:underline"
-            >
-              + 페이지 추가
-            </button>
+            isAddingPage ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newPageName.trim()) return;
+                  const np: MapPageItem = {
+                    id: `mp-${Date.now()}`,
+                    name: newPageName.trim(),
+                    markers: [],
+                  };
+                  persist([...mapPages, np]);
+                  setActiveMapId(np.id);
+                  setNewPageName('');
+                  setIsAddingPage(false);
+                  showToast(`'${np.name}' 지도 페이지를 추가했습니다`);
+                }}
+                className="mt-1 flex flex-col gap-1.5"
+              >
+                <input
+                  type="text"
+                  autoFocus
+                  value={newPageName}
+                  onChange={(e) => setNewPageName(e.target.value)}
+                  placeholder="새 페이지 이름"
+                  className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs"
+                />
+                <div className="flex gap-1">
+                  <button
+                    type="submit"
+                    className="flex-1 py-1 rounded-lg bg-[#6A5ACD] text-white text-xs font-semibold"
+                  >
+                    추가
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingPage(false);
+                      setNewPageName('');
+                    }}
+                    className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs"
+                  >
+                    취소
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAddingPage(true)}
+                className="mt-1 px-3 py-2 text-left text-xs font-semibold text-[#6A5ACD] hover:underline"
+              >
+                + 페이지 추가
+              </button>
+            )
           )}
         </aside>
 
-        {/* Map Canvas */}
-        <div className="flex-1 relative overflow-auto bg-[#EBF1F6] dark:bg-[#181C24] p-6 flex flex-col items-center justify-center">
-          <div className="w-full flex items-center justify-between mb-3">
+        {/* Map Canvas Column: Top bar, scrollable zoom stage, and bottom zoom bar separated so zoom never overlaps */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-0 bg-[#EBF1F6] dark:bg-[#181C24]">
+          {/* Fixed Top Bar */}
+          <div className="px-6 pt-4 pb-2 flex items-center justify-between shrink-0 z-20">
             {isEditMode ? (
               <div className="flex items-center gap-2">
                 <button
@@ -234,168 +280,187 @@ export const WorldMapEditor: React.FC<{ templateOverrideId?: string | null }> = 
             )}
           </div>
 
-          <div
-            ref={mapBoxRef}
-            data-export-root="true"
-            onClick={(e) => {
-              if (isEditMode && isAddingMarker) {
-                handleCanvasClick(e);
-              } else {
-                setSelectedMarkerId(null);
-              }
-            }}
-            style={{ transform: `scale(${zoom / 100})`, transformOrigin: 'center' }}
-            className={`relative w-full max-w-[760px] h-[460px] rounded-2xl bg-[#DFE9DF] dark:bg-[#232D2B] border border-[#CFDAD0] dark:border-[#32403C] overflow-hidden ${
-              isAddingMarker ? 'cursor-crosshair' : ''
-            }`}
-          >
-            {curMap?.imageUrl ? (
-              <img src={curMap.imageUrl} alt={curMap.name} className="bs-animate-fade w-full h-full object-cover" />
-            ) : (
-              <svg viewBox="0 0 800 500" className="w-full h-full opacity-60">
-                <path
-                  d="M120,160 C160,70 350,60 480,120 C620,170 720,250 670,350 C620,440 460,410 340,390 C220,370 90,280 120,160 Z"
-                  fill="#C8DAC8"
-                />
-              </svg>
-            )}
-
-            {curMap?.markers.map((mk) => {
-              const isLinked = Boolean(mk.linkedDocId);
-              const isSelected = selectedMarkerId === mk.id;
-              const renderX = draggingMarkerPos?.id === mk.id ? draggingMarkerPos.x : mk.x;
-              const renderY = draggingMarkerPos?.id === mk.id ? draggingMarkerPos.y : mk.y;
-              return (
-                <div
-                  key={mk.id}
-                  style={{ left: `${renderX}%`, top: `${renderY}%` }}
-                  onMouseEnter={() => setHoveredMarkerId(mk.id)}
-                  onMouseLeave={() => setHoveredMarkerId(null)}
-                  onMouseDown={(e) => {
-                    if (!isEditMode || isAddingMarker || e.button !== 0) return;
-                    e.stopPropagation();
-                    const box = mapBoxRef.current;
-                    if (!box) return;
-                    const sx = e.clientX;
-                    const sy = e.clientY;
-                    let moved = false;
-                    let fx = mk.x;
-                    let fy = mk.y;
-
-                    const onMove = (ev: MouseEvent) => {
-                      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
-                      moved = true;
-                      const rect = box.getBoundingClientRect();
-                      fx = Math.min(96, Math.max(4, Math.round(((ev.clientX - rect.left) / rect.width) * 100)));
-                      fy = Math.min(96, Math.max(4, Math.round(((ev.clientY - rect.top) / rect.height) * 100)));
-                      setDraggingMarkerPos({ id: mk.id, x: fx, y: fy });
-                    };
-                    const onUp = () => {
-                      window.removeEventListener('mousemove', onMove);
-                      window.removeEventListener('mouseup', onUp);
-                      setDraggingMarkerPos(null);
-                      if (moved) updateMarker(mk.id, { x: fx, y: fy });
-                    };
-                    window.addEventListener('mousemove', onMove);
-                    window.addEventListener('mouseup', onUp);
-                  }}
-                  className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1"
-                >
-                  <span className="px-2 py-0.5 rounded-md bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#323244] text-[11px] font-semibold whitespace-nowrap shadow-2xs">
-                    {mk.name}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setDescOpen(false);
-                      setSelectedMarkerId(isSelected ? null : mk.id);
-                    }}
-                    className={`w-4 h-4 rounded-full border-2 transition-transform ${
-                      isLinked
-                        ? 'bg-[#6A5ACD] border-white'
-                        : 'bg-white border-[#6A5ACD]'
-                    } ${isEditMode ? 'cursor-grab active:cursor-grabbing' : ''} ${
-                      isSelected ? 'scale-125 ring-4 ring-[#6A5ACD]/25' : 'hover:scale-110'
-                    }`}
-                  />
-                  {!isEditMode && !isSelected && hoveredMarkerId === mk.id && mk.description && (
-                    <div className="bs-animate-popover absolute top-11 px-2 py-1 rounded-md bg-[#1B1B1F]/90 text-white text-[10px] whitespace-nowrap pointer-events-none z-20">
-                      {mk.description}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-
-            {/* View Mode Marker Popover matching PDF Page 25 (collapsed desc by default + auto flip) */}
-            {!isEditMode && selectedMarker && (
+          {/* Scrollable Map Viewport */}
+          <div className="flex-1 overflow-auto px-6 py-2 flex items-center justify-center min-h-0">
+            <div
+              style={{
+                width: Math.round(760 * (zoom / 100)),
+                height: Math.round(460 * (zoom / 100)),
+              }}
+              className="relative shrink-0 flex items-center justify-center"
+            >
               <div
-                style={{
-                  left: `${Math.min(72, Math.max(22, selectedMarker.x))}%`,
-                  top: `${selectedMarker.y < 42 ? selectedMarker.y + 6 : selectedMarker.y - 6}%`,
-                  transform:
-                    selectedMarker.y < 42 ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)',
+                ref={mapBoxRef}
+                data-export-root="true"
+                onClick={(e) => {
+                  if (isEditMode && isAddingMarker) {
+                    handleCanvasClick(e);
+                  } else {
+                    setSelectedMarkerId(null);
+                  }
                 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bs-animate-popover absolute w-64 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-2xl overflow-hidden z-30"
+                style={{
+                  width: 760,
+                  height: 460,
+                  transform: `scale(${zoom / 100})`,
+                  transformOrigin: 'center center',
+                }}
+                className={`relative rounded-2xl bg-[#DFE9DF] dark:bg-[#232D2B] border border-[#CFDAD0] dark:border-[#32403C] overflow-hidden shrink-0 ${
+                  isAddingMarker ? 'cursor-crosshair' : ''
+                }`}
               >
-                <div className="h-24 bg-[#EBE8F5] dark:bg-[#2C2845] relative">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedMarkerId(null)}
-                    className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-white/85 dark:bg-black/40 flex items-center justify-center"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <div className="p-3.5 flex flex-col gap-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold">{selectedMarker.name}</span>
-                    {selectedMarker.linkedDocId && (
+                {curMap?.imageUrl ? (
+                  <img src={curMap.imageUrl} alt={curMap.name} className="bs-animate-fade w-full h-full object-cover" />
+                ) : (
+                  <svg viewBox="0 0 800 500" className="w-full h-full opacity-60">
+                    <path
+                      d="M120,160 C160,70 350,60 480,120 C620,170 720,250 670,350 C620,440 460,410 340,390 C220,370 90,280 120,160 Z"
+                      fill="#C8DAC8"
+                    />
+                  </svg>
+                )}
+
+                {curMap?.markers.map((mk) => {
+                  const isLinked = Boolean(mk.linkedDocId);
+                  const isSelected = selectedMarkerId === mk.id;
+                  const renderX = draggingMarkerPos?.id === mk.id ? draggingMarkerPos.x : mk.x;
+                  const renderY = draggingMarkerPos?.id === mk.id ? draggingMarkerPos.y : mk.y;
+                  return (
+                    <div
+                      key={mk.id}
+                      style={{ left: `${renderX}%`, top: `${renderY}%` }}
+                      onMouseEnter={() => setHoveredMarkerId(mk.id)}
+                      onMouseLeave={() => setHoveredMarkerId(null)}
+                      onMouseDown={(e) => {
+                        if (!isEditMode || isAddingMarker || e.button !== 0) return;
+                        e.stopPropagation();
+                        const box = mapBoxRef.current;
+                        if (!box) return;
+                        const sx = e.clientX;
+                        const sy = e.clientY;
+                        let moved = false;
+                        let fx = mk.x;
+                        let fy = mk.y;
+
+                        const onMove = (ev: MouseEvent) => {
+                          if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) < 5) return;
+                          moved = true;
+                          const rect = box.getBoundingClientRect();
+                          fx = Math.min(96, Math.max(4, Math.round(((ev.clientX - rect.left) / rect.width) * 100)));
+                          fy = Math.min(96, Math.max(4, Math.round(((ev.clientY - rect.top) / rect.height) * 100)));
+                          setDraggingMarkerPos({ id: mk.id, x: fx, y: fy });
+                        };
+                        const onUp = () => {
+                          window.removeEventListener('mousemove', onMove);
+                          window.removeEventListener('mouseup', onUp);
+                          setDraggingMarkerPos(null);
+                          if (moved) updateMarker(mk.id, { x: fx, y: fy });
+                        };
+                        window.addEventListener('mousemove', onMove);
+                        window.addEventListener('mouseup', onUp);
+                      }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center gap-1"
+                    >
+                      <span className="px-2 py-0.5 rounded-md bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#323244] text-[11px] font-semibold whitespace-nowrap shadow-2xs">
+                        {mk.name}
+                      </span>
                       <button
                         type="button"
-                        onClick={() => openDocument(selectedMarker.linkedDocId!)}
-                        className="text-xs font-semibold text-[#6A5ACD] hover:underline"
-                      >
-                        문서 열기 ›
-                      </button>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setDescOpen((p) => !p)}
-                    className="flex items-center justify-between text-xs text-[#6E6D7A] pt-1 border-t border-[#F0EEF7] dark:border-[#2A2938]"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setDescOpen(false);
+                          setSelectedMarkerId(isSelected ? null : mk.id);
+                        }}
+                        className={`w-4 h-4 rounded-full border-2 transition-transform ${
+                          isLinked
+                            ? 'bg-[#6A5ACD] border-white'
+                            : 'bg-white border-[#6A5ACD]'
+                        } ${isEditMode ? 'cursor-grab active:cursor-grabbing' : ''} ${
+                          isSelected ? 'scale-125 ring-4 ring-[#6A5ACD]/25' : 'hover:scale-110'
+                        }`}
+                      />
+                      {!isEditMode && !isSelected && hoveredMarkerId === mk.id && mk.description && (
+                        <div className="bs-animate-popover absolute top-11 px-2 py-1 rounded-md bg-[#1B1B1F]/90 text-white text-[10px] whitespace-nowrap pointer-events-none z-20">
+                          {mk.description}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+
+                {/* View Mode Marker Popover */}
+                {!isEditMode && selectedMarker && (
+                  <div
+                    style={{
+                      left: `${Math.min(72, Math.max(22, selectedMarker.x))}%`,
+                      top: `${selectedMarker.y < 42 ? selectedMarker.y + 6 : selectedMarker.y - 6}%`,
+                      transform:
+                        selectedMarker.y < 42 ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)',
+                    }}
+                    onClick={(e) => e.stopPropagation()}
+                    className="bs-animate-popover absolute w-64 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-2xl overflow-hidden z-30"
                   >
-                    <span>설명</span>
-                    <ChevronDown
-                      className={`w-3.5 h-3.5 transition-transform ${descOpen ? '' : '-rotate-90'}`}
-                    />
-                  </button>
-                  <div className="bs-collapse-grid" data-open={descOpen ? 'true' : 'false'}>
-                    <div className="bs-collapse-inner">
-                      <p className="text-xs text-[#555464] dark:text-[#B4B2C4] pt-0.5">
-                        {selectedMarker.description || '설명이 없습니다.'}
-                      </p>
+                    <div className="h-24 bg-[#EBE8F5] dark:bg-[#2C2845] relative">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedMarkerId(null)}
+                        className="absolute top-2 right-2 w-6 h-6 rounded-lg bg-white/85 dark:bg-black/40 flex items-center justify-center"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                    <div className="p-3.5 flex flex-col gap-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-bold">{selectedMarker.name}</span>
+                        {selectedMarker.linkedDocId && (
+                          <button
+                            type="button"
+                            onClick={() => openDocument(selectedMarker.linkedDocId!)}
+                            className="text-xs font-semibold text-[#6A5ACD] hover:underline"
+                          >
+                            문서 열기 ›
+                          </button>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setDescOpen((p) => !p)}
+                        className="flex items-center justify-between text-xs text-[#6E6D7A] pt-1 border-t border-[#F0EEF7] dark:border-[#2A2938]"
+                      >
+                        <span>설명</span>
+                        <ChevronDown
+                          className={`w-3.5 h-3.5 transition-transform ${descOpen ? '' : '-rotate-90'}`}
+                        />
+                      </button>
+                      <div className="bs-collapse-grid" data-open={descOpen ? 'true' : 'false'}>
+                        <div className="bs-collapse-inner">
+                          <p className="text-xs text-[#555464] dark:text-[#B4B2C4] pt-0.5">
+                            {selectedMarker.description || '설명이 없습니다.'}
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
-            )}
+            </div>
           </div>
 
-          <div className="mt-3 self-end inline-flex items-center gap-1 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] px-2 py-1 text-xs">
-            <button type="button" onClick={() => setZoom((z) => Math.max(70, z - 10))} className="px-1.5">
-              −
-            </button>
-            <span className="w-10 text-center">{zoom}%</span>
-            <button type="button" onClick={() => setZoom((z) => Math.min(140, z + 10))} className="px-1.5">
-              +
-            </button>
+          {/* Fixed Bottom Bar */}
+          <div className="px-6 pb-4 pt-2 flex justify-end shrink-0 z-20">
+            <div className="inline-flex items-center gap-1 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] px-2 py-1 text-xs shadow-2xs">
+              <button type="button" onClick={() => setZoom((z) => Math.max(70, z - 10))} className="px-1.5">
+                −
+              </button>
+              <span className="w-10 text-center">{zoom}%</span>
+              <button type="button" onClick={() => setZoom((z) => Math.min(140, z + 10))} className="px-1.5">
+                +
+              </button>
+            </div>
           </div>
         </div>
 
-        {/* Edit Mode Marker Inspector matching PDF Page 21 */}
+        {/* Edit Mode Marker Inspector */}
         {isEditMode && selectedMarker && (
           <aside className="w-[270px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-4 select-none text-xs">
             <div>

@@ -205,13 +205,4 @@ export const TEMPLATES: TemplateDefinition[] = [
     iconName: 'Calendar',
     defaultTitle: '일정',
   },
-  {
-    id: 'general-files',
-    name: '파일 보관함',
-    description: 'PDF, PSD, FBX, WAV 등 창작 파일을 카드와 목록으로 보관합니다.',
-    category: 'general',
-    docKind: 'template',
-    iconName: 'Archive',
-    defaultTitle: '파일 보관함',
-  },
 ];

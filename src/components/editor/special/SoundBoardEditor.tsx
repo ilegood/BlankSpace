@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Square, X } from 'lucide-react';
+import { Play, Square, X, Pencil } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 import { useLongPressSort } from '../../../hooks/useLongPressSort';
@@ -7,7 +7,7 @@ import { useLongPressSort } from '../../../hooks/useLongPressSort';
 interface SoundItem {
   id: string;
   name: string;
-  category: '효과음' | '배경음' | '보이스';
+  category: string;
   durationLabel: string;
   color: string;
   loop?: boolean;
@@ -25,7 +25,6 @@ const DEFAULT_SOUNDS: SoundItem[] = [
   { id: 'sn-8', name: '사운드 8', category: '배경음', durationLabel: '3:02', color: '#D97724' },
 ];
 
-const CATEGORIES = ['전체', '효과음', '배경음', '보이스'] as const;
 const ACCENT_COLORS = ['#6A5ACD', '#D97724', '#0F766E', '#1B1B1F'];
 
 export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> = ({
@@ -44,16 +43,30 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
   const [volume, setVolume] = useState(80);
   const [volumeTooltipOpen, setVolumeTooltipOpen] = useState(false);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingSoundId, setEditingSoundId] = useState<string | null>(null);
 
   const [newName, setNewName] = useState('');
-  const [newCat, setNewCat] = useState<SoundItem['category']>('효과음');
+  const [newCat, setNewCat] = useState<string>('효과음');
   const [newColor, setNewColor] = useState(ACCENT_COLORS[0]);
   const [newLoop, setNewLoop] = useState(false);
   const [newAudioUrl, setNewAudioUrl] = useState<string | undefined>();
+  const [newDurationLabel, setNewDurationLabel] = useState('0:10');
   const [newFileName, setNewFileName] = useState('');
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const timerRef = useRef<number | null>(null);
+
+  const openEditSoundModal = (sound: SoundItem) => {
+    setEditingSoundId(sound.id);
+    setNewName(sound.name);
+    setNewCat(sound.category);
+    setNewColor(sound.color);
+    setNewLoop(Boolean(sound.loop));
+    setNewAudioUrl(sound.audioUrl);
+    setNewDurationLabel(sound.durationLabel || '0:10');
+    setNewFileName(sound.audioUrl ? '기존 오디오 파일' : '');
+    setIsAddOpen(true);
+  };
 
   useEffect(() => {
     if (activePage?.content) {
@@ -80,7 +93,10 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
   useEffect(() => {
     if (!isAddOpen) return;
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsAddOpen(false);
+      if (e.key === 'Escape') {
+        setIsAddOpen(false);
+        setEditingSoundId(null);
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -91,7 +107,7 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
     if (activePage) updatePage(activePage.id, { content: JSON.stringify({ sounds: next }) });
   };
 
-  const playSynthPreview = (category: SoundItem['category'], vol: number) => {
+  const playSynthPreview = (category: string, vol: number) => {
     try {
       const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
@@ -170,6 +186,11 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
     },
   });
 
+  const dynamicCategories = [
+    '전체',
+    ...Array.from(new Set(['효과음', '배경음', '보이스', ...sounds.map((s) => s.category).filter(Boolean)])),
+  ];
+
   const filtered = sounds.filter((s) => {
     if (catFilter !== '전체' && s.category !== catFilter) return false;
     if (search.trim() && !s.name.toLowerCase().includes(search.toLowerCase())) return false;
@@ -189,14 +210,14 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        <aside className="w-40 shrink-0 border-r border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-4 flex flex-col gap-1">
+        <aside className="w-40 shrink-0 border-r border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-4 flex flex-col gap-1 overflow-y-auto">
           <div className="px-2 pb-1 text-[11px] font-semibold text-[#8A8998]">분류</div>
-          {CATEGORIES.map((cat) => (
+          {dynamicCategories.map((cat) => (
             <button
               key={cat}
               type="button"
               onClick={() => setCatFilter(cat)}
-              className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors ${
+              className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors truncate ${
                 catFilter === cat
                   ? 'bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD] font-semibold'
                   : 'text-[#4E4D59] dark:text-[#B4B2C4] hover:bg-black/5'
@@ -293,16 +314,30 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
                           <Play className="w-3.5 h-3.5 fill-[#1B1B1F] dark:fill-white" />
                         )}
                         {isEditMode && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              persist(sounds.filter((x) => x.id !== sound.id));
-                            }}
-                            className="p-0.5 text-[#8A8998] hover:text-rose-500"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              title="사운드 수정"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openEditSoundModal(sound);
+                              }}
+                              className="p-0.5 text-[#8A8998] hover:text-[#6A5ACD]"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              title="사운드 삭제"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                persist(sounds.filter((x) => x.id !== sound.id));
+                              }}
+                              className="p-0.5 text-[#8A8998] hover:text-rose-500"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </div>
@@ -323,9 +358,14 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
                 <button
                   type="button"
                   onClick={() => {
+                    setEditingSoundId(null);
                     setNewName('');
+                    setNewCat('효과음');
+                    setNewColor(ACCENT_COLORS[0]);
+                    setNewLoop(false);
                     setNewFileName('');
                     setNewAudioUrl(undefined);
+                    setNewDurationLabel('0:10');
                     setIsAddOpen(true);
                   }}
                   className="min-h-[88px] rounded-2xl border border-dashed border-[#DCD8EC] dark:border-[#323244] text-lg text-[#6A5ACD] hover:bg-[#F3F1FB]/50"
@@ -338,16 +378,19 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
         </div>
       </div>
 
-      {/* Add Sound Modal matching PDF Page 47 */}
+      {/* Add / Edit Sound Modal */}
       {isAddOpen && (
         <div
           onClick={(e) => {
-            if (e.target === e.currentTarget) setIsAddOpen(false);
+            if (e.target === e.currentTarget) {
+              setIsAddOpen(false);
+              setEditingSoundId(null);
+            }
           }}
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-[2px] p-4"
         >
           <div className="bs-animate-modal w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] shadow-2xl p-6 flex flex-col gap-3.5 text-xs">
-            <h3 className="text-base font-bold">사운드 추가</h3>
+            <h3 className="text-base font-bold">{editingSoundId ? '사운드 수정' : '사운드 추가'}</h3>
             <input
               type="text"
               autoFocus
@@ -357,7 +400,7 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
               className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
             />
             <div className="flex items-center gap-2">
-              <label className="px-3 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] cursor-pointer font-semibold">
+              <label className="px-3 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] cursor-pointer font-semibold shrink-0">
                 파일 선택
                 <input
                   type="file"
@@ -368,23 +411,56 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
                     setNewFileName(f.name);
                     if (!newName) setNewName(f.name.replace(/\.[^/.]+$/, ''));
                     const r = new FileReader();
-                    r.onload = () => typeof r.result === 'string' && setNewAudioUrl(r.result);
+                    r.onload = () => {
+                      if (typeof r.result === 'string') {
+                        const dataUrl = r.result;
+                        setNewAudioUrl(dataUrl);
+                        const tempAudio = new Audio(dataUrl);
+                        tempAudio.onloadedmetadata = () => {
+                          const sec = Math.max(1, Math.round(tempAudio.duration || 0));
+                          const m = Math.floor(sec / 60);
+                          const s = String(sec % 60).padStart(2, '0');
+                          setNewDurationLabel(`${m}:${s}`);
+                        };
+                      }
+                    };
                     r.readAsDataURL(f);
                   }}
                   className="hidden"
                 />
               </label>
-              <span className="text-[#8A8998] truncate">{newFileName || '선택된 파일 없음'}</span>
+              <span className="text-[#8A8998] truncate">
+                {newFileName ? `${newFileName} (${newDurationLabel})` : '선택된 파일 없음'}
+              </span>
             </div>
-            <select
-              value={newCat}
-              onChange={(e) => setNewCat(e.target.value as SoundItem['category'])}
-              className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
-            >
-              <option value="효과음">효과음</option>
-              <option value="배경음">배경음</option>
-              <option value="보이스">보이스</option>
-            </select>
+
+            <div className="flex flex-col gap-1.5">
+              <span className="text-[11px] text-[#8A8998]">분류 (직접 입력 또는 선택)</span>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newCat}
+                  onChange={(e) => setNewCat(e.target.value)}
+                  placeholder="분류명 입력"
+                  className="flex-1 h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
+                />
+                <select
+                  value={dynamicCategories.includes(newCat) ? newCat : ''}
+                  onChange={(e) => e.target.value && setNewCat(e.target.value)}
+                  className="w-28 h-9 px-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
+                >
+                  <option value="">기존 분류</option>
+                  {dynamicCategories
+                    .filter((c) => c !== '전체')
+                    .map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                </select>
+              </div>
+            </div>
+
             <div className="flex items-center gap-2">
               {ACCENT_COLORS.map((c) => (
                 <button
@@ -408,7 +484,10 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
             <div className="flex justify-end gap-2 pt-2">
               <button
                 type="button"
-                onClick={() => setIsAddOpen(false)}
+                onClick={() => {
+                  setIsAddOpen(false);
+                  setEditingSoundId(null);
+                }}
                 className="px-4 py-2 rounded-xl border border-[#E6E3F0]"
               >
                 취소
@@ -417,23 +496,26 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
                 type="button"
                 onClick={() => {
                   if (!newName.trim()) return;
-                  persist([
-                    ...sounds,
-                    {
-                      id: `sn-${Date.now()}`,
-                      name: newName.trim(),
-                      category: newCat,
-                      durationLabel: '0:10',
-                      color: newColor,
-                      loop: newLoop,
-                      audioUrl: newAudioUrl,
-                    },
-                  ]);
+                  const record: SoundItem = {
+                    id: editingSoundId || `sn-${Date.now()}`,
+                    name: newName.trim(),
+                    category: newCat.trim() || '효과음',
+                    durationLabel: newDurationLabel || '0:10',
+                    color: newColor,
+                    loop: newLoop,
+                    audioUrl: newAudioUrl,
+                  };
+                  if (editingSoundId) {
+                    persist(sounds.map((s) => (s.id === editingSoundId ? record : s)));
+                  } else {
+                    persist([...sounds, record]);
+                  }
                   setIsAddOpen(false);
+                  setEditingSoundId(null);
                 }}
                 className="px-4 py-2 rounded-xl bg-[#6A5ACD] text-white font-semibold"
               >
-                추가
+                {editingSoundId ? '저장' : '추가'}
               </button>
             </div>
           </div>

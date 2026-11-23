@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, Play, RotateCcw, ImageDown } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
-import { CATEGORY_LABELS, TEMPLATES } from '../../templates/templateList';
+import { TEMPLATES } from '../../templates/templateList';
 import { DesignPresetItem } from '../../types';
 import { useToast } from '../toast/ToastContext';
 import { exportElementAsPng } from '../../utils/exportImage';
@@ -110,7 +110,6 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   }, [presetMenuOpen, savePresetModalOpen]);
 
   const tpl = TEMPLATES.find((t) => t.id === templateType);
-  const categoryLabel = tpl ? CATEGORY_LABELS[tpl.category] : '일반';
 
   const customPresets = designPresets.filter((p) => p.templateType === templateType);
   const allPresets = [...builtinPresets, ...customPresets];
@@ -171,10 +170,6 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               {isTemplateMode && !title.includes('(템플릿)') ? ' (템플릿)' : ''}
             </h1>
           )}
-
-          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD] dark:text-[#9A8FE6] shrink-0">
-            {categoryLabel}
-          </span>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">

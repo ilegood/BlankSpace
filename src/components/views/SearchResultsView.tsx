@@ -112,16 +112,7 @@ export const SearchResultsView: React.FC = () => {
       <div className="max-w-[1160px] mx-auto flex flex-col gap-6 pt-2">
         <div>
           <h1 className="text-[22px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
-            {globalSearchQuery ? (
-              <>
-                <span className="bg-[#FFF099] dark:bg-[#5E521C] px-1 rounded">
-                  {globalSearchQuery}
-                </span>{' '}
-                검색 결과
-              </>
-            ) : (
-              '전체 검색'
-            )}
+            {globalSearchQuery ? `${globalSearchQuery} 검색 결과` : '전체 검색'}
           </h1>
 
           <div className="mt-3 relative inline-flex items-center gap-1 rounded-full border border-[#E6E3F0] dark:border-[#2E2D3D] bg-[#FAF9FE] dark:bg-[#1B1B24] p-1">

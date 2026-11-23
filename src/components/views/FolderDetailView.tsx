@@ -1,19 +1,32 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreHorizontal, Trash2, Edit2, Copy } from 'lucide-react';
+import { MoreHorizontal, Trash2, Edit2, Copy, FolderInput, Star } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 import { TEMPLATES } from '../../templates/templateList';
+import { SortOption } from '../../types';
 import { useToast } from '../toast/ToastContext';
-import { useLongPressSort } from '../../hooks/useLongPressSort';
+import { useLongPressSort, runFlipForSortItems } from '../../hooks/useLongPressSort';
+import { ModalShell } from '../modals/ModalShell';
+
+const SORT_LABELS: Record<SortOption, string> = {
+  custom: '직접 정렬',
+  'updated-desc': '최근 수정순',
+  'created-desc': '생성일순',
+  'name-asc': '이름순',
+};
 
 export const FolderDetailView: React.FC = () => {
   const {
     activeProject,
     activeFolder,
+    folders,
     folderBreadcrumbs,
     currentFolders,
     currentDocuments,
     viewMode,
+    setViewMode,
+    sortOption,
+    setSortOption,
     setNavSection,
     openProject,
     openFolder,
@@ -22,6 +35,8 @@ export const FolderDetailView: React.FC = () => {
     setIsCreateDocumentOpen,
     updateFolder,
     updateDocument,
+    toggleFavoriteFolder,
+    toggleFavoriteDocument,
     duplicateFolder,
     duplicateDocument,
     moveFolderToTrash,
@@ -32,8 +47,16 @@ export const FolderDetailView: React.FC = () => {
   } = useWorkspace();
   const { showToast } = useToast();
 
+  const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [menuTarget, setMenuTarget] = useState<{ kind: 'folder' | 'document'; id: string } | null>(null);
-  const [renaming, setRenaming] = useState<{ kind: 'folder' | 'document'; id: string; val: string } | null>(null);
+  const [editingItem, setEditingItem] = useState<{
+    kind: 'folder' | 'document';
+    id: string;
+    name: string;
+    desc: string;
+    coverImage?: string;
+  } | null>(null);
+  const [moveDocId, setMoveDocId] = useState<string | null>(null);
 
   const {
     pressingId,
@@ -107,6 +130,16 @@ export const FolderDetailView: React.FC = () => {
           ))}
         </nav>
 
+        {activeFolder.coverImage && (
+          <div className="h-[118px] w-full rounded-2xl overflow-hidden border border-[#E6E3F0] dark:border-[#2E2D3D]">
+            <img
+              src={activeFolder.coverImage}
+              alt={activeFolder.name}
+              className="w-full h-full object-cover"
+            />
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center justify-between gap-4 py-1">
           <div className="flex items-center gap-3.5">
             <div className="w-11 h-11 rounded-xl bg-[#F5E6C4] dark:bg-[#3A3022] text-[#8E6A26] dark:text-[#E5C17B] flex items-center justify-center text-xs font-bold shrink-0">
@@ -116,13 +149,87 @@ export const FolderDetailView: React.FC = () => {
               <h1 className="text-[22px] font-bold tracking-tight text-[#1B1B1F] dark:text-[#F1F0F6]">
                 {activeFolder.name}
               </h1>
-              <p className="text-[12.5px] text-[#8A8998] dark:text-[#8E8C9F]">
-                {activeFolder.description || '폴더 설명'}
-              </p>
+              {activeFolder.description && (
+                <p className="text-[12.5px] text-[#8A8998] dark:text-[#8E8C9F]">
+                  {activeFolder.description}
+                </p>
+              )}
             </div>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* 1. 정렬 */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setSortMenuOpen((p) => !p)}
+                className="h-9 px-3.5 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] text-xs font-medium text-[#1B1B1F] dark:text-[#F1F0F6] hover:border-[#C5BEE8] transition-colors"
+              >
+                정렬: {SORT_LABELS[sortOption]}
+              </button>
+              {sortMenuOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setSortMenuOpen(false)} />
+                  <div className="bs-animate-popover absolute right-0 mt-1.5 w-40 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-lg p-1 z-30">
+                    {(['custom', 'updated-desc', 'created-desc', 'name-asc'] as SortOption[]).map(
+                      (opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => {
+                            setSortOption(opt);
+                            setSortMenuOpen(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 rounded-lg text-xs transition-colors ${
+                            sortOption === opt
+                              ? 'bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD] dark:text-[#9A8FE6] font-semibold'
+                              : 'text-[#4E4D59] dark:text-[#B4B2C4] hover:bg-black/5 dark:hover:bg-white/5'
+                          }`}
+                        >
+                          {SORT_LABELS[opt]}
+                        </button>
+                      )
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* 2. 카드/목록 */}
+            <div className="relative inline-grid grid-cols-2 items-center rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-0.5 shrink-0 h-9">
+              <span
+                aria-hidden="true"
+                style={{
+                  transform: viewMode === 'grid' ? 'translateX(0%)' : 'translateX(100%)',
+                }}
+                className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-[10px] bg-[#1B1B1F] dark:bg-[#F1F0F6] transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  if (viewMode === 'grid') return;
+                  runFlipForSortItems(240, () => setViewMode('grid'));
+                }}
+                className={`relative z-10 px-3 py-1 rounded-[10px] text-xs font-semibold transition-colors ${
+                  viewMode === 'grid' ? 'text-white dark:text-[#15151C]' : 'text-[#6E6D7A]'
+                }`}
+              >
+                카드
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (viewMode === 'list') return;
+                  runFlipForSortItems(240, () => setViewMode('list'));
+                }}
+                className={`relative z-10 px-3 py-1 rounded-[10px] text-xs font-semibold transition-colors ${
+                  viewMode === 'list' ? 'text-white dark:text-[#15151C]' : 'text-[#6E6D7A]'
+                }`}
+              >
+                목록
+              </button>
+            </div>
+
             <button
               type="button"
               onClick={() => setIsCreateFolderOpen(true)}
@@ -155,10 +262,10 @@ export const FolderDetailView: React.FC = () => {
                   data-sort-kind="folder"
                   onMouseDown={(e) => startPress(e, folder.id, 'folder')}
                   onClick={() => {
-                    if (wasDraggedRef.current || renaming?.id === folder.id) return;
+                    if (wasDraggedRef.current) return;
                     openFolder(folder.id);
                   }}
-                  className={`bs-card-interactive group relative rounded-2xl border bg-white dark:bg-[#1E1E29] p-4 cursor-pointer flex flex-col gap-3 select-none ${
+                  className={`bs-card-interactive group relative rounded-2xl border bg-white dark:bg-[#1E1E29] overflow-hidden cursor-pointer flex flex-col select-none ${
                     draggingId === folder.id
                       ? 'opacity-30 border-dashed border-[#6A5ACD]'
                       : isDropCenter
@@ -168,95 +275,108 @@ export const FolderDetailView: React.FC = () => {
                           : 'border-[#E6E3F0] dark:border-[#2E2D3D] hover:border-[#B6ACEA]'
                   } ${pressingId === folder.id ? 'scale-[0.98]' : ''}`}
                 >
-                  <div className="flex items-start justify-between">
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#F5E6C4] dark:bg-[#3A3022] text-[#8E6A26] dark:text-[#E5C17B]">
-                      폴더
-                    </span>
-                    <div
-                      className="relative opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setMenuTarget((prev) =>
-                            prev?.id === folder.id ? null : { kind: 'folder', id: folder.id }
-                          )
-                        }
-                        className="p-1 rounded-md text-[#8A8998] hover:text-[#1B1B1F]"
-                      >
-                        <MoreHorizontal className="w-3.5 h-3.5" />
-                      </button>
-
-                      {menuTarget?.kind === 'folder' && menuTarget.id === folder.id && (
-                        <>
-                          <div className="fixed inset-0 z-20" onClick={() => setMenuTarget(null)} />
-                          <div className="bs-animate-popover absolute right-0 mt-1 w-32 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-lg p-1 z-30">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMenuTarget(null);
-                                setRenaming({ kind: 'folder', id: folder.id, val: folder.name });
-                              }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
-                            >
-                              <Edit2 className="w-3 h-3" /> 이름 변경
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMenuTarget(null);
-                                const cloned = duplicateFolder(folder.id);
-                                if (cloned) showToast(`'${cloned.name}' 폴더로 복제했습니다`);
-                              }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
-                            >
-                              <Copy className="w-3 h-3" /> 복제
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMenuTarget(null);
-                                const { descendantCount } = moveFolderToTrash(folder.id);
-                                showToast(
-                                  descendantCount > 0
-                                    ? `'${folder.name}' (하위 ${descendantCount}개 포함)을 휴지통으로 이동했습니다`
-                                    : `'${folder.name}' 폴더를 휴지통으로 이동했습니다`,
-                                  { onUndo: () => restoreItems([{ type: 'folder', id: folder.id }]) }
-                                );
-                              }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-600 hover:bg-rose-50"
-                            >
-                              <Trash2 className="w-3 h-3" /> 삭제
-                            </button>
-                          </div>
-                        </>
-                      )}
+                  {folder.coverImage && (
+                    <div className="h-20 w-full overflow-hidden">
+                      <img src={folder.coverImage} alt={folder.name} className="w-full h-full object-cover" />
                     </div>
-                  </div>
-                  <div>
-                    {renaming?.id === folder.id ? (
-                      <input
-                        type="text"
-                        autoFocus
-                        value={renaming.val}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setRenaming({ ...renaming, val: e.target.value })}
-                        onBlur={() => {
-                          if (renaming.val.trim()) updateFolder(folder.id, { name: renaming.val.trim() });
-                          setRenaming(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                        }}
-                        className="w-full px-2 py-0.5 rounded border border-[#6A5ACD] text-sm font-bold"
-                      />
-                    ) : (
+                  )}
+                  <div className="p-4 flex flex-col gap-3 flex-1 justify-between">
+                    <div className="flex items-start justify-between">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#F5E6C4] dark:bg-[#3A3022] text-[#8E6A26] dark:text-[#E5C17B]">
+                        폴더
+                      </span>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => toggleFavoriteFolder(folder.id)}
+                          className={`p-1 rounded-md transition-opacity ${
+                            folder.isFavorite
+                              ? 'opacity-100 text-[#6A5ACD]'
+                              : 'opacity-0 group-hover:opacity-100 text-[#8A8998]'
+                          }`}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${folder.isFavorite ? 'fill-[#6A5ACD]' : ''}`} />
+                        </button>
+                        <div
+                          className={`relative transition-opacity ${
+                            menuTarget?.kind === 'folder' && menuTarget.id === folder.id
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMenuTarget((prev) =>
+                                prev?.id === folder.id ? null : { kind: 'folder', id: folder.id }
+                              )
+                            }
+                            className="p-1 rounded-md text-[#8A8998] hover:text-[#1B1B1F]"
+                          >
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </button>
+
+                          {menuTarget?.kind === 'folder' && menuTarget.id === folder.id && (
+                            <>
+                              <div className="fixed inset-0 z-20" onClick={() => setMenuTarget(null)} />
+                              <div className="bs-animate-popover absolute right-0 mt-1 w-32 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-lg p-1 z-30">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuTarget(null);
+                                    setEditingItem({
+                                      kind: 'folder',
+                                      id: folder.id,
+                                      name: folder.name,
+                                      desc: folder.description || '',
+                                      coverImage: folder.coverImage,
+                                    });
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
+                                >
+                                  <Edit2 className="w-3 h-3" /> 수정
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuTarget(null);
+                                    const cloned = duplicateFolder(folder.id);
+                                    if (cloned) showToast(`'${cloned.name}' 폴더로 복제했습니다`);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
+                                >
+                                  <Copy className="w-3 h-3" /> 복제
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuTarget(null);
+                                    const { descendantCount } = moveFolderToTrash(folder.id);
+                                    showToast(
+                                      descendantCount > 0
+                                        ? `'${folder.name}' (하위 ${descendantCount}개 포함)을 휴지통으로 이동했습니다`
+                                        : `'${folder.name}' 폴더를 휴지통으로 이동했습니다`,
+                                      { onUndo: () => restoreItems([{ type: 'folder', id: folder.id }]) }
+                                    );
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2 className="w-3 h-3" /> 삭제
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
                       <div className="text-[14px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
                         {folder.name}
                       </div>
-                    )}
-                    <div className="text-[11.5px] text-[#8A8998] mt-0.5">폴더</div>
+                      <div className="text-[11.5px] text-[#8A8998] mt-0.5 truncate min-h-[16px]">
+                        {folder.description || ''}
+                      </div>
+                    </div>
                   </div>
                 </div>
               );
@@ -271,10 +391,10 @@ export const FolderDetailView: React.FC = () => {
                   data-sort-kind="document"
                   onMouseDown={(e) => startPress(e, doc.id, 'document')}
                   onClick={() => {
-                    if (wasDraggedRef.current || renaming?.id === doc.id) return;
+                    if (wasDraggedRef.current) return;
                     openDocument(doc.id);
                   }}
-                  className={`bs-card-interactive group relative rounded-2xl border bg-white dark:bg-[#1E1E29] p-4 cursor-pointer flex flex-col gap-3 select-none ${
+                  className={`bs-card-interactive group relative rounded-2xl border bg-white dark:bg-[#1E1E29] overflow-hidden cursor-pointer flex flex-col select-none ${
                     draggingId === doc.id
                       ? 'opacity-30 border-dashed border-[#6A5ACD]'
                       : hoverTargetId === doc.id
@@ -282,93 +402,114 @@ export const FolderDetailView: React.FC = () => {
                         : 'border-[#E6E3F0] dark:border-[#2E2D3D] hover:border-[#B6ACEA]'
                   } ${pressingId === doc.id ? 'scale-[0.98]' : ''}`}
                 >
-                  <div className="flex items-start justify-between">
-                    <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD] dark:text-[#9A8FE6]">
-                      문서
-                    </span>
-                    <div
-                      className="relative opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setMenuTarget((prev) =>
-                            prev?.id === doc.id ? null : { kind: 'document', id: doc.id }
-                          )
-                        }
-                        className="p-1 rounded-md text-[#8A8998] hover:text-[#1B1B1F]"
-                      >
-                        <MoreHorizontal className="w-3.5 h-3.5" />
-                      </button>
-
-                      {menuTarget?.kind === 'document' && menuTarget.id === doc.id && (
-                        <>
-                          <div className="fixed inset-0 z-20" onClick={() => setMenuTarget(null)} />
-                          <div className="bs-animate-popover absolute right-0 mt-1 w-32 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-lg p-1 z-30">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMenuTarget(null);
-                                setRenaming({ kind: 'document', id: doc.id, val: doc.title });
-                              }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
-                            >
-                              <Edit2 className="w-3 h-3" /> 이름 변경
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMenuTarget(null);
-                                const cloned = duplicateDocument(doc.id);
-                                if (cloned) showToast(`'${cloned.title}' 문서로 복제했습니다`);
-                              }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
-                            >
-                              <Copy className="w-3 h-3" /> 복제
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setMenuTarget(null);
-                                moveDocumentToTrash(doc.id);
-                                showToast(`'${doc.title}' 문서를 휴지통으로 이동했습니다`, {
-                                  onUndo: () => restoreItems([{ type: 'document', id: doc.id }]),
-                                });
-                              }}
-                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-600 hover:bg-rose-50"
-                            >
-                              <Trash2 className="w-3 h-3" /> 삭제
-                            </button>
-                          </div>
-                        </>
-                      )}
+                  {doc.coverImage && (
+                    <div className="h-20 w-full overflow-hidden">
+                      <img src={doc.coverImage} alt={doc.title} className="w-full h-full object-cover" />
                     </div>
-                  </div>
-                  <div>
-                    {renaming?.id === doc.id ? (
-                      <input
-                        type="text"
-                        autoFocus
-                        value={renaming.val}
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={(e) => setRenaming({ ...renaming, val: e.target.value })}
-                        onBlur={() => {
-                          if (renaming.val.trim()) updateDocument(doc.id, { title: renaming.val.trim() });
-                          setRenaming(null);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-                        }}
-                        className="w-full px-2 py-0.5 rounded border border-[#6A5ACD] text-sm font-bold"
-                      />
-                    ) : (
+                  )}
+                  <div className="p-4 flex flex-col gap-3 flex-1 justify-between">
+                    <div className="flex items-start justify-between">
+                      <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD] dark:text-[#9A8FE6]">
+                        문서
+                      </span>
+                      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          type="button"
+                          onClick={() => toggleFavoriteDocument(doc.id)}
+                          className={`p-1 rounded-md transition-opacity ${
+                            doc.isFavorite
+                              ? 'opacity-100 text-[#6A5ACD]'
+                              : 'opacity-0 group-hover:opacity-100 text-[#8A8998]'
+                          }`}
+                        >
+                          <Star className={`w-3.5 h-3.5 ${doc.isFavorite ? 'fill-[#6A5ACD]' : ''}`} />
+                        </button>
+                        <div
+                          className={`relative transition-opacity ${
+                            menuTarget?.kind === 'document' && menuTarget.id === doc.id
+                              ? 'opacity-100'
+                              : 'opacity-0 group-hover:opacity-100'
+                          }`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setMenuTarget((prev) =>
+                                prev?.id === doc.id ? null : { kind: 'document', id: doc.id }
+                              )
+                            }
+                            className="p-1 rounded-md text-[#8A8998] hover:text-[#1B1B1F]"
+                          >
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </button>
+
+                          {menuTarget?.kind === 'document' && menuTarget.id === doc.id && (
+                            <>
+                              <div className="fixed inset-0 z-20" onClick={() => setMenuTarget(null)} />
+                              <div className="bs-animate-popover absolute right-0 mt-1 w-32 rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-lg p-1 z-30">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuTarget(null);
+                                    setEditingItem({
+                                      kind: 'document',
+                                      id: doc.id,
+                                      name: doc.title,
+                                      desc: doc.description || '',
+                                      coverImage: doc.coverImage,
+                                    });
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
+                                >
+                                  <Edit2 className="w-3 h-3" /> 수정
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuTarget(null);
+                                    const cloned = duplicateDocument(doc.id);
+                                    if (cloned) showToast(`'${cloned.title}' 문서로 복제했습니다`);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
+                                >
+                                  <Copy className="w-3 h-3" /> 복제
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuTarget(null);
+                                    setMoveDocId(doc.id);
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs hover:bg-black/5"
+                                >
+                                  <FolderInput className="w-3 h-3" /> 이동
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setMenuTarget(null);
+                                    moveDocumentToTrash(doc.id);
+                                    showToast(`'${doc.title}' 문서를 휴지통으로 이동했습니다`, {
+                                      onUndo: () => restoreItems([{ type: 'document', id: doc.id }]),
+                                    });
+                                  }}
+                                  className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-600 hover:bg-rose-50"
+                                >
+                                  <Trash2 className="w-3 h-3" /> 삭제
+                                </button>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div>
                       <div className="text-[14px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
                         {doc.title}
                       </div>
-                    )}
-                    <div className="text-[11.5px] text-[#8A8998] mt-0.5 truncate">
-                      {tpl?.name || '문서'}
+                      <div className="text-[11.5px] text-[#8A8998] mt-0.5 truncate">
+                        {doc.description || tpl?.name || '문서'}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -420,6 +561,191 @@ export const FolderDetailView: React.FC = () => {
           문서는 같은 프로젝트 안에서만 이동할 수 있습니다. 삭제하면 하위 구조와 함께 휴지통으로 이동합니다.
         </p>
       </div>
+
+      {/* Edit Folder / Document Modal */}
+      <ModalShell
+        isOpen={Boolean(editingItem)}
+        onClose={() => setEditingItem(null)}
+        maxWidthClass="max-w-md"
+        className="p-6 flex flex-col gap-4"
+      >
+        {editingItem && (
+          <>
+            <h3 className="text-base font-bold">
+              {editingItem.kind === 'folder' ? '폴더 수정' : '문서 수정'}
+            </h3>
+            <div className="flex flex-col gap-3 text-xs">
+              <div>
+                <label className="block font-semibold text-[#4E4D59] dark:text-[#B4B2C4] mb-1">
+                  이름
+                </label>
+                <input
+                  type="text"
+                  value={editingItem.name}
+                  onChange={(e) => setEditingItem({ ...editingItem, name: e.target.value })}
+                  className="w-full h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244]"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-[#4E4D59] dark:text-[#B4B2C4] mb-1">
+                  설명 (비워두면 표시 안 됨)
+                </label>
+                <input
+                  type="text"
+                  value={editingItem.desc}
+                  onChange={(e) => setEditingItem({ ...editingItem, desc: e.target.value })}
+                  placeholder="설명 입력"
+                  className="w-full h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244]"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-[#4E4D59] dark:text-[#B4B2C4] mb-1">
+                  배너 이미지 (미설정 시 기본 디자인)
+                </label>
+                <div className="flex items-center gap-2">
+                  <label className="px-3 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] cursor-pointer hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845]">
+                    배너 이미지 업로드
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const r = new FileReader();
+                        r.onload = () =>
+                          typeof r.result === 'string' &&
+                          setEditingItem({ ...editingItem, coverImage: r.result });
+                        r.readAsDataURL(f);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                  {editingItem.coverImage && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingItem({ ...editingItem, coverImage: undefined })}
+                      className="text-rose-500 hover:underline"
+                    >
+                      제거
+                    </button>
+                  )}
+                </div>
+                {editingItem.coverImage && (
+                  <div className="mt-2 h-20 rounded-xl overflow-hidden border border-[#E6E3F0] dark:border-[#323244]">
+                    <img
+                      src={editingItem.coverImage}
+                      alt="배너"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="px-4 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!editingItem.name.trim()) return;
+                  if (editingItem.kind === 'folder') {
+                    updateFolder(editingItem.id, {
+                      name: editingItem.name.trim(),
+                      description: editingItem.desc.trim(),
+                      coverImage: editingItem.coverImage,
+                    });
+                  } else {
+                    updateDocument(editingItem.id, {
+                      title: editingItem.name.trim(),
+                      description: editingItem.desc.trim(),
+                      coverImage: editingItem.coverImage,
+                    });
+                  }
+                  setEditingItem(null);
+                  showToast('수정 사항을 저장했습니다');
+                }}
+                className="px-4 py-2 rounded-xl bg-[#6A5ACD] text-white text-xs font-semibold"
+              >
+                저장
+              </button>
+            </div>
+          </>
+        )}
+      </ModalShell>
+
+      {/* Move Document Out of Folder or to Another Folder in Project */}
+      {moveDocId && (
+        <div
+          onClick={() => setMoveDocId(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bs-animate-modal w-full max-w-sm rounded-2xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] p-5 flex flex-col gap-3 text-xs"
+          >
+            <div className="text-sm font-bold">문서 이동 ({activeProject.name})</div>
+            <div className="flex flex-col gap-1 max-h-60 overflow-y-auto">
+              <button
+                type="button"
+                onClick={() => {
+                  const prevFolderId = activeFolder.id;
+                  moveDocumentToFolder(moveDocId, null);
+                  showToast(`'${activeProject.name}' 프로젝트 루트(폴더 밖)로 이동했습니다`, {
+                    onUndo: () => moveDocumentToFolder(moveDocId, prevFolderId),
+                  });
+                  setMoveDocId(null);
+                }}
+                className="text-left px-3 py-2 rounded-xl hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845] font-semibold text-[#6A5ACD] dark:text-[#9A8FE6]"
+              >
+                🏠 폴더 밖 ({activeProject.name} 최상위)
+              </button>
+              {activeFolder.parentFolderId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const prevFolderId = activeFolder.id;
+                    const parentId = activeFolder.parentFolderId!;
+                    moveDocumentToFolder(moveDocId, parentId);
+                    showToast('상위 폴더로 이동했습니다', {
+                      onUndo: () => moveDocumentToFolder(moveDocId, prevFolderId),
+                    });
+                    setMoveDocId(null);
+                  }}
+                  className="text-left px-3 py-2 rounded-xl hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845] font-semibold"
+                >
+                  ⬆️ 상위 폴더로 이동
+                </button>
+              )}
+              {folders
+                .filter(
+                  (f) => !f.deletedAt && f.projectId === activeProject.id && f.id !== activeFolder.id
+                )
+                .map((f) => (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => {
+                      const prevFolderId = activeFolder.id;
+                      moveDocumentToFolder(moveDocId, f.id);
+                      showToast(`'${f.name}' 폴더로 이동했습니다`, {
+                        onUndo: () => moveDocumentToFolder(moveDocId, prevFolderId),
+                      });
+                      setMoveDocId(null);
+                    }}
+                    className="text-left px-3 py-2 rounded-xl hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845] font-medium"
+                  >
+                    📁 {f.name}
+                  </button>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {(draggingDoc || draggingFolder) &&
         createPortal(

@@ -36,7 +36,8 @@ export const CreateDocumentModal: React.FC = () => {
   const [newTplName, setNewTplName] = useState('');
   const [newTplMode, setNewTplMode] = useState<'clone' | 'blank'>('clone');
   const [newTplBase, setNewTplBase] = useState('character-sheet');
-  const [newTplCategory, setNewTplCategory] = useState<TemplateCategoryType>('character');
+  const [docTitleInput, setDocTitleInput] = useState('');
+  const [docCoverImage, setDocCoverImage] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     if (isCreateDocumentOpen) {
@@ -44,6 +45,8 @@ export const CreateDocumentModal: React.FC = () => {
       setSelectedTemplateId('character-sheet');
       setSelectedUserTemplateId(null);
       setIsCreatingUserTpl(false);
+      setDocTitleInput('');
+      setDocCoverImage(undefined);
     }
   }, [isCreateDocumentOpen]);
 
@@ -70,10 +73,12 @@ export const CreateDocumentModal: React.FC = () => {
   const handleCreate = () => {
     if (selectedCategory === 'user' && selectedUserTpl) {
       const doc = createDocument(
-        selectedUserTpl.name,
+        docTitleInput.trim() || selectedUserTpl.name,
         selectedUserTpl.baseTemplateType,
         selectedUserTpl.category,
-        selectedUserTpl.content
+        selectedUserTpl.content,
+        undefined,
+        docCoverImage
       );
       setIsCreateDocumentOpen(false);
       openDocument(doc.id);
@@ -83,9 +88,12 @@ export const CreateDocumentModal: React.FC = () => {
 
     if (!selectedTemplate) return;
     const doc = createDocument(
-      selectedTemplate.defaultTitle,
+      docTitleInput.trim() || selectedTemplate.defaultTitle,
       selectedTemplate.id,
-      selectedTemplate.category
+      selectedTemplate.category,
+      undefined,
+      undefined,
+      docCoverImage
     );
     setIsCreateDocumentOpen(false);
     openDocument(doc.id);
@@ -99,16 +107,16 @@ export const CreateDocumentModal: React.FC = () => {
     if (newTplMode === 'blank') {
       const created = createUserTemplate(
         newTplName,
-        '빈 캔버스 사용자 템플릿',
-        newTplCategory,
-        'character-sheet',
+        '모든 컴포넌트를 사용할 수 있는 빈 사용자 템플릿',
+        'general',
+        'custom-blank-canvas',
         JSON.stringify({ cards: [] })
       );
       setNewTplName('');
       setIsCreatingUserTpl(false);
-      setSelectedCategory('user');
-      setSelectedUserTemplateId(created.id);
-      showToast(`빈 사용자 템플릿 '${created.name}'이 추가되었습니다`);
+      setIsCreateDocumentOpen(false);
+      openTemplateEditor(created.id);
+      showToast(`빈 사용자 템플릿 '${created.name}' 편집 화면으로 이동합니다`);
       return;
     }
 
@@ -126,9 +134,9 @@ export const CreateDocumentModal: React.FC = () => {
     );
     setNewTplName('');
     setIsCreatingUserTpl(false);
-    setSelectedCategory('user');
-    setSelectedUserTemplateId(created.id);
-    showToast(`사용자 템플릿 '${created.name}'을 복제하여 저장했습니다`);
+    setIsCreateDocumentOpen(false);
+    openTemplateEditor(created.id);
+    showToast(`'${created.name}' 템플릿 편집 화면으로 이동합니다`);
   };
 
   const ctaLabel =
@@ -145,8 +153,47 @@ export const CreateDocumentModal: React.FC = () => {
       maxWidthClass="max-w-[780px]"
       className="rounded-[22px] flex flex-col"
     >
-        <div className="px-7 pt-6 pb-3">
+        <div className="px-7 pt-6 pb-3 flex flex-col gap-3">
           <h2 className="text-[19px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">새 문서 만들기</h2>
+          {!isCreatingUserTpl && (
+            <div className="flex items-center gap-3">
+              <input
+                type="text"
+                value={docTitleInput}
+                onChange={(e) => setDocTitleInput(e.target.value)}
+                placeholder={`문서 이름 (비워두면 '${
+                  selectedCategory === 'user'
+                    ? selectedUserTpl?.name || '사용자 템플릿'
+                    : selectedTemplate?.defaultTitle || '새 문서'
+                }'으로 생성)`}
+                className="flex-1 h-9 px-3.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C] text-xs text-[#1B1B1F] dark:text-[#F1F0F6] focus:outline-none focus:border-[#6A5ACD]"
+              />
+              <label className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] flex items-center cursor-pointer hover:border-[#6A5ACD] shrink-0">
+                {docCoverImage ? '배너 변경' : '+ 배너 이미지'}
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (!f) return;
+                    const r = new FileReader();
+                    r.onload = () => typeof r.result === 'string' && setDocCoverImage(r.result);
+                    r.readAsDataURL(f);
+                  }}
+                  className="hidden"
+                />
+              </label>
+              {docCoverImage && (
+                <button
+                  type="button"
+                  onClick={() => setDocCoverImage(undefined)}
+                  className="text-xs text-rose-500 hover:underline shrink-0"
+                >
+                  배너 제거
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex flex-1 min-h-[340px] max-h-[420px] px-7 pb-4 gap-6">
@@ -158,10 +205,10 @@ export const CreateDocumentModal: React.FC = () => {
                   key={cat.id}
                   type="button"
                   onClick={() => handleCategorySelect(cat.id)}
-                  className={`w-full text-left px-3.5 py-2 rounded-xl text-[13px] transition-all duration-150 ${
+                  className={`w-full text-left px-3.5 py-2 rounded-xl text-[13px] border transition-colors duration-150 ${
                     active
-                      ? 'bg-[#F8F7FC] dark:bg-[#262436] text-[#1B1B1F] dark:text-[#F1F0F6] font-semibold border border-[#E6E3F0] dark:border-[#38344E]'
-                      : 'text-[#555464] dark:text-[#9E9CAF] hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
+                      ? 'bg-[#F8F7FC] dark:bg-[#262436] text-[#1B1B1F] dark:text-[#F1F0F6] font-semibold border-[#E6E3F0] dark:border-[#38344E]'
+                      : 'border-transparent text-[#555464] dark:text-[#9E9CAF] hover:bg-black/[0.03] dark:hover:bg-white/[0.04]'
                   }`}
                 >
                   {cat.name}
@@ -268,22 +315,9 @@ export const CreateDocumentModal: React.FC = () => {
                     </select>
                   </div>
                 ) : (
-                  <div>
-                    <label className="block text-xs font-medium text-[#6E6D7A] dark:text-[#9E9CAF] mb-1">
-                      템플릿 분류
-                    </label>
-                    <select
-                      value={newTplCategory}
-                      onChange={(e) => setNewTplCategory(e.target.value as TemplateCategoryType)}
-                      className="w-full h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs"
-                    >
-                      {TEMPLATE_CATEGORIES.map((c) => (
-                        <option key={c.id} value={c.id}>
-                          {c.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  <p className="text-[11px] text-[#8A8998] leading-relaxed">
+                    빈 템플릿으로 만들면 저장 즉시 템플릿 편집 캔버스로 이동하며, 공통·캐릭터·세계관·게임·디자인의 모든 컴포넌트를 자유롭게 배치할 수 있습니다.
+                  </p>
                 )}
                 <div className="flex justify-end gap-2">
                   <button
@@ -341,10 +375,21 @@ export const CreateDocumentModal: React.FC = () => {
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
-                        <div className="px-3.5 py-2.5 bg-white dark:bg-[#1E1E29]">
+                        <div className="px-3.5 py-2.5 bg-white dark:bg-[#1E1E29] flex items-center justify-between gap-2">
                           <div className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
                             {tpl.name}
                           </div>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsCreateDocumentOpen(false);
+                              openTemplateEditor(tpl.id);
+                            }}
+                            className="text-[10.5px] font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] hover:underline shrink-0"
+                          >
+                            편집
+                          </button>
                         </div>
                       </div>
                     );
@@ -408,14 +453,16 @@ export const CreateDocumentModal: React.FC = () => {
           >
             취소
           </button>
-          <button
-            type="button"
-            onClick={handleCreate}
-            disabled={selectedCategory === 'user' && !selectedUserTpl}
-            className="px-5 py-2 rounded-xl bg-[#6A5ACD] hover:bg-[#5A49B8] disabled:opacity-40 text-white text-xs font-semibold transition-colors"
-          >
-            {ctaLabel}
-          </button>
+          {!isCreatingUserTpl && (
+            <button
+              type="button"
+              onClick={handleCreate}
+              disabled={selectedCategory === 'user' && !selectedUserTpl}
+              className="px-5 py-2 rounded-xl bg-[#6A5ACD] hover:bg-[#5A49B8] disabled:opacity-40 text-white text-xs font-semibold transition-colors"
+            >
+              {ctaLabel}
+            </button>
+          )}
         </div>
     </ModalShell>
   );

@@ -24,6 +24,7 @@ export interface Folder {
   description?: string;
   coverColor?: string;
   coverImage?: string;
+  isFavorite?: boolean;
   order: number;
   deletedAt?: number | null;
   createdAt: number;
@@ -114,11 +115,12 @@ export type CanvasCardType =
   | 'zone-card'
   // 캐릭터/세계관 공용 1종
   | 'chronicle-card'
-  // 게임 기획서 전용 4종
+  // 게임 기획서 전용 5종
   | 'swot-card'
   | 'rule-card'
   | 'formula-card'
   | 'difficulty-curve-card'
+  | 'probability-card'
   // 모델링 시트 전용 2종
   | 'turnaround-card'
   | 'texture-map-card'

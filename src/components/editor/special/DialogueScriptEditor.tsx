@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, MousePointerClick } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 import { useToast } from '../../toast/ToastContext';
@@ -22,6 +22,7 @@ interface DialogueCardNode {
   conditions?: string[];
   results?: string[];
   choices?: DialogueChoiceItem[];
+  nextCardId?: string;
   x: number;
   y: number;
 }
@@ -33,6 +34,7 @@ const DEFAULT_DIALOGUE_CARDS: DialogueCardNode[] = [
     title: '유적 입구 도착',
     conditions: ['전투 튜토리얼 완료'],
     results: ['고대 열쇠 획득', '입구 개방'],
+    nextCardId: 'dc-2',
     x: 40,
     y: 28,
   },
@@ -42,6 +44,7 @@ const DEFAULT_DIALOGUE_CARDS: DialogueCardNode[] = [
     title: '대사 카드',
     speaker: '화자 A',
     text: '여기가 그 고대 유적의 입구인가요? 이상한 문양이 새겨져 있네요.',
+    nextCardId: 'dc-3',
     x: 40,
     y: 190,
   },
@@ -63,6 +66,7 @@ const DEFAULT_DIALOGUE_CARDS: DialogueCardNode[] = [
     title: '대사 카드 · 분기 응답',
     speaker: '화자 B',
     text: '좋아요, 선택에 따라 유적 내부의 반응이 달라질 겁니다.',
+    nextCardId: 'dc-5',
     x: 310,
     y: 255,
   },
@@ -89,14 +93,24 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
   const [cards, setCards] = useState<DialogueCardNode[]>(DEFAULT_DIALOGUE_CARDS);
   const [selectedId, setSelectedId] = useState<string | null>('dc-5');
   const [liveDragCard, setLiveDragCard] = useState<{ id: string; x: number; y: number } | null>(null);
-  const [lineLockTip, setLineLockTip] = useState<{ x: number; y: number } | null>(null);
+  const [pickingNextFor, setPickingNextFor] = useState<
+    { cardId: string; choiceIdx?: number } | null
+  >(null);
 
-  // Preview states (§6-7)
+  // Preview states
   const [isPreview, setIsPreview] = useState(false);
-  const [previewCardId, setPreviewCardId] = useState<string>('dc-2');
+  const [previewCardId, setPreviewCardId] = useState<string>('dc-1');
   const [choiceHistory, setChoiceHistory] = useState<{ key: string; label: string }[]>([]);
   const [inventory, setInventory] = useState<string[]>(['고대 열쇠']);
   const [typedCount, setTypedCount] = useState(0);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPickingNextFor(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   useEffect(() => {
     if (activePage?.content) {
@@ -119,9 +133,7 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
   };
 
   const activePreviewCard =
-    cards.find((c) => c.id === previewCardId) ||
-    cards.find((c) => c.type === 'dialogue') ||
-    cards[0];
+    cards.find((c) => c.id === previewCardId) || cards[0];
 
   const previewDialogueText =
     activePreviewCard?.type === 'dialogue'
@@ -130,7 +142,6 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
         ? `[이벤트: ${activePreviewCard.title}] ${(activePreviewCard.results || []).join(' · ')}`
         : '선택지를 골라 진행하세요.';
 
-  // Typewriter effect in preview mode (§6-7: 24ms per character)
   useEffect(() => {
     if (!isPreview) return;
     setTypedCount(0);
@@ -156,7 +167,6 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
       return;
     }
     if (targetCard.type === 'event') {
-      // Check conditions (§6-7)
       const unmet = (targetCard.conditions || []).find((cond) => {
         if (cond.includes('선택지') && nextHistory.length === 0) return true;
         if (cond.includes('열쇠') && !nextInv.some((i) => i.includes('열쇠'))) return true;
@@ -186,7 +196,7 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
   const selected = cards.find((c) => c.id === selectedId) || null;
 
   const startCardDrag = (e: React.MouseEvent, card: DialogueCardNode) => {
-    if (!isEditMode || e.button !== 0) return;
+    if (!isEditMode || e.button !== 0 || pickingNextFor) return;
     e.stopPropagation();
     setSelectedId(card.id);
     const sx = e.clientX;
@@ -216,17 +226,10 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
     window.addEventListener('mouseup', onUp);
   };
 
-  // Interactive Dark Preview Mode matching PDF Page 37 (§6-7)
+  // Interactive Dark Preview Mode: choices only show when activePreviewCard.type === 'choice'
   if (isPreview) {
-    const choiceCard =
-      activePreviewCard?.type === 'choice'
-        ? activePreviewCard
-        : cards.find((c) => c.type === 'choice');
-    const choicesList = choiceCard?.choices || [
-      { id: 'a', key: 'A', label: '선택지 A' },
-      { id: 'b', key: 'B', label: '선택지 B' },
-      { id: 'c', key: 'C', label: '선택지 C' },
-    ];
+    const isChoiceTurn = activePreviewCard?.type === 'choice';
+    const choicesList = activePreviewCard?.choices || [];
     return (
       <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-white dark:bg-[#15151C]">
         <EditorHeader
@@ -259,49 +262,62 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
               </button>
             </div>
 
-            <div className="max-w-sm w-full mx-auto flex flex-col gap-2.5">
+            <div className="max-w-sm w-full mx-auto flex flex-col gap-2.5 min-h-[140px] justify-center">
               <div className="text-center text-xs text-white/60 mb-1">게임 화면 (미리보기)</div>
-              {choicesList.map((ch, idx) => (
-                <button
-                  key={ch.id}
-                  type="button"
-                  style={{ animationDelay: `${idx * 60}ms` }}
-                  onClick={() => {
-                    const nextHist = [...choiceHistory, { key: ch.key, label: ch.label }];
-                    setChoiceHistory(nextHist);
-                    let nextInv = inventory;
-                    if (ch.key === 'B' && !inventory.includes('고대 문양 탁본')) {
-                      nextInv = [...inventory, '고대 문양 탁본'];
-                      setInventory(nextInv);
-                    }
-                    const target =
-                      (ch.nextCardId && cards.find((c) => c.id === ch.nextCardId)) ||
-                      cards.find((c) => c.type === 'dialogue' && c.id !== activePreviewCard?.id);
-                    advancePreviewToCard(target, nextHist, nextInv);
-                  }}
-                  className="bs-animate-toast w-full px-4 py-3 rounded-xl bg-white text-[#1B1B1F] text-left text-xs font-semibold transition-all hover:ring-2 hover:ring-[#9A8FE6]"
-                >
-                  <span className="font-bold mr-2 text-[#6A5ACD]">{ch.key}</span> {ch.label}
-                </button>
-              ))}
+              {isChoiceTurn ? (
+                choicesList.map((ch, idx) => (
+                  <button
+                    key={ch.id}
+                    type="button"
+                    style={{ animationDelay: `${idx * 60}ms` }}
+                    onClick={() => {
+                      const nextHist = [...choiceHistory, { key: ch.key, label: ch.label }];
+                      setChoiceHistory(nextHist);
+                      let nextInv = inventory;
+                      if (ch.key === 'B' && !inventory.includes('고대 문양 탁본')) {
+                        nextInv = [...inventory, '고대 문양 탁본'];
+                        setInventory(nextInv);
+                      }
+                      const target = ch.nextCardId
+                        ? cards.find((c) => c.id === ch.nextCardId)
+                        : undefined;
+                      advancePreviewToCard(target, nextHist, nextInv);
+                    }}
+                    className="bs-animate-toast w-full px-4 py-3 rounded-xl bg-white text-[#1B1B1F] text-left text-xs font-semibold transition-all hover:ring-2 hover:ring-[#9A8FE6]"
+                  >
+                    <span className="font-bold mr-2 text-[#6A5ACD]">{ch.key}</span> {ch.label}
+                  </button>
+                ))
+              ) : (
+                <div className="text-center text-xs text-white/40">
+                  하단 대사창을 클릭해 다음 대화로 진행하세요.
+                </div>
+              )}
             </div>
 
             <div
               onClick={() => {
                 if (typedCount < previewDialogueText.length) {
                   setTypedCount(previewDialogueText.length);
-                } else {
-                  const curIdx = cards.findIndex((c) => c.id === activePreviewCard?.id);
-                  const nextCard = curIdx >= 0 && curIdx + 1 < cards.length ? cards[curIdx + 1] : cards[0];
-                  advancePreviewToCard(nextCard);
+                  return;
                 }
+                if (isChoiceTurn) {
+                  showToast('선택지 중 하나를 선택해 주세요');
+                  return;
+                }
+                const nextCard = activePreviewCard?.nextCardId
+                  ? cards.find((c) => c.id === activePreviewCard.nextCardId)
+                  : undefined;
+                advancePreviewToCard(nextCard);
               }}
               className="max-w-3xl w-full mx-auto rounded-2xl border border-[#5B4CC4] bg-[#1A1828]/90 p-5 flex flex-col gap-2 cursor-pointer"
             >
               <div className="flex items-center gap-2.5">
                 <span className="w-6 h-6 rounded-full bg-[#6A5ACD]/40" />
                 <span className="text-sm font-bold">
-                  {activePreviewCard?.speaker || activePreviewCard?.title || '화자'}
+                  {activePreviewCard?.type === 'dialogue'
+                    ? activePreviewCard.speaker || '화자'
+                    : activePreviewCard?.title || '이벤트'}
                 </span>
               </div>
               <p className="text-xs text-white/90 min-h-[20px]">
@@ -311,6 +327,8 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
               <div className="text-right text-xs text-white/60">
                 {typedCount < previewDialogueText.length ? (
                   '클릭해 모두 보기'
+                ) : isChoiceTurn ? (
+                  <span>위 선택지를 골라주세요</span>
                 ) : (
                   <span className="animate-pulse">다음 ▾</span>
                 )}
@@ -324,7 +342,11 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
               <div className="text-[11px] text-[#8A8998]">현재 카드</div>
               <div className="flex justify-between py-1.5 border-b border-[#F0EEF7] dark:border-[#2A2938]">
                 <span>이름</span>
-                <span className="font-semibold">{activePreviewCard?.title || '이벤트'}</span>
+                <span className="font-semibold">
+                  {activePreviewCard?.type === 'dialogue'
+                    ? activePreviewCard.speaker || activePreviewCard.title
+                    : activePreviewCard?.title || '이벤트'}
+                </span>
               </div>
             </div>
             <div>
@@ -359,9 +381,6 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                 )}
               </div>
             </div>
-            <p className="text-[11px] text-[#8A8998] leading-relaxed">
-              분기 조건과 이벤트 결과가 제대로 동작하는지 여기서 확인합니다.
-            </p>
           </aside>
         </div>
       </div>
@@ -377,51 +396,72 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
         isEditMode={isEditMode}
         onChangeMode={(edit) => {
           setIsEditMode(edit);
-          if (!edit) setSelectedId(null);
+          if (!edit) {
+            setSelectedId(null);
+            setPickingNextFor(null);
+          }
         }}
         onExit={() => (isTemplateMode ? openTemplateEditor(null) : openDocument(null))}
         isTemplateMode={isTemplateMode}
-        onPreviewClick={() => setIsPreview(true)}
+        onPreviewClick={() => {
+          setPreviewCardId(cards[0]?.id || 'dc-1');
+          setChoiceHistory([]);
+          setIsPreview(true);
+        }}
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
         <div
-          onClick={() => setSelectedId(null)}
+          onClick={() => {
+            if (pickingNextFor) {
+              setPickingNextFor(null);
+              return;
+            }
+            setSelectedId(null);
+          }}
           className="flex-1 relative overflow-auto canvas-dot-grid p-6"
         >
-          <p className="text-center text-[11px] text-[#8A8998] mb-3">
-            카드 사이의 연결선은 자동으로 배치되며 직접 조정할 수 없습니다. 카드 위치만 옮길 수 있습니다.
-          </p>
+          {pickingNextFor ? (
+            <div className="mb-3 px-4 py-2 rounded-xl bg-[#6A5ACD] text-white text-xs font-semibold text-center shadow">
+              연결할 다음 대사/이벤트 카드를 캔버스에서 클릭하세요 (ESC 취소)
+            </div>
+          ) : (
+            <p className="text-center text-[11px] text-[#8A8998] mb-3">
+              우측 패널에서 &apos;다음 대사&apos;를 지정하면 카드 사이에 연결선이 표시됩니다.
+            </p>
+          )}
 
           <div data-export-root="true" className="relative min-w-[820px] min-h-[540px]">
-            {/* Auto Orthogonal Connectors + Choice Branch Connectors SVG (§6-7) */}
-            <svg className="absolute inset-0 w-full h-full">
-              {cards.slice(0, -1).map((c, idx) => {
-                const next = cards[idx + 1];
-                const cx = (liveDragCard?.id === c.id ? liveDragCard.x : c.x) + 105;
-                const cy = (liveDragCard?.id === c.id ? liveDragCard.y : c.y) + 46;
-                const nx = (liveDragCard?.id === next.id ? liveDragCard.x : next.x) + 105;
-                const ny = (liveDragCard?.id === next.id ? liveDragCard.y : next.y) + 46;
-                const midX = (cx + nx) / 2;
-                const dPath = `M ${cx} ${cy} L ${midX} ${cy} L ${midX} ${ny} L ${nx} ${ny}`;
-                return (
-                  <g
-                    key={`conn-${c.id}-${next.id}`}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const rect = (e.currentTarget.ownerSVGElement as SVGSVGElement)?.getBoundingClientRect();
-                      if (rect) {
-                        setLineLockTip({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-                        window.setTimeout(() => setLineLockTip(null), 1800);
-                      }
-                    }}
-                    className="cursor-not-allowed"
-                  >
-                    <path d={dPath} fill="none" stroke="transparent" strokeWidth="10" />
-                    <path d={dPath} fill="none" stroke="#B6ACEA" strokeWidth="1.8" />
-                  </g>
-                );
-              })}
+            {/* Explicit user-configured connectors only */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              <defs>
+                <marker id="dlg-arrow" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L7,3 z" fill="#6A5ACD" />
+                </marker>
+              </defs>
+
+              {cards
+                .filter((c) => c.type !== 'choice' && Boolean(c.nextCardId))
+                .map((c) => {
+                  const next = cards.find((t) => t.id === c.nextCardId);
+                  if (!next) return null;
+                  const cx = (liveDragCard?.id === c.id ? liveDragCard.x : c.x) + 105;
+                  const cy = (liveDragCard?.id === c.id ? liveDragCard.y : c.y) + 46;
+                  const nx = (liveDragCard?.id === next.id ? liveDragCard.x : next.x) + 105;
+                  const ny = (liveDragCard?.id === next.id ? next.y : next.y) + 46;
+                  const midX = (cx + nx) / 2;
+                  const dPath = `M ${cx} ${cy} L ${midX} ${cy} L ${midX} ${ny} L ${nx} ${ny}`;
+                  return (
+                    <path
+                      key={`conn-${c.id}-${next.id}`}
+                      d={dPath}
+                      fill="none"
+                      stroke="#9A8FE6"
+                      strokeWidth="2"
+                      markerEnd="url(#dlg-arrow)"
+                    />
+                  );
+                })}
 
               {/* Branch Connectors from Choice options to their target nextCardId */}
               {cards
@@ -448,7 +488,7 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                             stroke="#6A5ACD"
                             strokeWidth="1.8"
                             strokeDasharray="4 3"
-                            className="bs-animate-draw"
+                            markerEnd="url(#dlg-arrow)"
                           />
                           <text
                             x={mx}
@@ -465,30 +505,53 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                 )}
             </svg>
 
-            {lineLockTip && (
-              <div
-                style={{ left: lineLockTip.x, top: lineLockTip.y - 28 }}
-                className="bs-animate-popover absolute z-40 px-2.5 py-1 rounded-lg bg-[#1B1B1F] text-white text-[10.5px] font-semibold pointer-events-none shadow-lg"
-              >
-                연결선은 자동으로 배치됩니다
-              </div>
-            )}
-
             {cards.map((c) => {
               const isSel = selectedId === c.id;
               const rx = liveDragCard?.id === c.id ? liveDragCard.x : c.x;
               const ry = liveDragCard?.id === c.id ? liveDragCard.y : c.y;
+              const headerText =
+                c.type === 'dialogue'
+                  ? c.speaker !== undefined
+                    ? c.speaker
+                    : c.title
+                  : c.title;
               return (
                 <div
                   key={c.id}
                   onMouseDown={(e) => startCardDrag(e, c)}
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (isEditMode) setSelectedId(c.id);
+                    if (!isEditMode) return;
+                    if (pickingNextFor) {
+                      if (pickingNextFor.cardId === c.id) {
+                        showToast('자기 자신에게는 연결할 수 없습니다', { variant: 'error' });
+                        return;
+                      }
+                      persist(
+                        cards.map((item) => {
+                          if (item.id !== pickingNextFor.cardId) return item;
+                          if (pickingNextFor.choiceIdx !== undefined) {
+                            const nextChoices = (item.choices || []).map((ch, idx) =>
+                              idx === pickingNextFor.choiceIdx ? { ...ch, nextCardId: c.id } : ch
+                            );
+                            return { ...item, choices: nextChoices };
+                          }
+                          return { ...item, nextCardId: c.id };
+                        })
+                      );
+                      setPickingNextFor(null);
+                      showToast('다음 대사로 연결했습니다');
+                      return;
+                    }
+                    setSelectedId(c.id);
                   }}
-                  style={{ left: rx, top: ry, width: 210 }}
+                  style={{ left: rx, top: ry, width: 220, height: 'auto' }}
                   className={`absolute rounded-2xl bg-white dark:bg-[#1E1E29] border p-3.5 text-xs shadow-2xs transition-shadow ${
-                    isEditMode ? 'cursor-move' : 'cursor-default'
+                    pickingNextFor
+                      ? 'cursor-pointer hover:ring-2 hover:ring-[#6A5ACD]'
+                      : isEditMode
+                        ? 'cursor-move'
+                        : 'cursor-default'
                   } ${
                     isSel && isEditMode
                       ? 'border-[#6A5ACD] border-2 shadow-md z-20'
@@ -496,15 +559,24 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                   }`}
                 >
                   <div className="flex items-center gap-1.5 mb-2">
-                    <span className="px-2 py-0.5 rounded bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD] text-[10px] font-semibold">
+                    <span className="px-2 py-0.5 rounded bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD] text-[10px] font-semibold shrink-0">
                       {c.type === 'event' ? '이벤트' : c.type === 'dialogue' ? '화자' : '선택지'}
                     </span>
-                    <span className="font-bold truncate">{c.speaker || c.title}</span>
+                    <span className="font-bold break-words">{headerText}</span>
                   </div>
-                  {c.text && <p className="text-[11px] text-[#6E6D7A] dark:text-[#9E9CAF]">{c.text}</p>}
-                  {c.conditions && (
-                    <div className="text-[10.5px] text-[#6E6D7A] mt-1">
+                  {c.text && (
+                    <p className="text-[11px] text-[#6E6D7A] dark:text-[#9E9CAF] whitespace-pre-wrap break-words">
+                      {c.text}
+                    </p>
+                  )}
+                  {c.conditions && c.conditions.length > 0 && (
+                    <div className="text-[10.5px] text-[#6E6D7A] mt-1 break-words">
                       조건: {c.conditions.join(', ')}
+                    </div>
+                  )}
+                  {c.results && c.results.length > 0 && (
+                    <div className="text-[10.5px] text-[#6A5ACD] mt-0.5 break-words">
+                      결과: {c.results.join(', ')}
                     </div>
                   )}
                   {c.choices && (
@@ -512,7 +584,7 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                       {c.choices.map((ch) => (
                         <div
                           key={ch.id}
-                          className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-[11px]"
+                          className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-[11px] break-words"
                         >
                           <strong>{ch.key}</strong> {ch.label}
                         </div>
@@ -525,9 +597,9 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
           </div>
         </div>
 
-        {/* Right Panel matching PDF Pages 33 & 40 */}
+        {/* Right Panel */}
         {isEditMode && (
-          <aside className="w-[270px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-4 select-none text-xs">
+          <aside className="w-[270px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-4 select-none text-xs overflow-y-auto">
             {selected ? (
               <>
                 <div>
@@ -538,11 +610,22 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                   >
                     ← 컴포넌트 추가
                   </button>
-                  <div className="text-sm font-bold mt-1.5">컴포넌트 수정 · {selected.title}</div>
+                  <div className="text-sm font-bold mt-1.5">
+                    {selected.type === 'dialogue'
+                      ? '대사 카드 수정'
+                      : selected.type === 'choice'
+                        ? '선택지 카드 수정'
+                        : '이벤트 카드 수정'}
+                  </div>
                 </div>
                 <input
                   type="text"
-                  value={selected.speaker || selected.title}
+                  placeholder={selected.type === 'dialogue' ? '화자 이름' : '카드 제목'}
+                  value={
+                    selected.type === 'dialogue'
+                      ? selected.speaker ?? ''
+                      : selected.title ?? ''
+                  }
                   onChange={(e) =>
                     persist(
                       cards.map((c) =>
@@ -558,8 +641,9 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                 />
                 {selected.type === 'dialogue' && (
                   <textarea
-                    rows={3}
-                    value={selected.text || ''}
+                    rows={4}
+                    value={selected.text ?? ''}
+                    placeholder="대사 내용을 입력하세요"
                     onChange={(e) =>
                       persist(
                         cards.map((c) =>
@@ -569,6 +653,53 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                     }
                     className="p-2.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] resize-none"
                   />
+                )}
+
+                {/* Next Card Linker for Dialogue & Event cards */}
+                {selected.type !== 'choice' && (
+                  <div className="flex flex-col gap-1.5 pt-2 border-t border-[#F0EEF7] dark:border-[#2A2938]">
+                    <span className="text-[11px] font-semibold text-[#8A8998]">다음 대사 / 카드 연결</span>
+                    <div className="flex items-center gap-1.5">
+                      <select
+                        value={selected.nextCardId || ''}
+                        onChange={(e) =>
+                          persist(
+                            cards.map((c) =>
+                              c.id === selected.id
+                                ? { ...c, nextCardId: e.target.value || undefined }
+                                : c
+                            )
+                          )
+                        }
+                        className="flex-1 min-w-0 h-8 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+                      >
+                        <option value="">연결 없음</option>
+                        {cards
+                          .filter((c) => c.id !== selected.id)
+                          .map((c) => (
+                            <option key={c.id} value={c.id}>
+                              {c.type === 'dialogue'
+                                ? `${c.speaker || '화자'}: ${(c.text || '').slice(0, 14)}`
+                                : c.title || '카드'}
+                            </option>
+                          ))}
+                      </select>
+                      <button
+                        type="button"
+                        title="캔버스에서 클릭해 연결"
+                        onClick={() => setPickingNextFor({ cardId: selected.id })}
+                        className={`h-8 px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1 ${
+                          pickingNextFor?.cardId === selected.id &&
+                          pickingNextFor.choiceIdx === undefined
+                            ? 'bg-[#6A5ACD] text-white border-[#6A5ACD]'
+                            : 'border-[#E6E3F0] dark:border-[#323244] text-[#6A5ACD]'
+                        }`}
+                      >
+                        <MousePointerClick className="w-3.5 h-3.5" />
+                        선택
+                      </button>
+                    </div>
+                  </div>
                 )}
 
                 {selected.type === 'choice' && (
@@ -642,7 +773,7 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                           </button>
                         </div>
                         <div className="flex items-center justify-between gap-1 text-[11px]">
-                          <span className="text-[#8A8998]">다음 대사</span>
+                          <span className="text-[#8A8998] shrink-0">다음 대사</span>
                           <select
                             value={ch.nextCardId || ''}
                             onChange={(e) => {
@@ -657,17 +788,34 @@ export const DialogueScriptEditor: React.FC<{ templateOverrideId?: string | null
                                 )
                               );
                             }}
-                            className="w-36 h-6 px-1.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-[11px]"
+                            className="flex-1 min-w-0 h-6 px-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-[11px]"
                           >
-                            <option value="">순차 진행</option>
+                            <option value="">연결 없음</option>
                             {cards
                               .filter((c) => c.id !== selected.id)
                               .map((c) => (
                                 <option key={c.id} value={c.id}>
-                                  {c.speaker ? `${c.speaker}: ${c.title}` : c.title}
+                                  {c.type === 'dialogue'
+                                    ? `${c.speaker || '화자'}: ${(c.text || '').slice(0, 12)}`
+                                    : c.title}
                                 </option>
                               ))}
                           </select>
+                          <button
+                            type="button"
+                            title="캔버스에서 클릭해 연결"
+                            onClick={() =>
+                              setPickingNextFor({ cardId: selected.id, choiceIdx: idx })
+                            }
+                            className={`h-6 px-1.5 rounded border text-[10.5px] font-semibold ${
+                              pickingNextFor?.cardId === selected.id &&
+                              pickingNextFor.choiceIdx === idx
+                                ? 'bg-[#6A5ACD] text-white border-[#6A5ACD]'
+                                : 'border-[#E6E3F0] dark:border-[#323244] text-[#6A5ACD]'
+                            }`}
+                          >
+                            선택
+                          </button>
                         </div>
                       </div>
                     ))}

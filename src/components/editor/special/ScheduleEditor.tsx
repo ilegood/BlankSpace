@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { ChevronDown, ChevronRight, Trash2 } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 
@@ -16,6 +16,7 @@ interface ScheduleTask {
   startCol: number;
   spanCols: number;
   progress: number;
+  color?: string;
   memo?: string;
 }
 
@@ -25,13 +26,13 @@ const DEFAULT_GROUPS: TaskGroup[] = [
 ];
 
 const DEFAULT_TASKS: ScheduleTask[] = [
-  { id: 'tk-1', groupId: 'grp-1', name: '작업 1', startCol: 0, spanCols: 4, progress: 35 },
-  { id: 'tk-2', groupId: 'grp-1', name: '작업 2', startCol: 3, spanCols: 6, progress: 50 },
-  { id: 'tk-3', groupId: 'grp-2', name: '작업 3', startCol: 6, spanCols: 5, progress: 35 },
-  { id: 'tk-4', groupId: 'grp-2', name: '작업 4', startCol: 9, spanCols: 5, progress: 28 },
+  { id: 'tk-1', groupId: 'grp-1', name: '작업 1', startCol: 0, spanCols: 4, progress: 35, color: '#6A5ACD' },
+  { id: 'tk-2', groupId: 'grp-1', name: '작업 2', startCol: 3, spanCols: 6, progress: 50, color: '#6A5ACD' },
+  { id: 'tk-3', groupId: 'grp-2', name: '작업 3', startCol: 6, spanCols: 5, progress: 35, color: '#0F766E' },
+  { id: 'tk-4', groupId: 'grp-2', name: '작업 4', startCol: 9, spanCols: 5, progress: 28, color: '#D97724' },
 ];
 
-const WEEK_DAYS = ['월', '화', '수', '목', '금', '토', '일', '월', '화', '수', '목', '금', '토', '일'];
+const TASK_COLORS = ['#6A5ACD', '#0F766E', '#D97724', '#E11D48', '#2563EB'];
 
 export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = ({
   templateOverrideId,
@@ -45,8 +46,8 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
   const [groups, setGroups] = useState<TaskGroup[]>(DEFAULT_GROUPS);
   const [tasks, setTasks] = useState<ScheduleTask[]>(DEFAULT_TASKS);
   const [selectedTaskId, setSelectedTaskId] = useState<string | null>('tk-2');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
-  // Interactive schedule range + live drag state (§6-9)
   const [startDate, setStartDate] = useState('2026-11-16');
   const [hasEndDate, setHasEndDate] = useState(false);
   const [endDate, setEndDate] = useState('2026-12-14');
@@ -63,6 +64,9 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
         if (Array.isArray(parsed.tasks)) {
           setGroups(parsed.groups || DEFAULT_GROUPS);
           setTasks(parsed.tasks);
+          if (parsed.startDate) setStartDate(parsed.startDate);
+          if (parsed.endDate) setEndDate(parsed.endDate);
+          if (typeof parsed.hasEndDate === 'boolean') setHasEndDate(parsed.hasEndDate);
           return;
         }
       } catch {
@@ -73,19 +77,31 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
     setTasks(DEFAULT_TASKS);
   }, [activePage?.id]);
 
-  const persist = (nextGroups: TaskGroup[], nextTasks: ScheduleTask[]) => {
+  const persist = (
+    nextGroups: TaskGroup[],
+    nextTasks: ScheduleTask[],
+    nextStart = startDate,
+    nextEnd = endDate,
+    nextHasEnd = hasEndDate
+  ) => {
     setGroups(nextGroups);
     setTasks(nextTasks);
     if (activePage) {
       updatePage(activePage.id, {
-        content: JSON.stringify({ groups: nextGroups, tasks: nextTasks }),
+        content: JSON.stringify({
+          groups: nextGroups,
+          tasks: nextTasks,
+          startDate: nextStart,
+          endDate: nextEnd,
+          hasEndDate: nextHasEnd,
+        }),
       });
     }
   };
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null;
+  const selectedGroup = groups.find((g) => g.id === selectedGroupId) || null;
 
-  // Compute dynamic column count when both startDate and endDate are enabled (§6-9)
   const fullRangeDays = (() => {
     if (!hasEndDate) return null;
     const s = new Date(startDate).getTime();
@@ -97,12 +113,34 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
 
   const cols = fullRangeDays ?? (scale === 'month' ? 12 : 14);
 
-  const formatColDateLabel = (colIdx: number) => {
+  const getColDate = (colIdx: number): Date => {
     const base = new Date(startDate);
-    if (Number.isNaN(base.getTime())) return `${colIdx + 1}일`;
-    const d = new Date(base.getTime() + colIdx * 86400000);
+    if (Number.isNaN(base.getTime())) return new Date(2026, 10, 16 + colIdx);
+    if (scale === 'month' && !hasEndDate) {
+      return new Date(base.getFullYear(), base.getMonth() + colIdx, 1);
+    }
+    return new Date(base.getTime() + colIdx * 86400000);
+  };
+
+  const formatColDateLabel = (colIdx: number) => {
+    const d = getColDate(colIdx);
+    if (scale === 'month' && !hasEndDate) {
+      return `${d.getFullYear()}.${d.getMonth() + 1}월`;
+    }
     return `${d.getMonth() + 1}/${d.getDate()}`;
   };
+
+  const firstDate = getColDate(0);
+  const midDate = getColDate(Math.floor(cols / 2));
+  const lastDate = getColDate(cols - 1);
+  const leftHeaderSummary =
+    scale === 'month' && !hasEndDate
+      ? `${firstDate.getFullYear()}년 ${firstDate.getMonth() + 1}월 ~ ${midDate.getMonth() + 1}월`
+      : `${firstDate.getMonth() + 1}월 ${firstDate.getDate()}일 ~ ${midDate.getMonth() + 1}월 ${midDate.getDate()}일`;
+  const rightHeaderSummary =
+    scale === 'month' && !hasEndDate
+      ? `${midDate.getFullYear()}년 ${midDate.getMonth() + 1}월 ~ ${lastDate.getMonth() + 1}월`
+      : `${midDate.getMonth() + 1}월 ${midDate.getDate()}일 ~ ${lastDate.getMonth() + 1}월 ${lastDate.getDate()}일`;
 
   const startBarDrag = (
     e: React.MouseEvent,
@@ -113,6 +151,7 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
     if (!isEditMode || e.button !== 0 || !trackEl) return;
     e.stopPropagation();
     setSelectedTaskId(tk.id);
+    setSelectedGroupId(null);
     const sx = e.clientX;
     const trackWidth = Math.max(100, trackEl.getBoundingClientRect().width);
     const colW = trackWidth / cols;
@@ -172,7 +211,7 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
         <div ref={ganttScrollRef} className="flex-1 overflow-auto p-5 bg-white dark:bg-[#15151C]">
-          {/* Top Gantt Controls matching PDF Pages 51 & 55 */}
+          {/* Top Gantt Controls */}
           <div className="flex flex-wrap items-center justify-between gap-3 mb-4 relative">
             <div className="flex items-center gap-2">
               {isEditMode && (
@@ -182,14 +221,16 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                     onClick={() => {
                       const nt: ScheduleTask = {
                         id: `tk-${Date.now()}`,
-                        groupId: groups[0]?.id || 'grp-1',
+                        groupId: selectedGroupId || groups[0]?.id || 'grp-1',
                         name: `작업 ${tasks.length + 1}`,
                         startCol: 2,
                         spanCols: 4,
                         progress: 0,
+                        color: '#6A5ACD',
                       };
                       persist(groups, [...tasks, nt]);
                       setSelectedTaskId(nt.id);
+                      setSelectedGroupId(null);
                     }}
                     className="px-3.5 py-1.5 rounded-xl bg-[#6A5ACD] text-white text-xs font-semibold"
                   >
@@ -203,6 +244,8 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                         name: `그룹 ${groups.length + 1}`,
                       };
                       persist([...groups, ng], tasks);
+                      setSelectedGroupId(ng.id);
+                      setSelectedTaskId(null);
                     }}
                     className="px-3.5 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
                   >
@@ -237,7 +280,10 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                     <input
                       type="date"
                       value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
+                      onChange={(e) => {
+                        setStartDate(e.target.value);
+                        persist(groups, tasks, e.target.value, endDate, hasEndDate);
+                      }}
                       className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
                     />
                   </label>
@@ -246,7 +292,10 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                     <input
                       type="checkbox"
                       checked={hasEndDate}
-                      onChange={(e) => setHasEndDate(e.target.checked)}
+                      onChange={(e) => {
+                        setHasEndDate(e.target.checked);
+                        persist(groups, tasks, startDate, endDate, e.target.checked);
+                      }}
                       className="accent-[#6A5ACD]"
                     />
                   </label>
@@ -256,7 +305,10 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                       <input
                         type="date"
                         value={endDate}
-                        onChange={(e) => setEndDate(e.target.value)}
+                        onChange={(e) => {
+                          setEndDate(e.target.value);
+                          persist(groups, tasks, startDate, e.target.value, hasEndDate);
+                        }}
                         className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
                       />
                     </label>
@@ -285,7 +337,6 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                 오늘
               </button>
 
-              {/* Hide 일/주/월 toggle when both start & end dates are specified (§6-9) */}
               {!hasEndDate ? (
                 <div className="inline-flex rounded-xl border border-[#E6E3F0] dark:border-[#323244] p-0.5 bs-animate-fade">
                   {[
@@ -328,21 +379,28 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
               </span>
             </div>
 
-            {/* Header Row */}
+            {/* Header Row synchronized with startDate */}
             <div className="grid grid-cols-[180px_1fr] border-b border-[#EAE7F2] dark:border-[#2E2D3D] bg-[#FAF9FE] dark:bg-[#181822] text-xs">
               <div className="px-4 py-3 font-semibold text-[#6E6D7A]">작업</div>
               <div className="flex flex-col">
                 <div className="grid grid-cols-2 text-center py-1 text-[11px] font-semibold text-[#6E6D7A]">
-                  <span>{scale === 'month' ? '1월 ~ 2월' : '1주차'}</span>
-                  <span>{scale === 'month' ? '2월 ~ 3월' : '2주차'}</span>
+                  <span>{leftHeaderSummary}</span>
+                  <span>{rightHeaderSummary}</span>
                 </div>
                 <div
-                  className="grid text-center text-[11px] text-[#8A8998] pb-1.5"
+                  className="grid text-center text-[10.5px] text-[#8A8998] pb-1.5"
                   style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
                 >
-                  {Array.from({ length: cols }).map((_, i) => (
-                    <span key={i}>{scale === 'month' ? i + 1 : WEEK_DAYS[i % 14]}</span>
-                  ))}
+                  {Array.from({ length: cols }).map((_, i) => {
+                    const d = getColDate(i);
+                    return (
+                      <span key={i}>
+                        {scale === 'month' && !hasEndDate
+                          ? `${d.getMonth() + 1}월`
+                          : `${d.getMonth() + 1}/${d.getDate()}`}
+                      </span>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -350,30 +408,42 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
             {/* Groups & Tasks */}
             {groups.map((grp) => {
               const grpTasks = tasks.filter((t) => t.groupId === grp.id);
+              const isGrpSel = selectedGroupId === grp.id;
               return (
                 <React.Fragment key={grp.id}>
-                  <div className="grid grid-cols-[180px_1fr] border-b border-[#F0EEF7] dark:border-[#2A2938] items-center h-11">
-                    <button
-                      type="button"
-                      onClick={() =>
-                        persist(
-                          groups.map((g) =>
-                            g.id === grp.id ? { ...g, collapsed: !g.collapsed } : g
-                          ),
-                          tasks
-                        )
-                      }
-                      className="px-4 flex items-center gap-1.5 text-xs font-bold text-left"
-                    >
-                      {grp.collapsed ? (
-                        <ChevronRight className="w-3.5 h-3.5" />
-                      ) : (
-                        <ChevronDown className="w-3.5 h-3.5" />
-                      )}
-                      <span>{grp.name}</span>
-                    </button>
-                    <div className="px-4">
-                      <div className="h-1.5 w-1/2 rounded-full bg-[#3D328A]" />
+                  <div
+                    onClick={() => {
+                      setSelectedGroupId(grp.id);
+                      setSelectedTaskId(null);
+                    }}
+                    className={`grid grid-cols-[180px_1fr] border-b border-[#F0EEF7] dark:border-[#2A2938] items-center h-11 cursor-pointer ${
+                      isGrpSel ? 'bg-[#F3F1FB]/60 dark:bg-[#2C2845]/40' : ''
+                    }`}
+                  >
+                    <div className="px-4 flex items-center gap-1.5 text-xs font-bold text-left">
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          persist(
+                            groups.map((g) =>
+                              g.id === grp.id ? { ...g, collapsed: !g.collapsed } : g
+                            ),
+                            tasks
+                          );
+                        }}
+                      >
+                        {grp.collapsed ? (
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        ) : (
+                          <ChevronDown className="w-3.5 h-3.5" />
+                        )}
+                      </button>
+                      <span className="truncate">{grp.name}</span>
+                    </div>
+                    {/* Removed the purple horizontal bar on the group header row */}
+                    <div className="px-4 text-[11px] text-[#8A8998]">
+                      작업 {grpTasks.length}개
                     </div>
                   </div>
 
@@ -384,11 +454,15 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                       const spanCols = liveBar?.id === tk.id ? liveBar.spanCols : tk.spanCols;
                       const leftPct = (startCol / cols) * 100;
                       const widthPct = (spanCols / cols) * 100;
+                      const barColor = tk.color || '#6A5ACD';
                       let trackRef: HTMLDivElement | null = null;
                       return (
                         <div
                           key={tk.id}
-                          onClick={() => setSelectedTaskId(tk.id)}
+                          onClick={() => {
+                            setSelectedTaskId(tk.id);
+                            setSelectedGroupId(null);
+                          }}
                           className="grid grid-cols-[180px_1fr] border-b border-[#F0EEF7] dark:border-[#2A2938] items-center h-12 hover:bg-[#FAF9FE] dark:hover:bg-[#1E1E29] cursor-pointer"
                         >
                           <div className="pl-7 pr-3 text-xs font-medium truncate">{tk.name}</div>
@@ -409,15 +483,26 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                             )}
                             <div
                               onMouseDown={(e) => startBarDrag(e, tk, 'move', trackRef)}
-                              style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                              className={`group absolute h-7 rounded-lg bg-[#A598EC] overflow-hidden flex items-center transition-[width] duration-200 ${
+                              style={{
+                                left: `${leftPct}%`,
+                                width: `${widthPct}%`,
+                                backgroundColor: `${barColor}55`,
+                              }}
+                              className={`group absolute h-7 rounded-lg overflow-hidden flex items-center transition-[width] duration-200 ${
                                 isEditMode ? 'cursor-grab active:cursor-grabbing' : ''
                               } ${isSel ? 'ring-2 ring-[#1B1B1F] dark:ring-white' : ''}`}
                             >
                               <div
-                                style={{ width: `${tk.progress}%` }}
-                                className="h-full bg-[#6A5ACD] transition-[width] duration-240"
+                                style={{ width: `${tk.progress}%`, backgroundColor: barColor }}
+                                className="h-full transition-[width] duration-240"
                               />
+                              <span className="absolute inset-0 px-2 flex items-center justify-between text-[10px] font-bold text-white drop-shadow-xs pointer-events-none truncate">
+                                <span>
+                                  {formatColDateLabel(startCol)}~
+                                  {formatColDateLabel(Math.max(startCol, startCol + spanCols - 1))}
+                                </span>
+                                <span>{tk.progress}%</span>
+                              </span>
                               {isEditMode && (
                                 <>
                                   <span
@@ -441,76 +526,187 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
           </div>
         </div>
 
-        {/* Right Task Inspector in Edit Mode */}
-        {isEditMode && selectedTask && (
+        {/* Right Group or Task Inspector in Edit Mode */}
+        {isEditMode && (selectedTask || selectedGroup) && (
           <aside className="w-[270px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-3.5 select-none text-xs">
-            <div>
-              <div className="text-sm font-bold">작업 수정</div>
-              <div className="text-[11px] text-[#8A8998] mt-0.5">{selectedTask.name}</div>
-            </div>
+            {selectedGroup && !selectedTask ? (
+              <>
+                <div>
+                  <div className="text-sm font-bold">그룹 수정</div>
+                  <div className="text-[11px] text-[#8A8998] mt-0.5">{selectedGroup.name}</div>
+                </div>
+                <label className="flex items-center justify-between gap-2">
+                  <span>그룹 이름</span>
+                  <input
+                    type="text"
+                    value={selectedGroup.name}
+                    onChange={(e) =>
+                      persist(
+                        groups.map((g) =>
+                          g.id === selectedGroup.id ? { ...g, name: e.target.value } : g
+                        ),
+                        tasks
+                      )
+                    }
+                    className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+                  />
+                </label>
+                {groups.length > 1 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const remainingGroups = groups.filter((g) => g.id !== selectedGroup.id);
+                      const fallbackGrpId = remainingGroups[0].id;
+                      persist(
+                        remainingGroups,
+                        tasks.map((t) =>
+                          t.groupId === selectedGroup.id ? { ...t, groupId: fallbackGrpId } : t
+                        )
+                      );
+                      setSelectedGroupId(null);
+                    }}
+                    className="self-start px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold inline-flex items-center gap-1"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    그룹 삭제
+                  </button>
+                )}
+              </>
+            ) : selectedTask ? (
+              <>
+                <div>
+                  <div className="text-sm font-bold">작업 수정</div>
+                  <div className="text-[11px] text-[#8A8998] mt-0.5">
+                    {formatColDateLabel(selectedTask.startCol)} ~{' '}
+                    {formatColDateLabel(
+                      Math.max(selectedTask.startCol, selectedTask.startCol + selectedTask.spanCols - 1)
+                    )}
+                  </div>
+                </div>
 
-            <label className="flex items-center justify-between gap-2">
-              <span>이름</span>
-              <input
-                type="text"
-                value={selectedTask.name}
-                onChange={(e) =>
-                  persist(
-                    groups,
-                    tasks.map((t) =>
-                      t.id === selectedTask.id ? { ...t, name: e.target.value } : t
-                    )
-                  )
-                }
-                className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
-              />
-            </label>
+                <label className="flex items-center justify-between gap-2">
+                  <span>이름</span>
+                  <input
+                    type="text"
+                    value={selectedTask.name}
+                    onChange={(e) =>
+                      persist(
+                        groups,
+                        tasks.map((t) =>
+                          t.id === selectedTask.id ? { ...t, name: e.target.value } : t
+                        )
+                      )
+                    }
+                    className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+                  />
+                </label>
 
-            <label className="flex items-center justify-between gap-2">
-              <span>진행률</span>
-              <input
-                type="number"
-                min={0}
-                max={100}
-                value={selectedTask.progress}
-                onChange={(e) =>
-                  persist(
-                    groups,
-                    tasks.map((t) =>
-                      t.id === selectedTask.id
-                        ? { ...t, progress: Math.min(100, Math.max(0, Number(e.target.value))) }
-                        : t
-                    )
-                  )
-                }
-                className="w-24 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-right"
-              />
-            </label>
+                <label className="flex items-center justify-between gap-2">
+                  <span>소속 그룹</span>
+                  <select
+                    value={selectedTask.groupId}
+                    onChange={(e) =>
+                      persist(
+                        groups,
+                        tasks.map((t) =>
+                          t.id === selectedTask.id ? { ...t, groupId: e.target.value } : t
+                        )
+                      )
+                    }
+                    className="w-36 h-8 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+                  >
+                    {groups.map((g) => (
+                      <option key={g.id} value={g.id}>
+                        {g.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
 
-            <div className="flex items-center gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() =>
-                  persist(groups, [
-                    ...tasks,
-                    { ...selectedTask, id: `tk-${Date.now()}`, name: `${selectedTask.name} 복사` },
-                  ])
-                }
-                className="px-3.5 py-1.5 rounded-xl border border-[#E6E3F0] font-semibold"
-              >
-                복제
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  persist(groups, tasks.filter((t) => t.id !== selectedTask.id));
-                  setSelectedTaskId(null);
-                }}
-                className="px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold"
-              >
-                삭제
-              </button>
-            </div>
+                <label className="flex items-center justify-between gap-2">
+                  <span>진행률 (%)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={selectedTask.progress}
+                    onChange={(e) =>
+                      persist(
+                        groups,
+                        tasks.map((t) =>
+                          t.id === selectedTask.id
+                            ? { ...t, progress: Math.min(100, Math.max(0, Number(e.target.value))) }
+                            : t
+                        )
+                      )
+                    }
+                    className="w-24 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-right"
+                  />
+                </label>
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] text-[#8A8998]">작업 바 색상</span>
+                  <div className="flex items-center gap-2">
+                    {TASK_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() =>
+                          persist(
+                            groups,
+                            tasks.map((t) =>
+                              t.id === selectedTask.id ? { ...t, color: c } : t
+                            )
+                          )
+                        }
+                        className={`w-6 h-6 rounded-md ${
+                          (selectedTask.color || '#6A5ACD') === c ? 'ring-2 ring-[#6A5ACD]' : ''
+                        }`}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                    <input
+                      type="color"
+                      value={selectedTask.color || '#6A5ACD'}
+                      onChange={(e) =>
+                        persist(
+                          groups,
+                          tasks.map((t) =>
+                            t.id === selectedTask.id ? { ...t, color: e.target.value } : t
+                          )
+                        )
+                      }
+                      className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      persist(groups, [
+                        ...tasks,
+                        { ...selectedTask, id: `tk-${Date.now()}`, name: `${selectedTask.name} 복사` },
+                      ])
+                    }
+                    className="px-3.5 py-1.5 rounded-xl border border-[#E6E3F0] font-semibold"
+                  >
+                    복제
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      persist(groups, tasks.filter((t) => t.id !== selectedTask.id));
+                      setSelectedTaskId(null);
+                    }}
+                    className="px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold"
+                  >
+                    삭제
+                  </button>
+                </div>
+              </>
+            ) : null}
           </aside>
         )}
       </div>

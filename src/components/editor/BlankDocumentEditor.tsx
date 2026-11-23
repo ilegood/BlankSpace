@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
+import { Mark, mergeAttributes } from '@tiptap/core';
 import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extension-placeholder';
 import { Link } from '@tiptap/extension-link';
@@ -11,10 +12,70 @@ import { TableCell } from '@tiptap/extension-table-cell';
 import { TableHeader } from '@tiptap/extension-table-header';
 import { TaskList } from '@tiptap/extension-task-list';
 import { TaskItem } from '@tiptap/extension-task-item';
-import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Pipette } from 'lucide-react';
+import { AlignLeft, AlignCenter, AlignRight, AlignJustify, Pipette, X } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 import { EditorHeader } from './EditorHeader';
 import { useToast } from '../toast/ToastContext';
+
+const TextColorMark = Mark.create({
+  name: 'textColorMark',
+  addAttributes() {
+    return {
+      color: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).style.color || null,
+        renderHTML: (attrs) => (attrs.color ? { style: `color: ${attrs.color}` } : {}),
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'span[style*="color"]' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes), 0];
+  },
+});
+
+const BgColorMark = Mark.create({
+  name: 'bgColorMark',
+  addAttributes() {
+    return {
+      bgColor: {
+        default: null,
+        parseHTML: (el) => (el as HTMLElement).style.backgroundColor || null,
+        renderHTML: (attrs) =>
+          attrs.bgColor
+            ? { style: `background-color: ${attrs.bgColor}; border-radius: 3px; padding: 0 2px;` }
+            : {},
+      },
+    };
+  },
+  parseHTML() {
+    return [{ tag: 'span[style*="background-color"]' }, { tag: 'mark' }];
+  },
+  renderHTML({ HTMLAttributes }) {
+    return ['span', mergeAttributes(HTMLAttributes), 0];
+  },
+});
+
+const ResizableImage = Image.extend({
+  addAttributes() {
+    return {
+      ...this.parent?.(),
+      width: {
+        default: '100%',
+        parseHTML: (el) => (el as HTMLElement).style.width || el.getAttribute('width') || '100%',
+        renderHTML: (attrs) => ({
+          style: `width: ${attrs.width || '100%'}; max-width: 100%; height: auto;`,
+        }),
+      },
+    };
+  },
+});
+
+const DEFAULT_TEMPLATE_DESC = '서식, 표, 체크리스트, 내부 링크를 지원하는 깔끔한 문서입니다.';
+
+const ICON_PRESETS = ['📄', '📝', '✨', '⚔️', '🏰', '🗺️', '🎮', '🎨', '🎵', '💡', '📌', '🔥'];
 
 export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null }> = ({
   templateOverrideId,
@@ -40,10 +101,10 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
   const [compactTitleVisible, setCompactTitleVisible] = useState(false);
   const [searchPulseActive, setSearchPulseActive] = useState(false);
+  const [, setSelectionTick] = useState(0);
   const scrollAreaRef = useRef<HTMLDivElement | null>(null);
   const titleBlockRef = useRef<HTMLDivElement | null>(null);
 
-  // Popovers & Menus matching PDF Pages 54, 56, 57
   const [headingMenuOpen, setHeadingMenuOpen] = useState(false);
   const [colorPopover, setColorPopover] = useState<'text' | 'bg' | null>(null);
   const [pickedColor, setPickedColor] = useState('#6A5ACD');
@@ -61,7 +122,10 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
   const [externalUrl, setExternalUrl] = useState('');
   const [tableMenu, setTableMenu] = useState<{ x: number; y: number } | null>(null);
   const [tableGridOpen, setTableGridOpen] = useState(false);
-  const [tableHover, setTableHover] = useState<{ r: number; c: number }>({ r: 3, c: 3 });
+  const [tableRowsInput, setTableRowsInput] = useState(3);
+  const [tableColsInput, setTableColsInput] = useState(3);
+  const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const [newTagInput, setNewTagInput] = useState('');
   const [deletedLinkPopover, setDeletedLinkPopover] = useState<{
     docId: string;
     title: string;
@@ -71,6 +135,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const iconFileRef = useRef<HTMLInputElement>(null);
   const activePageIdRef = useRef<string | undefined>(activePage?.id);
   activePageIdRef.current = activePage?.id;
 
@@ -81,11 +146,13 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
         heading: { levels: [1, 2, 3] },
         link: false,
       }),
+      TextColorMark,
+      BgColorMark,
       Placeholder.configure({ placeholder: '여기에 문서 내용을 작성하세요...' }),
       Link.configure({
         openOnClick: false,
       }),
-      Image.configure({ inline: false, allowBase64: true }),
+      ResizableImage.configure({ inline: false, allowBase64: true }),
       Table.configure({ resizable: true }),
       TableRow,
       TableHeader,
@@ -102,6 +169,13 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
       if (pageId) {
         updatePage(pageId, { content: ed.getHTML() });
       }
+      setSelectionTick((t) => t + 1);
+    },
+    onSelectionUpdate: () => {
+      setSelectionTick((t) => t + 1);
+    },
+    onTransaction: () => {
+      setSelectionTick((t) => t + 1);
     },
   });
 
@@ -120,7 +194,6 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
     }
   }, [activePage?.id, editor]);
 
-  // §3-6: Scroll to matched text & 1.2s pulse highlight when opened from SearchResultsView
   useEffect(() => {
     if (!pendingSearchHighlight) return;
     const query = pendingSearchHighlight.toLowerCase();
@@ -155,6 +228,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
         setTableGridOpen(false);
         setDeletedLinkPopover(null);
         setEyedropper(null);
+        setIconPickerOpen(false);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -185,6 +259,9 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
           y: rect.bottom + 6,
         });
       }
+    } else if (href && !isEditMode) {
+      e.preventDefault();
+      window.open(href, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -214,11 +291,25 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
     const mode = explicitMode || colorPopover;
     setRecentColors((prev) => [color, ...prev.filter((c) => c !== color)].slice(0, 6));
     if (mode === 'bg') {
-      document.execCommand('hiliteColor', false, color);
+      editor.chain().focus().setMark('bgColorMark', { bgColor: color }).run();
     } else {
-      document.execCommand('foreColor', false, color);
+      editor.chain().focus().setMark('textColorMark', { color }).run();
     }
     setColorPopover(null);
+  };
+
+  const applyBlockAlignment = (align: 'left' | 'center' | 'right' | 'justify') => {
+    if (!editor) return;
+    editor.chain().focus().run();
+    document.execCommand(
+      align === 'left'
+        ? 'justifyLeft'
+        : align === 'center'
+          ? 'justifyCenter'
+          : align === 'right'
+            ? 'justifyRight'
+            : 'justifyFull'
+    );
   };
 
   const samplePointColor = (x: number, y: number): string => {
@@ -238,6 +329,20 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
   };
 
   const backlinks = activeDocument ? getBacklinksForDocument(activeDocument.id) : [];
+  const isInsideTable = Boolean(editor?.isActive('table'));
+  const isImageSelected = Boolean(editor?.isActive('image'));
+  const currentHeadingLabel = editor?.isActive('heading', { level: 1 })
+    ? '제목 1'
+    : editor?.isActive('heading', { level: 2 })
+      ? '제목 2'
+      : editor?.isActive('heading', { level: 3 })
+        ? '제목 3'
+        : '본문';
+
+  const cleanDescription =
+    activeDocument?.description === DEFAULT_TEMPLATE_DESC
+      ? ''
+      : activeDocument?.description || '';
 
   return (
     <div className="flex-1 flex flex-col h-full min-w-0 overflow-hidden bg-[#FAF9FE] dark:bg-[#15151C]">
@@ -252,7 +357,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
         compactTitleVisible={compactTitleVisible}
       />
 
-      {/* Formatting Toolbar in Edit Mode matching PDF Pages 49, 54, 56 */}
+      {/* Formatting Toolbar in Edit Mode */}
       {isEditMode && editor && (
         <div
           data-export-ignore="true"
@@ -262,10 +367,11 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
           <div className="relative">
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setHeadingMenuOpen((p) => !p)}
               className="h-7 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs font-medium flex items-center gap-1"
             >
-              <span>본문</span>
+              <span>{currentHeadingLabel}</span>
               <span>▾</span>
             </button>
             {headingMenuOpen && (
@@ -288,6 +394,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                   <button
                     key={opt.label}
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
                       opt.action();
                       setHeadingMenuOpen(false);
@@ -305,34 +412,48 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleBold().run()}
             className={`w-7 h-7 rounded-lg text-xs font-bold ${
-              editor.isActive('bold') ? 'bg-[#EBE8F5] text-[#6A5ACD]' : 'hover:bg-black/5'
+              editor.isActive('bold')
+                ? 'bg-[#6A5ACD] text-white'
+                : 'hover:bg-black/5 dark:hover:bg-white/5'
             }`}
           >
             B
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleItalic().run()}
             className={`w-7 h-7 rounded-lg text-xs italic font-serif ${
-              editor.isActive('italic') ? 'bg-[#EBE8F5] text-[#6A5ACD]' : 'hover:bg-black/5'
+              editor.isActive('italic')
+                ? 'bg-[#6A5ACD] text-white'
+                : 'hover:bg-black/5 dark:hover:bg-white/5'
             }`}
           >
             I
           </button>
           <button
             type="button"
-            onClick={() => document.execCommand('underline')}
-            className="w-7 h-7 rounded-lg text-xs underline hover:bg-black/5"
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => editor.chain().focus().toggleUnderline().run()}
+            className={`w-7 h-7 rounded-lg text-xs underline ${
+              editor.isActive('underline')
+                ? 'bg-[#6A5ACD] text-white'
+                : 'hover:bg-black/5 dark:hover:bg-white/5'
+            }`}
           >
             U
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleStrike().run()}
             className={`w-7 h-7 rounded-lg text-xs line-through ${
-              editor.isActive('strike') ? 'bg-[#EBE8F5] text-[#6A5ACD]' : 'hover:bg-black/5'
+              editor.isActive('strike')
+                ? 'bg-[#6A5ACD] text-white'
+                : 'hover:bg-black/5 dark:hover:bg-white/5'
             }`}
           >
             S
@@ -340,20 +461,28 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
 
           <span className="w-px h-4 bg-[#E6E3F0] dark:bg-[#2E2D3D] mx-1" />
 
-          {/* Text Color & Background Color Popover matching PDF Page 56 */}
+          {/* Text Color & Background Color Popover */}
           <div className="relative flex items-center gap-1">
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setColorPopover((p) => (p === 'text' ? null : 'text'))}
-              className="w-7 h-7 rounded-lg text-xs font-bold underline decoration-[#6A5ACD] decoration-2 hover:bg-black/5"
+              className={`w-7 h-7 rounded-lg text-xs font-bold underline decoration-[#6A5ACD] decoration-2 ${
+                editor.isActive('textColorMark')
+                  ? 'bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD]'
+                  : 'hover:bg-black/5'
+              }`}
               title="글자색"
             >
               A
             </button>
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setColorPopover((p) => (p === 'bg' ? null : 'bg'))}
-              className="w-7 h-7 rounded-lg text-xs font-bold bg-[#FFF099] text-[#1B1B1F]"
+              className={`w-7 h-7 rounded-lg text-xs font-bold bg-[#FFF099] text-[#1B1B1F] ${
+                editor.isActive('bgColorMark') ? 'ring-2 ring-[#6A5ACD]' : ''
+              }`}
               title="배경색"
             >
               A
@@ -365,8 +494,13 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                 <div className="flex items-center justify-between gap-2">
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => {
-                      document.execCommand('removeFormat');
+                      if (colorPopover === 'bg') {
+                        editor.chain().focus().unsetMark('bgColorMark').run();
+                      } else {
+                        editor.chain().focus().unsetMark('textColorMark').run();
+                      }
                       setColorPopover(null);
                     }}
                     className="px-3 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs"
@@ -375,6 +509,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                   </button>
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={(e) => {
                       const mode = colorPopover;
                       setColorPopover(null);
@@ -388,7 +523,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                     className="px-2.5 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold text-[#6A5ACD] inline-flex items-center gap-1 hover:bg-[#F3F1FB]"
                   >
                     <Pipette className="w-3 h-3" />
-                    스포이트
+                    스포이드
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
@@ -396,6 +531,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                     <button
                       key={c}
                       type="button"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => applyHighlightOrText(c)}
                       className="w-6 h-6 rounded-md border border-black/10"
                       style={{ backgroundColor: c }}
@@ -409,6 +545,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                       <button
                         key={rc}
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => applyHighlightOrText(rc)}
                         className="w-5 h-5 rounded border border-black/10"
                         style={{ backgroundColor: rc }}
@@ -429,6 +566,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                   />
                   <button
                     type="button"
+                    onMouseDown={(e) => e.preventDefault()}
                     onClick={() => applyHighlightOrText(pickedColor)}
                     className="px-2.5 py-1.5 rounded-lg bg-[#6A5ACD] text-white text-xs font-semibold"
                   >
@@ -442,15 +580,16 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
           <span className="w-px h-4 bg-[#E6E3F0] dark:bg-[#2E2D3D] mx-1" />
 
           {[
-            { icon: AlignLeft, cmd: () => document.execCommand('justifyLeft') },
-            { icon: AlignCenter, cmd: () => document.execCommand('justifyCenter') },
-            { icon: AlignRight, cmd: () => document.execCommand('justifyRight') },
-            { icon: AlignJustify, cmd: () => document.execCommand('justifyFull') },
+            { icon: AlignLeft, align: 'left' as const },
+            { icon: AlignCenter, align: 'center' as const },
+            { icon: AlignRight, align: 'right' as const },
+            { icon: AlignJustify, align: 'justify' as const },
           ].map((item, i) => (
             <button
               key={i}
               type="button"
-              onClick={item.cmd}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyBlockAlignment(item.align)}
               className="w-7 h-7 rounded-lg flex items-center justify-center hover:bg-black/5"
             >
               <item.icon className="w-3.5 h-3.5" />
@@ -461,34 +600,47 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
 
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleBulletList().run()}
-            className="w-7 h-7 rounded-lg text-xs hover:bg-black/5"
+            className={`w-7 h-7 rounded-lg text-xs ${
+              editor.isActive('bulletList') ? 'bg-[#6A5ACD] text-white' : 'hover:bg-black/5'
+            }`}
           >
             •
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleOrderedList().run()}
-            className="w-7 h-7 rounded-lg text-xs hover:bg-black/5"
+            className={`w-7 h-7 rounded-lg text-xs ${
+              editor.isActive('orderedList') ? 'bg-[#6A5ACD] text-white' : 'hover:bg-black/5'
+            }`}
           >
             1.
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleTaskList().run()}
-            className="w-7 h-7 rounded-lg text-xs hover:bg-black/5"
+            className={`w-7 h-7 rounded-lg text-xs ${
+              editor.isActive('taskList') ? 'bg-[#6A5ACD] text-white' : 'hover:bg-black/5'
+            }`}
           >
             ☐
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().toggleBlockquote().run()}
-            className="w-7 h-7 rounded-lg text-xs hover:bg-black/5"
+            className={`w-7 h-7 rounded-lg text-xs ${
+              editor.isActive('blockquote') ? 'bg-[#6A5ACD] text-white' : 'hover:bg-black/5'
+            }`}
           >
             “
           </button>
           <button
             type="button"
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => editor.chain().focus().setHorizontalRule().run()}
             className="w-7 h-7 rounded-lg text-xs hover:bg-black/5"
           >
@@ -497,10 +649,11 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
 
           <span className="w-px h-4 bg-[#E6E3F0] dark:bg-[#2E2D3D] mx-1" />
 
-          {/* Link Popover matching PDF Page 54 */}
+          {/* Link Popover */}
           <div className="relative">
             <button
               type="button"
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => setLinkPopoverOpen((p) => !p)}
               className="h-7 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs font-medium hover:border-[#6A5ACD]"
             >
@@ -538,7 +691,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                     type="text"
                     value={linkText}
                     onChange={(e) => setLinkText(e.target.value)}
-                    placeholder="링크에 보일 글자"
+                    placeholder="링크 버튼에 보일 글자"
                     className="w-full h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs"
                   />
                 </div>
@@ -556,48 +709,40 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                       {documents
                         .filter(
                           (d) =>
+                            !d.deletedAt &&
                             d.id !== activeDocument?.id &&
                             (!linkSearch.trim() ||
                               d.title.toLowerCase().includes(linkSearch.toLowerCase()))
                         )
-                        .map((doc) => {
-                          const isTrashed = Boolean(doc.deletedAt);
-                          return (
-                            <button
-                              key={doc.id}
-                              type="button"
-                              onClick={() => {
-                                const label = linkText.trim() || doc.title;
-                                editor
-                                  .chain()
-                                  .focus()
-                                  .insertContent(
-                                    `<a href="#blankspace-doc:${doc.id}">${label}</a> `
-                                  )
-                                  .run();
-                                setLinkPopoverOpen(false);
-                                setLinkText('');
-                              }}
-                              className="w-full py-2 px-1.5 flex items-center gap-2 text-left hover:bg-[#FAF9FE] dark:hover:bg-[#262436] rounded-lg"
-                            >
-                              <span className="px-1.5 py-0.5 rounded bg-[#EBE8F5] text-[#6A5ACD] text-[10px] font-semibold shrink-0">
-                                문서
-                              </span>
-                              <div className="min-w-0">
-                                <div
-                                  className={`text-xs font-semibold truncate ${
-                                    isTrashed ? 'line-through text-[#8A8998]' : ''
-                                  }`}
-                                >
-                                  {doc.title} {isTrashed && '(휴지통)'}
-                                </div>
-                                <div className="text-[10.5px] text-[#8A8998] truncate">
-                                  {getDocumentPath(doc)}
-                                </div>
+                        .map((doc) => (
+                          <button
+                            key={doc.id}
+                            type="button"
+                            onClick={() => {
+                              const label = linkText.trim() || doc.title;
+                              editor
+                                .chain()
+                                .focus()
+                                .insertContent(
+                                  `<a href="#blankspace-doc:${doc.id}">🔗 ${label}</a> `
+                                )
+                                .run();
+                              setLinkPopoverOpen(false);
+                              setLinkText('');
+                            }}
+                            className="w-full py-2 px-1.5 flex items-center gap-2 text-left hover:bg-[#FAF9FE] dark:hover:bg-[#262436] rounded-lg"
+                          >
+                            <span className="px-1.5 py-0.5 rounded bg-[#EBE8F5] text-[#6A5ACD] text-[10px] font-semibold shrink-0">
+                              문서
+                            </span>
+                            <div className="min-w-0">
+                              <div className="text-xs font-semibold truncate">{doc.title}</div>
+                              <div className="text-[10.5px] text-[#8A8998] truncate">
+                                {getDocumentPath(doc)}
                               </div>
-                            </button>
-                          );
-                        })}
+                            </div>
+                          </button>
+                        ))}
                     </div>
                   </>
                 ) : (
@@ -626,7 +771,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                             .chain()
                             .focus()
                             .insertContent(
-                              `<a href="${externalUrl.trim()}" target="_blank" rel="noopener noreferrer">${label}</a> `
+                              `<a href="${externalUrl.trim()}" target="_blank" rel="noopener noreferrer">🔗 ${label}</a> `
                             )
                             .run();
                           setLinkPopoverOpen(false);
@@ -659,57 +804,145 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
             className="hidden"
           />
 
+          {/* Image Size Controls when an image is selected */}
+          {isImageSelected && (
+            <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#F3F1FB] dark:bg-[#2C2845] text-[11px]">
+              <span className="text-[#6A5ACD] font-semibold">이미지 크기:</span>
+              {['25%', '50%', '75%', '100%'].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onMouseDown={(e) => e.preventDefault()}
+                  onClick={() => editor.chain().focus().updateAttributes('image', { width: w }).run()}
+                  className="px-1.5 py-0.5 rounded hover:bg-[#6A5ACD] hover:text-white font-semibold"
+                >
+                  {w}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Table Insertion / Modification Popover (Number inputs + prevent nested table inside table) */}
           <div className="relative">
             <button
               type="button"
-              onClick={() => {
-                setTableHover({ r: 3, c: 3 });
-                setTableGridOpen((p) => !p);
-              }}
-              className="h-7 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs font-medium hover:border-[#6A5ACD]"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => setTableGridOpen((p) => !p)}
+              className={`h-7 px-2.5 rounded-lg border text-xs font-medium ${
+                isInsideTable
+                  ? 'border-[#6A5ACD] bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD]'
+                  : 'border-[#E6E3F0] dark:border-[#323244] hover:border-[#6A5ACD]'
+              }`}
             >
-              표 ▾
+              {isInsideTable ? '표 편집 ▾' : '표 ▾'}
             </button>
 
             {tableGridOpen && (
-              <div className="bs-animate-popover absolute right-0 top-9 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-2xl p-3 z-40 flex flex-col gap-2">
-                <div className="text-[11px] font-bold text-[#6A5ACD] text-center">
-                  {tableHover.r} × {tableHover.c} 표 삽입
-                </div>
-                <div className="grid grid-cols-8 gap-1">
-                  {Array.from({ length: 8 }).map((_, ri) =>
-                    Array.from({ length: 8 }).map((__, ci) => {
-                      const active = ri + 1 <= tableHover.r && ci + 1 <= tableHover.c;
-                      return (
-                        <button
-                          key={`${ri}-${ci}`}
-                          type="button"
-                          onMouseEnter={() => setTableHover({ r: ri + 1, c: ci + 1 })}
-                          onClick={() => {
-                            editor
-                              .chain()
-                              .focus()
-                              .insertTable({ rows: ri + 1, cols: ci + 1, withHeaderRow: true })
-                              .run();
-                            setTableGridOpen(false);
-                          }}
-                          className={`w-4 h-4 rounded-xs border transition-colors ${
-                            active
-                              ? 'bg-[#6A5ACD] border-[#6A5ACD]'
-                              : 'bg-[#FAF9FE] dark:bg-[#262436] border-[#E6E3F0] dark:border-[#323244]'
-                          }`}
+              <div className="bs-animate-popover absolute right-0 top-9 w-56 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-2xl p-3.5 z-40 flex flex-col gap-2.5 text-xs">
+                {isInsideTable ? (
+                  <>
+                    <div className="text-[11px] font-bold text-[#6A5ACD]">
+                      현재 표 편집 (표 내부 중첩 삽입 불가)
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => editor.chain().focus().addRowAfter().run()}
+                        className="py-1.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] hover:border-[#6A5ACD]"
+                      >
+                        + 아래 행 추가
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => editor.chain().focus().deleteRow().run()}
+                        className="py-1.5 rounded-lg border border-rose-200 text-rose-500"
+                      >
+                        - 현재 행 삭제
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => editor.chain().focus().addColumnAfter().run()}
+                        className="py-1.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] hover:border-[#6A5ACD]"
+                      >
+                        + 오른쪽 열 추가
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => editor.chain().focus().deleteColumn().run()}
+                        className="py-1.5 rounded-lg border border-rose-200 text-rose-500"
+                      >
+                        - 현재 열 삭제
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        editor.chain().focus().deleteTable().run();
+                        setTableGridOpen(false);
+                      }}
+                      className="w-full py-1.5 rounded-lg bg-rose-500 text-white font-semibold"
+                    >
+                      표 전체 삭제
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-xs font-bold">표 크기 입력</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-[#8A8998]">행 (세로)</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={20}
+                          value={tableRowsInput}
+                          onChange={(e) =>
+                            setTableRowsInput(Math.max(1, Math.min(20, Number(e.target.value) || 1)))
+                          }
+                          className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
                         />
-                      );
-                    })
-                  )}
-                </div>
+                      </label>
+                      <label className="flex flex-col gap-1">
+                        <span className="text-[11px] text-[#8A8998]">열 (가로)</span>
+                        <input
+                          type="number"
+                          min={1}
+                          max={12}
+                          value={tableColsInput}
+                          onChange={(e) =>
+                            setTableColsInput(Math.max(1, Math.min(12, Number(e.target.value) || 1)))
+                          }
+                          className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
+                        />
+                      </label>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        editor
+                          .chain()
+                          .focus()
+                          .insertTable({
+                            rows: tableRowsInput,
+                            cols: tableColsInput,
+                            withHeaderRow: true,
+                          })
+                          .run();
+                        setTableGridOpen(false);
+                      }}
+                      className="w-full py-2 rounded-xl bg-[#6A5ACD] text-white font-semibold"
+                    >
+                      {tableRowsInput} × {tableColsInput} 표 삽입
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
         </div>
       )}
 
-      {/* Centered Document Sheet matching PDF Page 49 */}
+      {/* Centered Document Sheet */}
       <div
         ref={scrollAreaRef}
         onScroll={(e) => {
@@ -725,13 +958,81 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
             searchPulseActive ? 'bs-search-pulse' : ''
           }`}
         >
-          {/* Pastel Cover Strip */}
-          <div className="h-24 bg-[#DCD7F3] dark:bg-[#2F2B4E]" />
+          {/* Pastel Cover Strip or Uploaded Cover Banner */}
+          {activeDocument?.coverImage ? (
+            <div className="h-32 w-full overflow-hidden">
+              <img
+                src={activeDocument.coverImage}
+                alt=""
+                className="w-full h-full object-cover"
+              />
+            </div>
+          ) : (
+            <div className="h-24 bg-[#DCD7F3] dark:bg-[#2F2B4E]" />
+          )}
 
           <div ref={titleBlockRef} className="px-10 pb-10">
-            {/* Icon badge overlapping cover */}
-            <div className="-mt-7 mb-4 w-14 h-14 rounded-2xl bg-[#F3F1FB] dark:bg-[#2C2845] border-4 border-white dark:border-[#1E1E29] flex items-center justify-center text-xs font-bold text-[#6A5ACD] dark:text-[#9A8FE6] shadow-xs">
-              아이콘
+            {/* Icon badge overlapping cover: clickable in Edit Mode to pick emoji or upload image */}
+            <div className="relative -mt-7 mb-4 inline-block">
+              <button
+                type="button"
+                onClick={() => isEditMode && setIconPickerOpen((p) => !p)}
+                className={`w-14 h-14 rounded-2xl bg-[#F3F1FB] dark:bg-[#2C2845] border-4 border-white dark:border-[#1E1E29] flex items-center justify-center text-xl font-bold text-[#6A5ACD] dark:text-[#9A8FE6] shadow-xs overflow-hidden ${
+                  isEditMode ? 'cursor-pointer hover:ring-2 hover:ring-[#6A5ACD]' : 'cursor-default'
+                }`}
+              >
+                {activeDocument?.icon?.startsWith('data:') ? (
+                  <img src={activeDocument.icon} alt="아이콘" className="w-full h-full object-cover" />
+                ) : (
+                  <span>{activeDocument?.icon || '📄'}</span>
+                )}
+              </button>
+
+              {isEditMode && iconPickerOpen && activeDocument && (
+                <div className="bs-animate-popover absolute left-0 top-16 z-30 w-60 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] shadow-2xl p-3 flex flex-col gap-2.5 text-xs">
+                  <div className="font-bold">아이콘 변경</div>
+                  <div className="grid grid-cols-6 gap-1">
+                    {ICON_PRESETS.map((ic) => (
+                      <button
+                        key={ic}
+                        type="button"
+                        onClick={() => {
+                          updateDocument(activeDocument.id, { icon: ic });
+                          setIconPickerOpen(false);
+                        }}
+                        className="h-8 rounded-lg hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845] text-base flex items-center justify-center"
+                      >
+                        {ic}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => iconFileRef.current?.click()}
+                    className="py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] font-semibold text-[#6A5ACD]"
+                  >
+                    이미지 아이콘 업로드
+                  </button>
+                  <input
+                    ref={iconFileRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const f = e.target.files?.[0];
+                      if (!f) return;
+                      const r = new FileReader();
+                      r.onload = () => {
+                        if (typeof r.result === 'string') {
+                          updateDocument(activeDocument.id, { icon: r.result });
+                          setIconPickerOpen(false);
+                        }
+                      };
+                      r.readAsDataURL(f);
+                    }}
+                  />
+                </div>
+              )}
             </div>
 
             {isEditMode && activeDocument ? (
@@ -747,19 +1048,64 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
               </h2>
             )}
 
-            <p className="mt-1 text-xs text-[#8A8998]">
-              {activeDocument?.description || '문서 설명'}
-            </p>
+            {/* Description: never show template default description text */}
+            {isEditMode && activeDocument ? (
+              <input
+                type="text"
+                value={cleanDescription}
+                onChange={(e) => updateDocument(activeDocument.id, { description: e.target.value })}
+                placeholder="문서 설명을 입력하세요 (선택)"
+                className="mt-1 w-full text-xs text-[#8A8998] bg-transparent focus:outline-none"
+              />
+            ) : (
+              cleanDescription && <p className="mt-1 text-xs text-[#8A8998]">{cleanDescription}</p>
+            )}
 
-            <div className="mt-2.5 flex flex-wrap gap-1.5">
-              {(activeDocument?.tags?.length ? activeDocument.tags : ['태그']).map((t, i) => (
+            {/* Tags: editable in Edit Mode */}
+            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+              {(activeDocument?.tags || []).map((t, i) => (
                 <span
                   key={i}
-                  className="px-2.5 py-0.5 rounded-full bg-[#F3F1FB] dark:bg-[#2C2845] text-[11px] font-medium text-[#6A5ACD] dark:text-[#9A8FE6]"
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#F3F1FB] dark:bg-[#2C2845] text-[11px] font-medium text-[#6A5ACD] dark:text-[#9A8FE6]"
                 >
                   {t}
+                  {isEditMode && activeDocument && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        updateDocument(activeDocument.id, {
+                          tags: (activeDocument.tags || []).filter((_, idx) => idx !== i),
+                        })
+                      }
+                      className="hover:text-rose-500"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  )}
                 </span>
               ))}
+
+              {isEditMode && activeDocument && (
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    if (!newTagInput.trim()) return;
+                    updateDocument(activeDocument.id, {
+                      tags: [...(activeDocument.tags || []), newTagInput.trim()],
+                    });
+                    setNewTagInput('');
+                  }}
+                  className="inline-flex items-center gap-1"
+                >
+                  <input
+                    type="text"
+                    value={newTagInput}
+                    onChange={(e) => setNewTagInput(e.target.value)}
+                    placeholder="+ 태그 입력 후 Enter"
+                    className="h-6 px-2.5 rounded-full border border-dashed border-[#B6ACEA] bg-transparent text-[11px] w-32 focus:outline-none"
+                  />
+                </form>
+              )}
             </div>
 
             <div
@@ -797,7 +1143,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
         </div>
       </div>
 
-      {/* Table Context Menu matching PDF Page 57 */}
+      {/* Table Context Menu */}
       {tableMenu && editor && (
         <div
           style={{ left: tableMenu.x, top: tableMenu.y }}
@@ -826,7 +1172,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
         </div>
       )}
 
-      {/* Deleted / Trashed Document Link Popover (§6-12) */}
+      {/* Deleted / Trashed Document Link Popover */}
       {deletedLinkPopover && (
         <div
           style={{ left: deletedLinkPopover.x, top: deletedLinkPopover.y }}
@@ -868,7 +1214,7 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
         </div>
       )}
 
-      {/* Text / Highlight Eyedropper Overlay via Portal so it aligns with cursor */}
+      {/* Text / Highlight Eyedropper Overlay via Portal */}
       {eyedropper &&
         createPortal(
           <div

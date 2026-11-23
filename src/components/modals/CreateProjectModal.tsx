@@ -13,15 +13,17 @@ export const CreateProjectModal: React.FC = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [coverColor, setCoverColor] = useState(PASTEL_COLORS[0]);
+  const [coverImage, setCoverImage] = useState<string | undefined>(undefined);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-    createProject(name, description, coverColor);
+    createProject(name, description, coverColor, coverImage);
     showToast(`'${name.trim()}' 프로젝트가 생성되었습니다`);
     setName('');
     setDescription('');
     setCoverColor(PASTEL_COLORS[0]);
+    setCoverImage(undefined);
     setIsCreateProjectOpen(false);
   };
 
@@ -73,23 +75,55 @@ export const CreateProjectModal: React.FC = () => {
 
         <div>
           <label className="block text-xs font-semibold text-[#4E4D59] dark:text-[#B4B2C4] mb-2">
-            커버 색상
+            배너 색상 및 이미지
           </label>
-          <div className="flex items-center gap-2.5">
-            {PASTEL_COLORS.map((color) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => setCoverColor(color)}
-                className={`w-8 h-8 rounded-lg transition-all ${
-                  coverColor === color
-                    ? 'ring-2 ring-[#6A5ACD] ring-offset-2 dark:ring-offset-[#1E1E29]'
-                    : 'opacity-85 hover:opacity-100'
-                }`}
-                style={{ backgroundColor: color }}
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2">
+              {PASTEL_COLORS.map((color) => (
+                <button
+                  key={color}
+                  type="button"
+                  onClick={() => {
+                    setCoverColor(color);
+                    setCoverImage(undefined);
+                  }}
+                  className={`w-8 h-8 rounded-lg transition-all ${
+                    coverColor === color && !coverImage
+                      ? 'ring-2 ring-[#6A5ACD] ring-offset-2 dark:ring-offset-[#1E1E29]'
+                      : 'opacity-85 hover:opacity-100'
+                  }`}
+                  style={{ backgroundColor: color }}
+                />
+              ))}
+            </div>
+            <label className="px-3 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] cursor-pointer hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845]">
+              이미지 업로드
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (!f) return;
+                  const r = new FileReader();
+                  r.onload = () => typeof r.result === 'string' && setCoverImage(r.result);
+                  r.readAsDataURL(f);
+                }}
+                className="hidden"
               />
-            ))}
+            </label>
           </div>
+          {coverImage && (
+            <div className="mt-2 relative h-20 rounded-xl overflow-hidden border border-[#E6E3F0] dark:border-[#323244]">
+              <img src={coverImage} alt="배너 미리보기" className="w-full h-full object-cover" />
+              <button
+                type="button"
+                onClick={() => setCoverImage(undefined)}
+                className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-md bg-black/60 text-white text-[10px]"
+              >
+                제거
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="flex items-center justify-end gap-2 pt-2">

@@ -1,10 +1,13 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
-import { MoreHorizontal, Trash2, Edit2, Copy, Star } from 'lucide-react';
+import { MoreHorizontal, Trash2, Edit2, Copy, Star, CheckSquare } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
-import { SortOption } from '../../types';
+import { Project, SortOption } from '../../types';
 import { useToast } from '../toast/ToastContext';
 import { useLongPressSort } from '../../hooks/useLongPressSort';
+import { ModalShell } from '../modals/ModalShell';
+
+const PASTEL_COLORS = ['#D9D5F3', '#F5D5C6', '#D2E9DC', '#DCE6FA', '#F2DCF0'];
 
 const SORT_LABELS: Record<SortOption, string> = {
   custom: '직접 정렬',
@@ -18,7 +21,6 @@ export const HomeView: React.FC = () => {
     activeProjects,
     documents,
     recentDocumentIds,
-    viewMode,
     sortOption,
     setSortOption,
     setIsCreateProjectOpen,
@@ -36,9 +38,14 @@ export const HomeView: React.FC = () => {
 
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [openMenuProjId, setOpenMenuProjId] = useState<string | null>(null);
-  const [renamingId, setRenamingId] = useState<string | null>(null);
-  const [renameValue, setRenameValue] = useState('');
+  const [editingProj, setEditingProj] = useState<Project | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editDesc, setEditDesc] = useState('');
+  const [editColor, setEditColor] = useState('#D9D5F3');
+  const [editImage, setEditImage] = useState<string | undefined>(undefined);
   const [starPulseId, setStarPulseId] = useState<string | null>(null);
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedProjIds, setSelectedProjIds] = useState<string[]>([]);
 
   const { pressingId, draggingId, hoverTargetId, pointer, wasDraggedRef, startPress } =
     useLongPressSort({
@@ -107,6 +114,54 @@ export const HomeView: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => {
+                setSelectMode((p) => !p);
+                setSelectedProjIds([]);
+              }}
+              className={`h-9 px-3.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                selectMode
+                  ? 'border-[#6A5ACD] bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD] dark:text-[#9A8FE6]'
+                  : 'border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] text-[#1B1B1F] dark:text-[#F1F0F6]'
+              }`}
+            >
+              <CheckSquare className="w-3.5 h-3.5" />
+              <span>{selectMode ? '선택 취소' : '선택'}</span>
+            </button>
+
+            {selectMode && selectedProjIds.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectedProjIds.forEach((id) => duplicateProject(id));
+                    showToast(`${selectedProjIds.length}개 프로젝트를 복제했습니다`);
+                    setSelectedProjIds([]);
+                    setSelectMode(false);
+                  }}
+                  className="h-9 px-3.5 rounded-xl border border-[#6A5ACD] text-xs font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845]"
+                >
+                  선택 복제 ({selectedProjIds.length})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const ids = [...selectedProjIds];
+                    ids.forEach((id) => moveProjectToTrash(id));
+                    showToast(`${ids.length}개 프로젝트를 삭제했습니다`, {
+                      onUndo: () => restoreItems(ids.map((id) => ({ type: 'project', id }))),
+                    });
+                    setSelectedProjIds([]);
+                    setSelectMode(false);
+                  }}
+                  className="h-9 px-3.5 rounded-xl border border-rose-200 dark:border-rose-800/60 text-xs font-semibold text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                >
+                  선택 삭제 ({selectedProjIds.length})
+                </button>
+              </>
+            )}
+
+            <button
+              type="button"
               onClick={() => setIsCreateProjectOpen(true)}
               className="h-9 px-4 rounded-xl bg-[#6A5ACD] hover:bg-[#5A49B8] active:scale-[0.98] text-white text-xs font-semibold transition-all"
             >
@@ -172,12 +227,13 @@ export const HomeView: React.FC = () => {
                 + 새 프로젝트 만들기
               </button>
             </div>
-          ) : viewMode === 'grid' ? (
+          ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {activeProjects.map((project, index) => {
                 const isDragging = draggingId === project.id;
                 const isPressing = pressingId === project.id;
                 const isHover = hoverTargetId === project.id;
+                const isSelected = selectedProjIds.includes(project.id);
 
                 return (
                   <div
@@ -185,7 +241,7 @@ export const HomeView: React.FC = () => {
                     data-sort-id={project.id}
                     data-sort-kind="project"
                     tabIndex={0}
-                    onMouseDown={(e) => startPress(e, project.id, 'project')}
+                    onMouseDown={(e) => !selectMode && startPress(e, project.id, 'project')}
                     onKeyDown={(e) => {
                       if (e.altKey && e.key === 'ArrowLeft' && index > 0) {
                         e.preventDefault();
@@ -197,12 +253,20 @@ export const HomeView: React.FC = () => {
                       ) {
                         e.preventDefault();
                         reorderProjects(project.id, activeProjects[index + 1].id);
-                      } else if (e.key === 'Enter' && renamingId !== project.id) {
+                      } else if (e.key === 'Enter') {
                         openProject(project.id);
                       }
                     }}
                     onClick={() => {
-                      if (wasDraggedRef.current || renamingId === project.id) return;
+                      if (wasDraggedRef.current) return;
+                      if (selectMode) {
+                        setSelectedProjIds((prev) =>
+                          prev.includes(project.id)
+                            ? prev.filter((id) => id !== project.id)
+                            : [...prev, project.id]
+                        );
+                        return;
+                      }
                       openProject(project.id);
                     }}
                     onContextMenu={(e) => {
@@ -212,37 +276,72 @@ export const HomeView: React.FC = () => {
                     className={`bs-card-interactive group relative rounded-2xl border bg-white dark:bg-[#1E1E29] overflow-hidden cursor-pointer select-none ${
                       isDragging
                         ? 'opacity-30 border-dashed border-[#6A5ACD]'
-                        : isHover
+                        : isSelected || isHover
                           ? 'border-[#6A5ACD] ring-2 ring-[#6A5ACD]/30'
                           : 'border-[#E6E3F0] dark:border-[#2E2D3D] hover:border-[#B6ACEA] dark:hover:border-[#5D51B5]'
                     } ${isPressing ? 'scale-[0.98]' : ''}`}
                   >
                     <div
-                      className="h-[110px] w-full relative"
+                      className="h-[110px] w-full relative overflow-hidden"
                       style={{ backgroundColor: project.coverColor || '#D9D5F3' }}
                     >
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleFavoriteProject(project.id);
-                          setStarPulseId(project.id);
-                          setTimeout(() => setStarPulseId(null), 260);
-                        }}
-                        className={`absolute top-2.5 left-2.5 p-1.5 rounded-lg bg-white/80 dark:bg-[#1E1E29]/80 transition-transform ${
-                          starPulseId === project.id ? 'scale-125' : ''
-                        } ${
-                          project.isFavorite
-                            ? 'opacity-100 text-[#6A5ACD]'
-                            : 'opacity-0 group-hover:opacity-100 text-[#8A8998]'
-                        }`}
-                        title="즐겨찾기"
-                      >
-                        <Star className={`w-3.5 h-3.5 ${project.isFavorite ? 'fill-[#6A5ACD]' : ''}`} />
-                      </button>
+                      {project.coverImage && (
+                        <img
+                          src={project.coverImage}
+                          alt={project.name}
+                          className="w-full h-full object-cover"
+                        />
+                      )}
+
+                      {selectMode ? (
+                        <div
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSelectedProjIds((prev) =>
+                              prev.includes(project.id)
+                                ? prev.filter((id) => id !== project.id)
+                                : [...prev, project.id]
+                            );
+                          }}
+                          className="absolute top-2.5 left-2.5 p-1.5 rounded-lg bg-white/90 dark:bg-[#1E1E29]/90"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            className="accent-[#6A5ACD]"
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleFavoriteProject(project.id);
+                            setStarPulseId(project.id);
+                            setTimeout(() => setStarPulseId(null), 260);
+                          }}
+                          className={`absolute top-2.5 left-2.5 p-1.5 rounded-lg bg-white/80 dark:bg-[#1E1E29]/80 transition-transform ${
+                            starPulseId === project.id ? 'scale-125' : ''
+                          } ${
+                            project.isFavorite
+                              ? 'opacity-100 text-[#6A5ACD]'
+                              : 'opacity-0 group-hover:opacity-100 text-[#8A8998]'
+                          }`}
+                          title="즐겨찾기"
+                        >
+                          <Star
+                            className={`w-3.5 h-3.5 ${project.isFavorite ? 'fill-[#6A5ACD]' : ''}`}
+                          />
+                        </button>
+                      )}
 
                       <div
-                        className="absolute top-2.5 right-2.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        className={`absolute top-2.5 right-2.5 transition-opacity ${
+                          openMenuProjId === project.id
+                            ? 'opacity-100'
+                            : 'opacity-0 group-hover:opacity-100'
+                        }`}
                         onClick={(e) => e.stopPropagation()}
                       >
                         <button
@@ -266,13 +365,16 @@ export const HomeView: React.FC = () => {
                                 type="button"
                                 onClick={() => {
                                   setOpenMenuProjId(null);
-                                  setRenamingId(project.id);
-                                  setRenameValue(project.name);
+                                  setEditingProj(project);
+                                  setEditName(project.name);
+                                  setEditDesc(project.description || '');
+                                  setEditColor(project.coverColor || '#D9D5F3');
+                                  setEditImage(project.coverImage);
                                 }}
                                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#1B1B1F] dark:text-[#F1F0F6] hover:bg-black/5 dark:hover:bg-white/5"
                               >
                                 <Edit2 className="w-3.5 h-3.5" />
-                                이름 변경
+                                프로젝트 수정
                               </button>
                               <button
                                 type="button"
@@ -298,7 +400,7 @@ export const HomeView: React.FC = () => {
                                 className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
-                                휴지통으로
+                                삭제
                               </button>
                             </div>
                           </>
@@ -307,84 +409,137 @@ export const HomeView: React.FC = () => {
                     </div>
 
                     <div className="px-4 py-3.5">
-                      {renamingId === project.id ? (
-                        <form
-                          onSubmit={(e) => {
-                            e.preventDefault();
-                            if (renameValue.trim()) {
-                              updateProject(project.id, { name: renameValue.trim() });
-                            }
-                            setRenamingId(null);
-                          }}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <input
-                            type="text"
-                            autoFocus
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onBlur={() => {
-                              if (renameValue.trim()) {
-                                updateProject(project.id, { name: renameValue.trim() });
-                              }
-                              setRenamingId(null);
-                            }}
-                            className="w-full px-2 py-1 rounded-lg border border-[#6A5ACD] text-sm font-bold bg-white dark:bg-[#15151C]"
-                          />
-                        </form>
-                      ) : (
-                        <div className="text-[14px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
-                          {project.name}
-                        </div>
-                      )}
-                      <div className="mt-1 text-[12px] text-[#8A8998] dark:text-[#8E8C9F] truncate">
-                        {project.description || '프로젝트 설명'}
+                      <div className="text-[14px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
+                        {project.name}
+                      </div>
+                      <div className="mt-1 text-[12px] text-[#8A8998] dark:text-[#8E8C9F] truncate min-h-[16px]">
+                        {project.description || ''}
                       </div>
                     </div>
                   </div>
                 );
               })}
             </div>
-          ) : (
-            <div className="rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] divide-y divide-[#F0EEF7] dark:divide-[#2A2938] overflow-hidden">
-              {activeProjects.map((project) => (
-                <div
-                  key={project.id}
-                  onClick={() => openProject(project.id)}
-                  className="px-4 py-3 flex items-center justify-between gap-4 hover:bg-[#FAF9FE] dark:hover:bg-[#242334] cursor-pointer transition-colors"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span
-                      className="w-4 h-4 rounded-md shrink-0"
-                      style={{ backgroundColor: project.coverColor || '#D9D5F3' }}
-                    />
-                    <span className="text-[13.5px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
-                      {project.name}
-                    </span>
-                    <span className="text-xs text-[#8A8998] truncate">
-                      {project.description || '프로젝트 설명'}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      moveProjectToTrash(project.id);
-                      showToast(`'${project.name}' 프로젝트를 휴지통으로 이동했습니다`, {
-                        onUndo: () => restoreItems([{ type: 'project', id: project.id }]),
-                      });
-                    }}
-                    className="p-1.5 rounded-lg text-[#8A8998] hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                    title="휴지통으로 이동"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              ))}
-            </div>
           )}
         </section>
       </div>
+
+      {/* Edit Project Modal (Name, Description, Banner Color / Image) */}
+      <ModalShell
+        isOpen={Boolean(editingProj)}
+        onClose={() => setEditingProj(null)}
+        maxWidthClass="max-w-md"
+        className="p-6 flex flex-col gap-4"
+      >
+        {editingProj && (
+          <>
+            <h3 className="text-base font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
+              프로젝트 수정
+            </h3>
+            <div className="flex flex-col gap-3 text-xs">
+              <div>
+                <label className="block font-semibold text-[#4E4D59] dark:text-[#B4B2C4] mb-1">
+                  프로젝트 이름
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244]"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-[#4E4D59] dark:text-[#B4B2C4] mb-1">
+                  프로젝트 설명
+                </label>
+                <input
+                  type="text"
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                  placeholder="프로젝트 설명"
+                  className="w-full h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244]"
+                />
+              </div>
+              <div>
+                <label className="block font-semibold text-[#4E4D59] dark:text-[#B4B2C4] mb-1.5">
+                  배너 색상 및 이미지
+                </label>
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {PASTEL_COLORS.map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => {
+                          setEditColor(c);
+                          setEditImage(undefined);
+                        }}
+                        className={`w-7 h-7 rounded-lg ${
+                          editColor === c && !editImage ? 'ring-2 ring-[#6A5ACD]' : ''
+                        }`}
+                        style={{ backgroundColor: c }}
+                      />
+                    ))}
+                  </div>
+                  <label className="px-3 py-1.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] font-semibold text-[#6A5ACD] dark:text-[#9A8FE6] cursor-pointer hover:bg-[#F3F1FB] dark:hover:bg-[#2C2845]">
+                    배너 이미지 업로드
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        const r = new FileReader();
+                        r.onload = () => typeof r.result === 'string' && setEditImage(r.result);
+                        r.readAsDataURL(f);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+                {editImage && (
+                  <div className="mt-2 relative h-20 rounded-xl overflow-hidden border border-[#E6E3F0] dark:border-[#323244]">
+                    <img src={editImage} alt="배너" className="w-full h-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setEditImage(undefined)}
+                      className="absolute top-1.5 right-1.5 px-2 py-0.5 rounded-md bg-black/60 text-white text-[10px]"
+                    >
+                      제거
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setEditingProj(null)}
+                className="px-4 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!editName.trim()) return;
+                  updateProject(editingProj.id, {
+                    name: editName.trim(),
+                    description: editDesc.trim(),
+                    coverColor: editColor,
+                    coverImage: editImage,
+                  });
+                  setEditingProj(null);
+                  showToast('프로젝트 정보를 수정했습니다');
+                }}
+                className="px-4 py-2 rounded-xl bg-[#6A5ACD] text-white text-xs font-semibold"
+              >
+                저장
+              </button>
+            </div>
+          </>
+        )}
+      </ModalShell>
 
       {/* Floating Drag Ghost rendered via Portal so it follows cursor accurately (§2-2) */}
       {draggingProj &&

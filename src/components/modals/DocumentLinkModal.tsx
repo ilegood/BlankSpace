@@ -20,6 +20,7 @@ export const DocumentLinkModal: React.FC<DocumentLinkModalProps> = ({
   const [query, setQuery] = useState('');
 
   const filtered = documents.filter((d) => {
+    if (d.deletedAt) return false;
     if (excludeDocId && d.id === excludeDocId) return false;
     if (!query.trim()) return true;
     return d.title.toLowerCase().includes(query.toLowerCase());

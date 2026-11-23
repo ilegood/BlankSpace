@@ -3,6 +3,7 @@ import { X, ChevronDown } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 import { DocumentLinkModal } from '../../modals/DocumentLinkModal';
+import { useToast } from '../../toast/ToastContext';
 
 interface UiMarker {
   id: string;
@@ -54,6 +55,7 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
 }) => {
   const { activeDocument, activePage, openDocument, openTemplateEditor, updateDocument, updatePage } =
     useWorkspace();
+  const { showToast } = useToast();
 
   const isTemplateMode = Boolean(templateOverrideId);
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
@@ -63,6 +65,8 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
   const [addingMode, setAddingMode] = useState(false);
   const [descOpen, setDescOpen] = useState(false);
   const [isDocLinkOpen, setIsDocLinkOpen] = useState(false);
+  const [isAddingPage, setIsAddingPage] = useState(false);
+  const [newPageName, setNewPageName] = useState('');
   const [draggingMarkerPos, setDraggingMarkerPos] = useState<{
     id: string;
     x: number;
@@ -131,7 +135,7 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
       />
 
       <div className="flex-1 flex min-h-0 overflow-hidden">
-        <aside className="w-44 shrink-0 border-r border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-4 flex flex-col gap-1.5">
+        <aside className="w-44 shrink-0 border-r border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-4 flex flex-col gap-1.5 overflow-y-auto">
           <div className="px-2 pb-1 text-[11px] font-semibold text-[#8A8998]">페이지</div>
           {uiPages.map((pg) => (
             <button
@@ -152,19 +156,60 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
             </button>
           ))}
           {isEditMode && (
-            <button
-              type="button"
-              onClick={() => {
-                const name = window.prompt('새 화면 페이지 이름');
-                if (!name?.trim()) return;
-                const np: UiPage = { id: `up-${Date.now()}`, name: name.trim(), markers: [] };
-                persist([...uiPages, np]);
-                setActiveUiId(np.id);
-              }}
-              className="mt-1 px-3 py-2 text-left text-xs font-semibold text-[#6A5ACD] hover:underline"
-            >
-              + 페이지 추가
-            </button>
+            isAddingPage ? (
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (!newPageName.trim()) return;
+                  const np: UiPage = {
+                    id: `up-${Date.now()}`,
+                    name: newPageName.trim(),
+                    markers: [],
+                  };
+                  persist([...uiPages, np]);
+                  setActiveUiId(np.id);
+                  setNewPageName('');
+                  setIsAddingPage(false);
+                  showToast(`'${np.name}' 페이지를 추가했습니다`);
+                }}
+                className="mt-1 flex flex-col gap-1.5"
+              >
+                <input
+                  type="text"
+                  autoFocus
+                  value={newPageName}
+                  onChange={(e) => setNewPageName(e.target.value)}
+                  placeholder="새 페이지 이름"
+                  className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs"
+                />
+                <div className="flex gap-1">
+                  <button
+                    type="submit"
+                    className="flex-1 py-1 rounded-lg bg-[#6A5ACD] text-white text-xs font-semibold"
+                  >
+                    추가
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsAddingPage(false);
+                      setNewPageName('');
+                    }}
+                    className="px-2 py-1 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-xs"
+                  >
+                    취소
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setIsAddingPage(true)}
+                className="mt-1 px-3 py-2 text-left text-xs font-semibold text-[#6A5ACD] hover:underline"
+              >
+                + 페이지 추가
+              </button>
+            )
           )}
         </aside>
 
@@ -242,15 +287,18 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
               setSelectedMarkerId(mk.id);
               setAddingMode(false);
             }}
-            className={`relative w-full max-w-[700px] h-[470px] rounded-2xl bg-[#E3E0F1] dark:bg-[#232236] border border-[#D4CFE6] dark:border-[#35334C] flex items-center justify-center overflow-hidden ${
+            className={`relative w-full max-w-[700px] h-[470px] rounded-2xl bg-[#E3E0F1] dark:bg-[#232236] border border-[#D4CFE6] dark:border-[#35334C] flex items-center justify-center overflow-visible ${
               addingMode ? 'cursor-crosshair' : ''
             }`}
           >
-            {curPage?.imageUrl ? (
-              <img src={curPage.imageUrl} alt={curPage.name} className="bs-animate-fade w-full h-full object-cover" />
-            ) : (
-              <span className="text-xs text-[#6E6D7A] dark:text-[#9E9CAF]">UI 화면 이미지</span>
-            )}
+            {/* Inner clipped wrapper for the image so marker popovers near edges are never clipped */}
+            <div className="absolute inset-0 rounded-2xl overflow-hidden flex items-center justify-center pointer-events-none">
+              {curPage?.imageUrl ? (
+                <img src={curPage.imageUrl} alt={curPage.name} className="bs-animate-fade w-full h-full object-cover" />
+              ) : (
+                <span className="text-xs text-[#6E6D7A] dark:text-[#9E9CAF]">UI 화면 이미지</span>
+              )}
+            </div>
 
             {curPage?.markers.map((mk) => {
               const rx = draggingMarkerPos?.id === mk.id ? draggingMarkerPos.x : mk.x;
@@ -262,6 +310,7 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
                   onMouseDown={(e) => {
                     if (!isEditMode || addingMode || e.button !== 0) return;
                     e.stopPropagation();
+                    setSelectedMarkerId(mk.id);
                     const box = boardRef.current;
                     if (!box) return;
                     const sx = e.clientX;
@@ -293,7 +342,7 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
                     setSelectedMarkerId(selectedMarkerId === mk.id ? null : mk.id);
                   }}
                   style={{ left: `${rx}%`, top: `${ry}%` }}
-                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#6A5ACD] text-white text-[11px] font-bold flex items-center justify-center shadow transition-transform ${
+                  className={`absolute -translate-x-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#6A5ACD] text-white text-[11px] font-bold flex items-center justify-center shadow transition-transform z-10 ${
                     isEditMode ? 'cursor-grab active:cursor-grabbing' : ''
                   } ${
                     selectedMarkerId === mk.id ? 'ring-4 ring-[#6A5ACD]/30 scale-110' : 'hover:scale-105'
@@ -304,11 +353,11 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
               );
             })}
 
-            {/* View Mode Marker Popover matching PDF Page 35 (desc collapsed by default + auto flip) */}
+            {/* View Mode Marker Popover */}
             {!isEditMode && selected && (
               <div
                 style={{
-                  left: `${Math.min(72, Math.max(24, selected.x))}%`,
+                  left: `${Math.min(78, Math.max(22, selected.x))}%`,
                   top: `${selected.y < 38 ? selected.y + 6 : selected.y - 6}%`,
                   transform: selected.y < 38 ? 'translate(-50%, 0%)' : 'translate(-50%, -100%)',
                 }}
@@ -359,86 +408,97 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
           </div>
         </div>
 
-        {/* Right Marker Inspector in Edit Mode matching PDF Page 31 */}
-        {isEditMode && selected && (
+        {/* Always-present Right Marker Inspector in Edit Mode so dragging never causes layout width shifts */}
+        {isEditMode && (
           <aside className="w-[270px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-4 select-none text-xs">
-            <div>
-              <div className="text-sm font-bold">마커 수정</div>
-              <div className="text-[11px] text-[#8A8998] mt-0.5">마커 {selected.num}</div>
-            </div>
-
-            <label className="flex items-center justify-between gap-2">
-              <span>번호</span>
-              <input
-                type="number"
-                value={selected.num}
-                onChange={(e) => updateMarker(selected.id, { num: Number(e.target.value) })}
-                className="w-24 h-8 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-right"
-              />
-            </label>
-
-            <label className="flex items-center justify-between gap-2">
-              <span>이름</span>
-              <input
-                type="text"
-                value={selected.name}
-                onChange={(e) => updateMarker(selected.id, { name: e.target.value })}
-                className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
-              />
-            </label>
-
-            <textarea
-              rows={3}
-              value={selected.desc}
-              onChange={(e) => updateMarker(selected.id, { desc: e.target.value })}
-              className="p-2.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] resize-none"
-            />
-
-            <div className="flex flex-col gap-1.5">
-              <span className="text-[11px] text-[#8A8998]">연결 문서</span>
-              {selected.linkedDocId ? (
-                <div className="flex items-center justify-between p-2 rounded-xl bg-[#F8F7FC] dark:bg-[#262436]">
-                  <span className="font-semibold truncate">{selected.linkedDocTitle}</span>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      updateMarker(selected.id, {
-                        linkedDocId: undefined,
-                        linkedDocTitle: undefined,
-                      })
-                    }
-                    className="text-rose-500"
-                  >
-                    해제
-                  </button>
+            {selected ? (
+              <>
+                <div>
+                  <div className="text-sm font-bold">마커 수정</div>
+                  <div className="text-[11px] text-[#8A8998] mt-0.5">마커 {selected.num}</div>
                 </div>
-              ) : (
+
+                <label className="flex items-center justify-between gap-2">
+                  <span>번호</span>
+                  <input
+                    type="number"
+                    value={selected.num}
+                    onChange={(e) => updateMarker(selected.id, { num: Number(e.target.value) })}
+                    className="w-24 h-8 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] text-right"
+                  />
+                </label>
+
+                <label className="flex items-center justify-between gap-2">
+                  <span>이름</span>
+                  <input
+                    type="text"
+                    value={selected.name}
+                    onChange={(e) => updateMarker(selected.id, { name: e.target.value })}
+                    className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
+                  />
+                </label>
+
+                <textarea
+                  rows={3}
+                  value={selected.desc}
+                  onChange={(e) => updateMarker(selected.id, { desc: e.target.value })}
+                  className="p-2.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] resize-none"
+                />
+
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] text-[#8A8998]">연결 문서</span>
+                  {selected.linkedDocId ? (
+                    <div className="flex items-center justify-between p-2 rounded-xl bg-[#F8F7FC] dark:bg-[#262436]">
+                      <span className="font-semibold truncate">{selected.linkedDocTitle}</span>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          updateMarker(selected.id, {
+                            linkedDocId: undefined,
+                            linkedDocTitle: undefined,
+                          })
+                        }
+                        className="text-rose-500"
+                      >
+                        해제
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsDocLinkOpen(true)}
+                      className="text-left text-[#6A5ACD] font-semibold hover:underline"
+                    >
+                      + 문서 연결
+                    </button>
+                  )}
+                </div>
+
                 <button
                   type="button"
-                  onClick={() => setIsDocLinkOpen(true)}
-                  className="text-left text-[#6A5ACD] font-semibold hover:underline"
+                  onClick={() => {
+                    persist(
+                      uiPages.map((pg) =>
+                        pg.id === curPage.id
+                          ? { ...pg, markers: pg.markers.filter((m) => m.id !== selected.id) }
+                          : pg
+                      )
+                    );
+                    setSelectedMarkerId(null);
+                  }}
+                  className="self-start px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold"
                 >
-                  + 문서 연결
+                  마커 삭제
                 </button>
-              )}
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                persist(
-                  uiPages.map((pg) =>
-                    pg.id === curPage.id
-                      ? { ...pg, markers: pg.markers.filter((m) => m.id !== selected.id) }
-                      : pg
-                  )
-                );
-                setSelectedMarkerId(null);
-              }}
-              className="self-start px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold"
-            >
-              마커 삭제
-            </button>
+              </>
+            ) : (
+              <div className="text-[#8A8998] leading-relaxed">
+                <div className="text-sm font-bold text-[#1B1B1F] dark:text-[#F1F0F6] mb-1">
+                  마커 안내
+                </div>
+                화면 위의 번호 마커를 클릭하거나 드래그하여 위치를 조절하고, 내용을 수정할 수 있습니다.
+              </div>
+            )}
           </aside>
         )}
       </div>

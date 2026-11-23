@@ -275,7 +275,7 @@ export const ReferenceBoardEditor: React.FC<{ templateOverrideId?: string | null
           </div>
         </div>
 
-        {/* Right Inspector matching PDF Page 42 */}
+        {/* Right Inspector matching 수정사항.md: caption + image upload/replace, no sourceUrl or memo */}
         {isEditMode && selected && (
           <aside className="w-[270px] shrink-0 border-l border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] p-5 flex flex-col gap-3.5 select-none text-xs">
             <div className="text-sm font-bold">항목 수정 · 이미지</div>
@@ -290,26 +290,33 @@ export const ReferenceBoardEditor: React.FC<{ templateOverrideId?: string | null
                 className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
               />
             </label>
-            <label className="flex items-center justify-between gap-2">
-              <span>출처 링크</span>
-              <input
-                type="text"
-                value={selected.sourceUrl}
-                onChange={(e) =>
-                  persist(items.map((i) => (i.id === selected.id ? { ...i, sourceUrl: e.target.value } : i)))
-                }
-                className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
-              />
-            </label>
-            <textarea
-              rows={3}
-              value={selected.memo}
-              onChange={(e) =>
-                persist(items.map((i) => (i.id === selected.id ? { ...i, memo: e.target.value } : i)))
-              }
-              placeholder="메모"
-              className="p-2.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] resize-none"
-            />
+            <button
+              type="button"
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = 'image/*';
+                input.onchange = () => {
+                  const f = input.files?.[0];
+                  if (!f) return;
+                  const r = new FileReader();
+                  r.onload = () => {
+                    if (typeof r.result === 'string') {
+                      persist(
+                        items.map((i) =>
+                          i.id === selected.id ? { ...i, imageUrl: r.result as string } : i
+                        )
+                      );
+                    }
+                  };
+                  r.readAsDataURL(f);
+                };
+                input.click();
+              }}
+              className="h-8 px-3 rounded-xl bg-[#6A5ACD] text-white font-semibold hover:bg-[#5A49B8]"
+            >
+              이미지 업로드 / 교체
+            </button>
             <div className="grid grid-cols-2 gap-2 pt-1">
               <button
                 type="button"
