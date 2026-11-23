@@ -22,7 +22,12 @@
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
 }
 
+html {
+  color-scheme: light;
+}
+
 html.dark {
+  color-scheme: dark;
   --bg-main: #15151c;
   --bg-sidebar: #1b1b24;
   --bg-card: #1e1e29;
@@ -98,24 +103,88 @@ html.dark {
   html.dark ::-webkit-scrollbar-thumb:hover {
     background: #484660;
   }
+
+  /* Dark mode defaults for un-styled inputs, textareas, selects */
+  html.dark
+    input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']),
+  html.dark textarea,
+  html.dark select {
+    background-color: #15151c;
+    color: #f1f0f6;
+    border-color: #323244;
+  }
+
+  html.dark input::placeholder,
+  html.dark textarea::placeholder {
+    color: #787689;
+  }
+
+  html.dark select option {
+    background-color: #1e1e29;
+    color: #f1f0f6;
+  }
+
+  /* Custom Light/Dark themed checkboxes across all editors and lists */
+  input[type='checkbox'] {
+    appearance: none;
+    -webkit-appearance: none;
+    display: inline-grid;
+    place-content: center;
+    width: 15px;
+    height: 15px;
+    border-radius: 4px;
+    border: 1.5px solid #c9c4dc;
+    background-color: #ffffff;
+    cursor: pointer;
+    flex-shrink: 0;
+    vertical-align: middle;
+    transition: background-color 120ms ease, border-color 120ms ease;
+  }
+
+  html.dark input[type='checkbox'] {
+    border-color: #4a4862;
+    background-color: #181822;
+  }
+
+  input[type='checkbox']::before {
+    content: '';
+    width: 9px;
+    height: 9px;
+    transform: scale(0);
+    transition: transform 110ms ease-in-out;
+    background-color: #ffffff;
+    clip-path: polygon(14% 44%, 0 65%, 50% 100%, 100% 16%, 80% 0%, 43% 62%);
+  }
+
+  input[type='checkbox']:checked {
+    background-color: #6a5acd;
+    border-color: #6a5acd;
+  }
+
+  html.dark input[type='checkbox']:checked {
+    background-color: #7c6ee6;
+    border-color: #7c6ee6;
+  }
+
+  input[type='checkbox']:checked::before {
+    transform: scale(1);
+  }
 }
 
 /* Interactive Card & Motion Utilities (§2-1 ~ §2-12) */
 .bs-card-interactive {
   transition:
-    transform var(--motion-fast) var(--ease-enter),
     box-shadow var(--motion-fast) var(--ease-enter),
     border-color var(--motion-fast) var(--ease-enter),
     background-color 300ms var(--ease-enter);
 }
 
 .bs-card-interactive:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 6px 18px rgba(106, 90, 205, 0.08);
+  box-shadow: 0 8px 20px rgba(106, 90, 205, 0.11);
 }
 
 .bs-card-interactive:active {
-  transform: scale(0.98);
+  transform: scale(0.99);
 }
 
 @keyframes bsModalIn {
@@ -125,7 +194,7 @@ html.dark {
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: none;
   }
 }
 
@@ -136,7 +205,7 @@ html.dark {
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: none;
   }
 }
 
@@ -147,7 +216,47 @@ html.dark {
   }
   to {
     opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes bsToastOut {
+  from {
+    opacity: 1;
     transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes bsModalOut {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.98);
+  }
+}
+
+@keyframes bsBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes bsBackdropOut {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
   }
 }
 
@@ -158,7 +267,7 @@ html.dark {
   }
   to {
     opacity: 1;
-    transform: translateX(0);
+    transform: none;
   }
 }
 
@@ -203,8 +312,35 @@ html.dark {
   }
 }
 
+@keyframes bsSearchPulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(106, 90, 205, 0);
+  }
+  25%,
+  75% {
+    box-shadow: 0 0 0 4px rgba(106, 90, 205, 0.45), 0 0 18px rgba(106, 90, 205, 0.25);
+  }
+}
+
+.bs-search-pulse {
+  animation: bsSearchPulse 600ms ease-in-out 2;
+}
+
 .bs-animate-modal {
   animation: bsModalIn var(--motion-base) var(--ease-enter) both;
+}
+
+.bs-animate-modal-out {
+  animation: bsModalOut 140ms var(--ease-exit) both;
+}
+
+.bs-animate-backdrop {
+  animation: bsBackdropIn var(--motion-base) var(--ease-enter) both;
+}
+
+.bs-animate-backdrop-out {
+  animation: bsBackdropOut 140ms var(--ease-exit) both;
 }
 
 .bs-animate-popover {
@@ -213,6 +349,21 @@ html.dark {
 
 .bs-animate-toast {
   animation: bsToastIn var(--motion-base) var(--ease-enter) both;
+}
+
+.bs-animate-toast-out {
+  animation: bsToastOut 140ms var(--ease-exit) both;
+}
+
+/* Long-press drag dashed placeholder (§2-2) */
+[data-sort-placeholder='true'] {
+  border: 2px dashed #9a8fe6 !important;
+  background-color: rgba(106, 90, 205, 0.06) !important;
+  box-shadow: none !important;
+}
+
+[data-sort-placeholder='true'] > * {
+  opacity: 0.14 !important;
 }
 
 .bs-animate-page {

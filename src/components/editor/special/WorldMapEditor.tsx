@@ -236,6 +236,7 @@ export const WorldMapEditor: React.FC<{ templateOverrideId?: string | null }> = 
 
           <div
             ref={mapBoxRef}
+            data-export-root="true"
             onClick={(e) => {
               if (isEditMode && isAddingMarker) {
                 handleCanvasClick(e);

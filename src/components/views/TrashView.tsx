@@ -3,6 +3,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 import { formatShortDate } from '../../utils/time';
 import { useToast } from '../toast/ToastContext';
+import { ModalShell } from '../modals/ModalShell';
 
 interface TrashSelection {
   type: 'project' | 'folder' | 'document';
@@ -399,181 +400,172 @@ export const TrashView: React.FC = () => {
         </p>
       </div>
 
-      {/* Restore Target Modal (§2-3 backdrop close) */}
-      {restoreTargetItem && (
-        <div
-          onClick={() => setRestoreTargetItem(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px] p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bs-animate-modal w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] shadow-2xl p-6 flex flex-col gap-4"
-          >
-            <div>
-              <h3 className="text-base font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
-                복원할 위치 선택
-              </h3>
-              <p className="mt-1 text-xs text-[#6E6D7A] dark:text-[#9E9CAF]">
-                원래 위치가 없어서 다른 위치에 복원합니다.
-              </p>
-            </div>
+      {/* Restore Target Modal (§2-3 exit animation + focus trap) */}
+      <ModalShell
+        isOpen={Boolean(restoreTargetItem)}
+        onClose={() => setRestoreTargetItem(null)}
+        maxWidthClass="max-w-md"
+        className="p-6 flex flex-col gap-4"
+      >
+        <div>
+          <h3 className="text-base font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
+            복원할 위치 선택
+          </h3>
+          <p className="mt-1 text-xs text-[#6E6D7A] dark:text-[#9E9CAF]">
+            원래 위치가 없어서 다른 위치에 복원합니다.
+          </p>
+        </div>
 
-            <div className="rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] max-h-60 overflow-y-auto p-1.5 flex flex-col gap-1">
-              {activeProjects.length === 0 ? (
-                <div className="py-6 text-center text-xs text-[#8A8998]">
-                  복원 가능한 활성 프로젝트가 없습니다.
-                </div>
-              ) : (
-                activeProjects.map((proj) => {
-                  const projFolders = folders.filter(
-                    (f) => !f.deletedAt && f.projectId === proj.id
-                  );
-                  const isProjSel = chosenProjectId === proj.id && chosenFolderId === null;
-                  return (
-                    <div key={proj.id} className="flex flex-col gap-0.5">
+        <div className="rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] max-h-60 overflow-y-auto p-1.5 flex flex-col gap-1">
+          {activeProjects.length === 0 ? (
+            <div className="py-6 text-center text-xs text-[#8A8998]">
+              복원 가능한 활성 프로젝트가 없습니다.
+            </div>
+          ) : (
+            activeProjects.map((proj) => {
+              const projFolders = folders.filter(
+                (f) => !f.deletedAt && f.projectId === proj.id
+              );
+              const isProjSel = chosenProjectId === proj.id && chosenFolderId === null;
+              return (
+                <div key={proj.id} className="flex flex-col gap-0.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setChosenProjectId(proj.id);
+                      setChosenFolderId(null);
+                    }}
+                    className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${
+                      isProjSel
+                        ? 'bg-[#EBE8F5] dark:bg-[#2C2845] text-[#1B1B1F] dark:text-white font-semibold'
+                        : 'text-[#4E4D59] dark:text-[#B4B2C4] hover:bg-black/5 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    <span
+                      className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
+                        isProjSel ? 'border-[#6A5ACD] bg-[#6A5ACD]' : 'border-[#C5C2D4]'
+                      }`}
+                    >
+                      {isProjSel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                    </span>
+                    <span>{proj.name} (최상위)</span>
+                  </button>
+
+                  {projFolders.map((pf) => {
+                    const isFolderSel = chosenProjectId === proj.id && chosenFolderId === pf.id;
+                    return (
                       <button
+                        key={pf.id}
                         type="button"
                         onClick={() => {
                           setChosenProjectId(proj.id);
-                          setChosenFolderId(null);
+                          setChosenFolderId(pf.id);
                         }}
-                        className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center gap-2 ${
-                          isProjSel
+                        className={`w-full text-left pl-7 pr-3 py-1.5 rounded-lg text-xs flex items-center gap-2 ${
+                          isFolderSel
                             ? 'bg-[#EBE8F5] dark:bg-[#2C2845] text-[#1B1B1F] dark:text-white font-semibold'
-                            : 'text-[#4E4D59] dark:text-[#B4B2C4] hover:bg-black/5 dark:hover:bg-white/5'
+                            : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:bg-black/5 dark:hover:bg-white/5'
                         }`}
                       >
                         <span
                           className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                            isProjSel ? 'border-[#6A5ACD] bg-[#6A5ACD]' : 'border-[#C5C2D4]'
+                            isFolderSel ? 'border-[#6A5ACD] bg-[#6A5ACD]' : 'border-[#C5C2D4]'
                           }`}
                         >
-                          {isProjSel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          {isFolderSel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
                         </span>
-                        <span>{proj.name} (최상위)</span>
+                        <span>{pf.name}</span>
                       </button>
-
-                      {projFolders.map((pf) => {
-                        const isFolderSel = chosenProjectId === proj.id && chosenFolderId === pf.id;
-                        return (
-                          <button
-                            key={pf.id}
-                            type="button"
-                            onClick={() => {
-                              setChosenProjectId(proj.id);
-                              setChosenFolderId(pf.id);
-                            }}
-                            className={`w-full text-left pl-7 pr-3 py-1.5 rounded-lg text-xs flex items-center gap-2 ${
-                              isFolderSel
-                                ? 'bg-[#EBE8F5] dark:bg-[#2C2845] text-[#1B1B1F] dark:text-white font-semibold'
-                                : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:bg-black/5 dark:hover:bg-white/5'
-                            }`}
-                          >
-                            <span
-                              className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center ${
-                                isFolderSel ? 'border-[#6A5ACD] bg-[#6A5ACD]' : 'border-[#C5C2D4]'
-                              }`}
-                            >
-                              {isFolderSel && <span className="w-1.5 h-1.5 rounded-full bg-white" />}
-                            </span>
-                            <span>{pf.name}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  );
-                })
-              )}
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setRestoreTargetItem(null)}
-                className="px-4 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                disabled={!chosenProjectId}
-                onClick={() => {
-                  restoreItems([restoreTargetItem], {
-                    projectId: chosenProjectId,
-                    folderId: chosenFolderId,
-                  });
-                  setRestoreTargetItem(null);
-                  showToast('선택한 위치로 복원했습니다');
-                }}
-                className="px-4 py-2 rounded-xl bg-[#6A5ACD] hover:bg-[#5A49B8] disabled:opacity-40 text-white text-xs font-semibold"
-              >
-                여기에 복원
-              </button>
-            </div>
-          </div>
+                    );
+                  })}
+                </div>
+              );
+            })
+          )}
         </div>
-      )}
 
-      {(confirmPermanentOpen || confirmEmptyOpen) && (
-        <div
-          onClick={() => {
-            setConfirmPermanentOpen(false);
-            setConfirmEmptyOpen(false);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px] p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bs-animate-modal w-full max-w-sm rounded-2xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] shadow-2xl p-6 flex flex-col gap-4"
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setRestoreTargetItem(null)}
+            className="px-4 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
           >
-            <div>
-              <h3 className="text-base font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
-                {confirmEmptyOpen ? '휴지통 비우기' : '영구 삭제'}
-              </h3>
-              <p className="mt-1.5 text-xs text-[#6E6D7A] dark:text-[#9E9CAF]">
-                {confirmEmptyOpen
-                  ? `휴지통의 ${totalCount}개 항목을 모두 영구 삭제합니다. 이 작업은 되돌릴 수 없습니다.`
-                  : `선택한 ${selected.length}개 항목을 영구 삭제합니다. 이 작업은 되돌릴 수 없습니다.`}
-              </p>
-            </div>
-
-            <div className="rounded-xl bg-[#F8F7FC] dark:bg-[#262436] p-3 text-xs text-[#555464] dark:text-[#B4B2C4] leading-relaxed">
-              이 항목을 연결한 다른 문서의 링크에는 &quot;영구 삭제된 문서&quot;로 표시됩니다.
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setConfirmPermanentOpen(false);
-                  setConfirmEmptyOpen(false);
-                }}
-                className="px-4 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirmEmptyOpen) {
-                    emptyTrash();
-                    showToast('휴지통을 비웠습니다');
-                  } else {
-                    permanentlyDeleteItems(selected);
-                    showToast(`${selected.length}개 항목을 영구 삭제했습니다`);
-                  }
-                  setSelected([]);
-                  setConfirmPermanentOpen(false);
-                  setConfirmEmptyOpen(false);
-                }}
-                className="px-4 py-2 rounded-xl bg-[#C93638] hover:bg-[#AE2C2E] text-white text-xs font-semibold"
-              >
-                영구 삭제
-              </button>
-            </div>
-          </div>
+            취소
+          </button>
+          <button
+            type="button"
+            disabled={!chosenProjectId || !restoreTargetItem}
+            onClick={() => {
+              if (!restoreTargetItem) return;
+              restoreItems([restoreTargetItem], {
+                projectId: chosenProjectId,
+                folderId: chosenFolderId,
+              });
+              setRestoreTargetItem(null);
+              showToast('선택한 위치로 복원했습니다');
+            }}
+            className="px-4 py-2 rounded-xl bg-[#6A5ACD] hover:bg-[#5A49B8] disabled:opacity-40 text-white text-xs font-semibold"
+          >
+            여기에 복원
+          </button>
         </div>
-      )}
+      </ModalShell>
+
+      <ModalShell
+        isOpen={confirmPermanentOpen || confirmEmptyOpen}
+        onClose={() => {
+          setConfirmPermanentOpen(false);
+          setConfirmEmptyOpen(false);
+        }}
+        maxWidthClass="max-w-sm"
+        className="p-6 flex flex-col gap-4"
+      >
+        <div>
+          <h3 className="text-base font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
+            {confirmEmptyOpen ? '휴지통 비우기' : '영구 삭제'}
+          </h3>
+          <p className="mt-1.5 text-xs text-[#6E6D7A] dark:text-[#9E9CAF]">
+            {confirmEmptyOpen
+              ? `휴지통의 ${totalCount}개 항목을 모두 영구 삭제합니다. 이 작업은 되돌릴 수 없습니다.`
+              : `선택한 ${selected.length}개 항목을 영구 삭제합니다. 이 작업은 되돌릴 수 없습니다.`}
+          </p>
+        </div>
+
+        <div className="rounded-xl bg-[#F8F7FC] dark:bg-[#262436] p-3 text-xs text-[#555464] dark:text-[#B4B2C4] leading-relaxed">
+          이 항목을 연결한 다른 문서의 링크에는 &quot;영구 삭제된 문서&quot;로 표시됩니다.
+        </div>
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => {
+              setConfirmPermanentOpen(false);
+              setConfirmEmptyOpen(false);
+            }}
+            className="px-4 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (confirmEmptyOpen) {
+                emptyTrash();
+                showToast('휴지통을 비웠습니다');
+              } else {
+                permanentlyDeleteItems(selected);
+                showToast(`${selected.length}개 항목을 영구 삭제했습니다`);
+              }
+              setSelected([]);
+              setConfirmPermanentOpen(false);
+              setConfirmEmptyOpen(false);
+            }}
+            className="px-4 py-2 rounded-xl bg-[#C93638] hover:bg-[#AE2C2E] text-white text-xs font-semibold"
+          >
+            영구 삭제
+          </button>
+        </div>
+      </ModalShell>
     </div>
   );
 };

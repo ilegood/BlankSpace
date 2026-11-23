@@ -154,7 +154,10 @@ export const CharacterQAEditor: React.FC<{ templateOverrideId?: string | null }>
         </aside>
 
         {/* Center 2-Column Q&A Grid */}
-        <div className="flex-1 overflow-y-auto p-7 bg-[#FAF9FE] dark:bg-[#15151C]">
+        <div
+          data-export-root="true"
+          className="flex-1 overflow-y-auto p-7 bg-[#FAF9FE] dark:bg-[#15151C]"
+        >
           <div className="max-w-4xl mx-auto flex flex-col gap-5">
             <div className="flex items-center justify-between gap-4">
               <h2 className="text-[20px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">

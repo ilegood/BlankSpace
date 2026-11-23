@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Upload, Plus, Trash2 } from 'lucide-react';
+import { Upload, Plus, Trash2, ChevronUp, ChevronDown } from 'lucide-react';
 import { CanvasCardItem } from '../../../types';
 import { COMMON_CATALOG, SPECIAL_CATALOG, CatalogComponentDef } from './canvasCatalog';
 import { CATEGORY_LABELS, TEMPLATES } from '../../../templates/templateList';
@@ -489,6 +489,66 @@ export const CanvasRightPanel: React.FC<CanvasRightPanelProps> = ({
                 <Plus className="w-3 h-3" />
                 색상 추가
               </button>
+            </div>
+            <div className="flex flex-col gap-1.5 max-h-44 overflow-y-auto pr-1">
+              {(d.colors || []).map((c: string, idx: number) => (
+                <div key={idx} className="flex items-center gap-1.5">
+                  <span
+                    className="w-6 h-6 rounded-md border border-black/15 dark:border-white/15 shrink-0"
+                    style={{ backgroundColor: /^#[0-9A-Fa-f]{6}$/.test(c) ? c : '#6A5ACD' }}
+                  />
+                  <input
+                    type="text"
+                    value={c}
+                    onChange={(e) => {
+                      const next = [...(d.colors || [])];
+                      next[idx] = e.target.value;
+                      onUpdateCard(selectedCard.id, { data: { ...d, colors: next } });
+                    }}
+                    className="flex-1 h-7 px-2 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs font-mono"
+                  />
+                  <button
+                    type="button"
+                    disabled={idx === 0}
+                    title="위로 이동"
+                    onClick={() => {
+                      if (idx === 0) return;
+                      const next = [...(d.colors || [])];
+                      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                      onUpdateCard(selectedCard.id, { data: { ...d, colors: next } });
+                    }}
+                    className="p-0.5 rounded text-[#8A8998] hover:text-[#1B1B1F] dark:hover:text-white disabled:opacity-25"
+                  >
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={idx === (d.colors || []).length - 1}
+                    title="아래로 이동"
+                    onClick={() => {
+                      const list = d.colors || [];
+                      if (idx >= list.length - 1) return;
+                      const next = [...list];
+                      [next[idx], next[idx + 1]] = [next[idx + 1], next[idx]];
+                      onUpdateCard(selectedCard.id, { data: { ...d, colors: next } });
+                    }}
+                    className="p-0.5 rounded text-[#8A8998] hover:text-[#1B1B1F] dark:hover:text-white disabled:opacity-25"
+                  >
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    title="색상 삭제"
+                    onClick={() => {
+                      const next = (d.colors || []).filter((_: string, i: number) => i !== idx);
+                      onUpdateCard(selectedCard.id, { data: { ...d, colors: next } });
+                    }}
+                    className="p-1 rounded text-[#8A8998] hover:text-rose-500"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ))}
             </div>
           </div>
         )}

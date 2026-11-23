@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreHorizontal, Trash2, Edit2, Copy, Star } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 import { SortOption } from '../../types';
@@ -385,19 +386,23 @@ export const HomeView: React.FC = () => {
         </section>
       </div>
 
-      {/* Floating Drag Ghost (§2-2) */}
-      {draggingProj && (
-        <div
-          style={{ left: pointer.x - 90, top: pointer.y - 36 }}
-          className="fixed z-[100] pointer-events-none w-52 rounded-2xl border-2 border-[#6A5ACD] bg-white/95 dark:bg-[#1E1E29]/95 p-3.5 shadow-2xl scale-105"
-        >
+      {/* Floating Drag Ghost rendered via Portal so it follows cursor accurately (§2-2) */}
+      {draggingProj &&
+        createPortal(
           <div
-            className="h-8 rounded-lg mb-2"
-            style={{ backgroundColor: draggingProj.coverColor || '#D9D5F3' }}
-          />
-          <div className="text-xs font-bold truncate">{draggingProj.name}</div>
-        </div>
-      )}
+            style={{ left: pointer.x + 10, top: pointer.y + 10 }}
+            className="fixed z-[9999] pointer-events-none w-48 rounded-2xl border-2 border-[#6A5ACD] bg-white/95 dark:bg-[#1E1E29]/95 p-3 shadow-2xl"
+          >
+            <div
+              className="h-7 rounded-lg mb-1.5"
+              style={{ backgroundColor: draggingProj.coverColor || '#D9D5F3' }}
+            />
+            <div className="text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
+              {draggingProj.name}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

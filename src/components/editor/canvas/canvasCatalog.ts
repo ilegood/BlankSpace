@@ -690,9 +690,9 @@ export function getInitialCardsForTemplate(templateType: string): CanvasCardItem
         type: 'palette-card',
         title: '컬러 팔레트',
         x: 512,
-        y: 226,
+        y: 220,
         w: 300,
-        h: 88,
+        h: 104,
         data: { colors: ['#6A5ACD', '#9A8FE6', '#D9D5EC', '#1B1B1F'] },
       },
       {

@@ -21,6 +21,7 @@ const HighlightText: React.FC<{ text: string; query: string }> = ({ text, query 
 export const SearchResultsView: React.FC = () => {
   const {
     globalSearchQuery,
+    setPendingSearchHighlight,
     activeProjects,
     folders,
     documents,
@@ -123,16 +124,16 @@ export const SearchResultsView: React.FC = () => {
             )}
           </h1>
 
-          <div className="mt-3 flex items-center gap-2">
+          <div className="mt-3 relative inline-flex items-center gap-1 rounded-full border border-[#E6E3F0] dark:border-[#2E2D3D] bg-[#FAF9FE] dark:bg-[#1B1B24] p-1">
             {tabs.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-colors ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all duration-200 ${
                   tab === t.id
-                    ? 'bg-[#1B1B1F] text-white dark:bg-[#F1F0F6] dark:text-[#15151C]'
-                    : 'border border-[#E6E3F0] dark:border-[#2E2D3D] text-[#6E6D7A] dark:text-[#9E9CAF]'
+                    ? 'bg-[#1B1B1F] text-white dark:bg-[#F1F0F6] dark:text-[#15151C] shadow-xs'
+                    : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-white'
                 }`}
               >
                 {t.label}
@@ -219,8 +220,13 @@ export const SearchResultsView: React.FC = () => {
                 <button
                   key={doc.id}
                   type="button"
-                  onClick={() => openDocument(doc.id)}
-                  className="w-full p-4 flex flex-col gap-1 text-left hover:bg-[#FAF9FE] dark:hover:bg-[#242334] transition-colors"
+                  onClick={() => {
+                    if (globalSearchQuery.trim()) {
+                      setPendingSearchHighlight(globalSearchQuery.trim());
+                    }
+                    openDocument(doc.id);
+                  }}
+                  className="w-full p-4 flex flex-col gap-1 text-left hover:bg-[#FAF9FE] dark:hover:bg-[#242334] transition-colors duration-120"
                 >
                   <div className="flex items-center gap-2.5">
                     <span className="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-[#EBE8F5] dark:bg-[#2C2845] text-[#6A5ACD]">

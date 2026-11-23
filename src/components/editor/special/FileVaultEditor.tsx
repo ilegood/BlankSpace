@@ -180,7 +180,10 @@ export const FileVaultEditor: React.FC<{ templateOverrideId?: string | null }> =
             </div>
           )}
 
-          <div className="max-w-5xl mx-auto flex flex-col gap-5">
+          <div
+            data-export-root="true"
+            className="max-w-5xl mx-auto flex flex-col gap-5"
+          >
             <div className="flex items-center justify-between gap-4">
               <input
                 type="text"
@@ -189,12 +192,19 @@ export const FileVaultEditor: React.FC<{ templateOverrideId?: string | null }> =
                 placeholder="파일 검색"
                 className="w-64 h-9 px-3.5 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs"
               />
-              <div className="inline-flex rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] p-0.5 text-xs">
+              <div className="relative inline-grid grid-cols-2 items-center rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] p-0.5 text-xs">
+                <span
+                  aria-hidden="true"
+                  style={{
+                    transform: viewMode === 'grid' ? 'translateX(0%)' : 'translateX(100%)',
+                  }}
+                  className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-lg bg-[#6A5ACD] transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
+                />
                 <button
                   type="button"
                   onClick={() => setViewMode('grid')}
-                  className={`px-3 py-1 rounded-lg font-semibold ${
-                    viewMode === 'grid' ? 'bg-[#6A5ACD] text-white' : 'text-[#6E6D7A]'
+                  className={`relative z-10 px-3 py-1 rounded-lg font-semibold transition-colors duration-200 ${
+                    viewMode === 'grid' ? 'text-white' : 'text-[#6E6D7A]'
                   }`}
                 >
                   카드
@@ -202,8 +212,8 @@ export const FileVaultEditor: React.FC<{ templateOverrideId?: string | null }> =
                 <button
                   type="button"
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-1 rounded-lg font-semibold ${
-                    viewMode === 'list' ? 'bg-[#6A5ACD] text-white' : 'text-[#6E6D7A]'
+                  className={`relative z-10 px-3 py-1 rounded-lg font-semibold transition-colors duration-200 ${
+                    viewMode === 'list' ? 'text-white' : 'text-[#6E6D7A]'
                   }`}
                 >
                   목록

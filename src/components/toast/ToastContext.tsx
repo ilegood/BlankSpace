@@ -15,6 +15,7 @@ interface ToastMessage {
   duration: number;
   remaining: number;
   startedAt: number;
+  exiting?: boolean;
 }
 
 interface ToastContextType {
@@ -35,7 +36,13 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       timersRef.current.delete(id);
     }
     pausedRef.current.delete(id);
-    setToasts((prev) => prev.filter((item) => item.id !== id));
+    // Play 140ms exit animation before removing from DOM (§2-5)
+    setToasts((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, exiting: true } : item))
+    );
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((item) => item.id !== id));
+    }, 140);
   }, []);
 
   const scheduleDismiss = useCallback(
@@ -64,7 +71,8 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       };
 
       setToasts((prev) => {
-        const next = [...prev, item];
+        const active = prev.filter((x) => !x.exiting);
+        const next = [...active, item];
         if (next.length > 3) {
           const dropped = next.shift();
           if (dropped) {
@@ -108,7 +116,7 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     pausedRef.current.delete(id);
     setToasts((prev) =>
       prev.map((item) => {
-        if (item.id === id) {
+        if (item.id === id && !item.exiting) {
           scheduleDismiss(id, item.remaining);
           return { ...item, startedAt: Date.now() };
         }
@@ -127,7 +135,9 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             key={t.id}
             onMouseEnter={() => handleMouseEnter(t.id)}
             onMouseLeave={() => handleMouseLeave(t.id)}
-            className={`pointer-events-auto bs-animate-toast px-4 py-2.5 rounded-xl text-xs font-medium shadow-xl flex items-center gap-3 border transition-all ${
+            className={`pointer-events-auto ${
+              t.exiting ? 'bs-animate-toast-out' : 'bs-animate-toast'
+            } px-4 py-2.5 rounded-xl text-xs font-medium shadow-xl flex items-center gap-3 border transition-all duration-200 ${
               t.variant === 'error'
                 ? 'bg-[#C93638] text-white border-[#E55355]'
                 : 'bg-[#1B1B1F] dark:bg-[#2C2A3E] text-white border-black/10 dark:border-[#423F5C]'

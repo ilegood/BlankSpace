@@ -217,6 +217,7 @@ export const UiUxEditor: React.FC<{ templateOverrideId?: string | null }> = ({
 
           <div
             ref={boardRef}
+            data-export-root="true"
             onClick={(e) => {
               if (!isEditMode || !addingMode) {
                 setSelectedMarkerId(null);

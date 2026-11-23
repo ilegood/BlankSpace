@@ -164,7 +164,7 @@ export const ReferenceBoardEditor: React.FC<{ templateOverrideId?: string | null
             </div>
           )}
 
-          <div className="relative min-w-[820px] min-h-[540px]">
+          <div data-export-root="true" className="relative min-w-[820px] min-h-[540px]">
             {[...items]
               .sort((a, b) => a.zIndex - b.zIndex)
               .map((item) => {

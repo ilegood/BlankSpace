@@ -207,7 +207,10 @@ export const SoundBoardEditor: React.FC<{ templateOverrideId?: string | null }> 
           ))}
         </aside>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-[#FAF9FE] dark:bg-[#15151C]">
+        <div
+          data-export-root="true"
+          className="flex-1 overflow-y-auto p-6 bg-[#FAF9FE] dark:bg-[#15151C]"
+        >
           <div className="max-w-5xl mx-auto flex flex-col gap-5">
             <div className="flex flex-wrap items-center justify-between gap-4">
               <input

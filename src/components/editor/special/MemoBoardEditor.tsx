@@ -249,7 +249,10 @@ export const MemoBoardEditor: React.FC<{ templateOverrideId?: string | null }> =
       >
         {/* Left Floating Tool Palette matching PDF Page 50 */}
         {isEditMode && (
-          <div className="fixed top-20 left-16 z-30 w-24 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-2 shadow-md flex flex-col gap-1 text-xs">
+          <div
+            data-export-ignore="true"
+            className="fixed top-20 left-16 z-30 w-24 rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-2 shadow-md flex flex-col gap-1 text-xs"
+          >
             {[
               { id: 'text' as const, label: '텍스트' },
               { id: 'image' as const, label: '이미지' },

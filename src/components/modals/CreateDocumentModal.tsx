@@ -2,8 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 import { TEMPLATES, TEMPLATE_CATEGORIES } from '../../templates/templateList';
+import { getInitialCardsForTemplate } from '../editor/canvas/canvasCatalog';
 import { TemplateCategoryType } from '../../types';
 import { useToast } from '../toast/ToastContext';
+import { ModalShell } from './ModalShell';
+
+const CANVAS_TEMPLATE_IDS = new Set([
+  'character-sheet',
+  'world-sheet',
+  'game-design-system',
+  'design-modeling-sheet',
+  'design-animation-sheet',
+]);
 
 export const CreateDocumentModal: React.FC = () => {
   const {
@@ -12,6 +22,7 @@ export const CreateDocumentModal: React.FC = () => {
     createDocument,
     openDocument,
     userTemplates,
+    defaultTemplateOverrides,
     createUserTemplate,
     deleteUserTemplate,
     openTemplateEditor,
@@ -23,7 +34,9 @@ export const CreateDocumentModal: React.FC = () => {
   const [selectedUserTemplateId, setSelectedUserTemplateId] = useState<string | null>(null);
   const [isCreatingUserTpl, setIsCreatingUserTpl] = useState(false);
   const [newTplName, setNewTplName] = useState('');
+  const [newTplMode, setNewTplMode] = useState<'clone' | 'blank'>('clone');
   const [newTplBase, setNewTplBase] = useState('character-sheet');
+  const [newTplCategory, setNewTplCategory] = useState<TemplateCategoryType>('character');
 
   useEffect(() => {
     if (isCreateDocumentOpen) {
@@ -33,17 +46,6 @@ export const CreateDocumentModal: React.FC = () => {
       setIsCreatingUserTpl(false);
     }
   }, [isCreateDocumentOpen]);
-
-  useEffect(() => {
-    if (!isCreateDocumentOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setIsCreateDocumentOpen(false);
-    };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [isCreateDocumentOpen, setIsCreateDocumentOpen]);
-
-  if (!isCreateDocumentOpen) return null;
 
   const categoryTemplates =
     selectedCategory === 'user'
@@ -93,19 +95,40 @@ export const CreateDocumentModal: React.FC = () => {
   const handleCreateUserTemplate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTplName.trim()) return;
+
+    if (newTplMode === 'blank') {
+      const created = createUserTemplate(
+        newTplName,
+        '빈 캔버스 사용자 템플릿',
+        newTplCategory,
+        'character-sheet',
+        JSON.stringify({ cards: [] })
+      );
+      setNewTplName('');
+      setIsCreatingUserTpl(false);
+      setSelectedCategory('user');
+      setSelectedUserTemplateId(created.id);
+      showToast(`빈 사용자 템플릿 '${created.name}'이 추가되었습니다`);
+      return;
+    }
+
     const base = TEMPLATES.find((t) => t.id === newTplBase);
+    let clonedContent = defaultTemplateOverrides[newTplBase] || base?.defaultContent || '';
+    if (!clonedContent && CANVAS_TEMPLATE_IDS.has(newTplBase)) {
+      clonedContent = JSON.stringify({ cards: getInitialCardsForTemplate(newTplBase) });
+    }
     const created = createUserTemplate(
       newTplName,
-      `${base?.name || '기본'} 기반 사용자 템플릿`,
+      `${base?.name || '기본'} 복제 사용자 템플릿`,
       base?.category || 'general',
       newTplBase,
-      base?.defaultContent || ''
+      clonedContent
     );
     setNewTplName('');
     setIsCreatingUserTpl(false);
     setSelectedCategory('user');
     setSelectedUserTemplateId(created.id);
-    showToast(`사용자 템플릿 '${created.name}'이 추가되었습니다`);
+    showToast(`사용자 템플릿 '${created.name}'을 복제하여 저장했습니다`);
   };
 
   const ctaLabel =
@@ -116,14 +139,12 @@ export const CreateDocumentModal: React.FC = () => {
       : `${selectedTemplate?.name || '템플릿'}로 만들기`;
 
   return (
-    <div
-      onClick={() => setIsCreateDocumentOpen(false)}
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-[2px] p-4"
+    <ModalShell
+      isOpen={isCreateDocumentOpen}
+      onClose={() => setIsCreateDocumentOpen(false)}
+      maxWidthClass="max-w-[780px]"
+      className="rounded-[22px] flex flex-col"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bs-animate-modal w-full max-w-[780px] rounded-[22px] bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] shadow-2xl overflow-hidden flex flex-col"
-      >
         <div className="px-7 pt-6 pb-3">
           <h2 className="text-[19px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">새 문서 만들기</h2>
         </div>
@@ -198,20 +219,72 @@ export const CreateDocumentModal: React.FC = () => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-[#6E6D7A] dark:text-[#9E9CAF] mb-1">
-                    기반 템플릿 복제
+                    생성 방식
                   </label>
-                  <select
-                    value={newTplBase}
-                    onChange={(e) => setNewTplBase(e.target.value)}
-                    className="w-full h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs"
-                  >
-                    {TEMPLATES.filter((t) => !t.hidden).map((t) => (
-                      <option key={t.id} value={t.id}>
-                        {t.name}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative grid grid-cols-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] p-0.5">
+                    <span
+                      aria-hidden="true"
+                      style={{
+                        transform: newTplMode === 'blank' ? 'translateX(100%)' : 'translateX(0%)',
+                      }}
+                      className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-[9px] bg-[#6A5ACD] transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewTplMode('clone')}
+                      className={`relative z-10 py-1.5 rounded-[9px] text-xs font-semibold transition-colors ${
+                        newTplMode === 'clone' ? 'text-white' : 'text-[#6E6D7A] dark:text-[#9E9CAF]'
+                      }`}
+                    >
+                      기존 템플릿 복제하여 수정
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setNewTplMode('blank')}
+                      className={`relative z-10 py-1.5 rounded-[9px] text-xs font-semibold transition-colors ${
+                        newTplMode === 'blank' ? 'text-white' : 'text-[#6E6D7A] dark:text-[#9E9CAF]'
+                      }`}
+                    >
+                      빈 템플릿으로 만들기
+                    </button>
+                  </div>
                 </div>
+
+                {newTplMode === 'clone' ? (
+                  <div>
+                    <label className="block text-xs font-medium text-[#6E6D7A] dark:text-[#9E9CAF] mb-1">
+                      복제할 기반 템플릿
+                    </label>
+                    <select
+                      value={newTplBase}
+                      onChange={(e) => setNewTplBase(e.target.value)}
+                      className="w-full h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs"
+                    >
+                      {TEMPLATES.filter((t) => !t.hidden).map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ) : (
+                  <div>
+                    <label className="block text-xs font-medium text-[#6E6D7A] dark:text-[#9E9CAF] mb-1">
+                      템플릿 분류
+                    </label>
+                    <select
+                      value={newTplCategory}
+                      onChange={(e) => setNewTplCategory(e.target.value as TemplateCategoryType)}
+                      className="w-full h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs"
+                    >
+                      {TEMPLATE_CATEGORIES.map((c) => (
+                        <option key={c.id} value={c.id}>
+                          {c.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <div className="flex justify-end gap-2">
                   <button
                     type="button"
@@ -344,7 +417,6 @@ export const CreateDocumentModal: React.FC = () => {
             {ctaLabel}
           </button>
         </div>
-      </div>
-    </div>
+    </ModalShell>
   );
 };

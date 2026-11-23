@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { Placeholder } from '@tiptap/extension-placeholder';
@@ -30,11 +31,17 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
     getBacklinksForDocument,
     getDocumentStatus,
     restoreItems,
+    pendingSearchHighlight,
+    setPendingSearchHighlight,
   } = useWorkspace();
   const { showToast } = useToast();
 
   const isTemplateMode = Boolean(templateOverrideId);
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
+  const [compactTitleVisible, setCompactTitleVisible] = useState(false);
+  const [searchPulseActive, setSearchPulseActive] = useState(false);
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null);
+  const titleBlockRef = useRef<HTMLDivElement | null>(null);
 
   // Popovers & Menus matching PDF Pages 54, 56, 57
   const [headingMenuOpen, setHeadingMenuOpen] = useState(false);
@@ -64,6 +71,8 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
   } | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const activePageIdRef = useRef<string | undefined>(activePage?.id);
+  activePageIdRef.current = activePage?.id;
 
   const editor = useEditor({
     editable: isEditMode,
@@ -82,12 +91,16 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
       TableHeader,
       TableCell,
       TaskList,
-      TaskItem.configure({ nested: true }),
+      TaskItem.configure({
+        nested: true,
+        onReadOnlyChecked: () => true,
+      }),
     ],
     content: activePage?.content || '<p></p>',
     onUpdate: ({ editor: ed }) => {
-      if (activePage && isEditMode) {
-        updatePage(activePage.id, { content: ed.getHTML() });
+      const pageId = activePageIdRef.current;
+      if (pageId) {
+        updatePage(pageId, { content: ed.getHTML() });
       }
     },
   });
@@ -106,6 +119,31 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
       }
     }
   }, [activePage?.id, editor]);
+
+  // §3-6: Scroll to matched text & 1.2s pulse highlight when opened from SearchResultsView
+  useEffect(() => {
+    if (!pendingSearchHighlight) return;
+    const query = pendingSearchHighlight.toLowerCase();
+    const timer = window.setTimeout(() => {
+      const container = scrollAreaRef.current;
+      if (container) {
+        const blocks = Array.from(
+          container.querySelectorAll('h1, h2, h3, p, li, td, th, span')
+        ) as HTMLElement[];
+        const target = blocks.find((el) => (el.textContent || '').toLowerCase().includes(query));
+        if (target) {
+          target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          target.classList.add('bs-search-pulse');
+          window.setTimeout(() => target.classList.remove('bs-search-pulse'), 1250);
+        } else {
+          setSearchPulseActive(true);
+          window.setTimeout(() => setSearchPulseActive(false), 1250);
+        }
+      }
+      setPendingSearchHighlight(null);
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [pendingSearchHighlight, setPendingSearchHighlight]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -211,11 +249,15 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
         onChangeMode={setIsEditMode}
         onExit={() => (isTemplateMode ? openTemplateEditor(null) : openDocument(null))}
         isTemplateMode={isTemplateMode}
+        compactTitleVisible={compactTitleVisible}
       />
 
       {/* Formatting Toolbar in Edit Mode matching PDF Pages 49, 54, 56 */}
       {isEditMode && editor && (
-        <div className="relative px-4 py-2 border-b border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] flex flex-wrap items-center gap-1 select-none z-20">
+        <div
+          data-export-ignore="true"
+          className="relative px-4 py-2 border-b border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#181822] flex flex-wrap items-center gap-1 select-none z-20"
+        >
           {/* Block Type Dropdown */}
           <div className="relative">
             <button
@@ -333,13 +375,13 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                   </button>
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={(e) => {
                       const mode = colorPopover;
                       setColorPopover(null);
                       setEyedropper({
                         mode,
-                        x: window.innerWidth / 2,
-                        y: window.innerHeight / 2,
+                        x: e.clientX,
+                        y: e.clientY,
                         color: pickedColor,
                       });
                     }}
@@ -375,11 +417,9 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
                   </div>
                 </div>
                 <div className="flex items-center gap-2 pt-1">
-                  <input
-                    type="color"
-                    value={pickedColor}
-                    onChange={(e) => setPickedColor(e.target.value)}
-                    className="w-8 h-8 rounded border-0 cursor-pointer"
+                  <span
+                    className="w-8 h-8 rounded-lg border border-black/15 dark:border-white/15 shrink-0"
+                    style={{ backgroundColor: pickedColor }}
                   />
                   <input
                     type="text"
@@ -671,14 +711,24 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
 
       {/* Centered Document Sheet matching PDF Page 49 */}
       <div
+        ref={scrollAreaRef}
+        onScroll={(e) => {
+          const st = (e.currentTarget as HTMLDivElement).scrollTop;
+          setCompactTitleVisible(st > 140);
+        }}
         className="flex-1 overflow-y-auto py-8 px-6"
         onClick={() => setTableMenu(null)}
       >
-        <div className="max-w-[780px] mx-auto rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] overflow-hidden shadow-2xs">
+        <div
+          data-export-root="true"
+          className={`max-w-[780px] mx-auto rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] overflow-hidden shadow-2xs ${
+            searchPulseActive ? 'bs-search-pulse' : ''
+          }`}
+        >
           {/* Pastel Cover Strip */}
           <div className="h-24 bg-[#DCD7F3] dark:bg-[#2F2B4E]" />
 
-          <div className="px-10 pb-10">
+          <div ref={titleBlockRef} className="px-10 pb-10">
             {/* Icon badge overlapping cover */}
             <div className="-mt-7 mb-4 w-14 h-14 rounded-2xl bg-[#F3F1FB] dark:bg-[#2C2845] border-4 border-white dark:border-[#1E1E29] flex items-center justify-center text-xs font-bold text-[#6A5ACD] dark:text-[#9A8FE6] shadow-xs">
               아이콘
@@ -818,33 +868,55 @@ export const BlankDocumentEditor: React.FC<{ templateOverrideId?: string | null 
         </div>
       )}
 
-      {/* Text / Highlight Eyedropper Overlay */}
-      {eyedropper && (
-        <div
-          data-eyedropper-overlay="true"
-          onMouseMove={(e) => {
-            const c = samplePointColor(e.clientX, e.clientY);
-            setEyedropper((prev) => (prev ? { ...prev, x: e.clientX, y: e.clientY, color: c } : null));
-          }}
-          onClick={() => {
-            const c = samplePointColor(eyedropper.x, eyedropper.y);
-            setPickedColor(c);
-            applyHighlightOrText(c, eyedropper.mode);
-            setEyedropper(null);
-          }}
-          className="fixed inset-0 z-[200] cursor-crosshair"
-        >
+      {/* Text / Highlight Eyedropper Overlay via Portal so it aligns with cursor */}
+      {eyedropper &&
+        createPortal(
           <div
-            style={{ left: eyedropper.x + 18, top: eyedropper.y + 18 }}
-            className="fixed w-24 h-24 rounded-full border-4 border-white shadow-2xl pointer-events-none flex flex-col items-center justify-end pb-2 overflow-hidden"
+            data-eyedropper-overlay="true"
+            onMouseMove={(e) => {
+              const c = samplePointColor(e.clientX, e.clientY);
+              setEyedropper((prev) =>
+                prev ? { ...prev, x: e.clientX, y: e.clientY, color: c } : null
+              );
+            }}
+            onClick={() => {
+              const c = samplePointColor(eyedropper.x, eyedropper.y);
+              setPickedColor(c);
+              applyHighlightOrText(c, eyedropper.mode);
+              setEyedropper(null);
+            }}
+            className="fixed inset-0 z-[9999] cursor-crosshair"
           >
-            <div className="absolute inset-0" style={{ backgroundColor: eyedropper.color }} />
-            <span className="relative z-10 px-1.5 py-0.5 rounded bg-black/75 text-white text-[10px] font-mono">
-              {eyedropper.color}
-            </span>
-          </div>
-        </div>
-      )}
+            <div
+              style={{
+                left:
+                  eyedropper.x + 110 > window.innerWidth
+                    ? eyedropper.x - 102
+                    : eyedropper.x + 5,
+                top:
+                  eyedropper.y + 110 > window.innerHeight
+                    ? eyedropper.y - 102
+                    : eyedropper.y + 5,
+              }}
+              className="bs-animate-fade fixed w-24 h-24 rounded-full border-4 border-white shadow-2xl pointer-events-none flex flex-col items-center justify-end pb-2 overflow-hidden"
+            >
+              <div
+                className="absolute inset-0"
+                style={{
+                  backgroundColor: eyedropper.color,
+                  backgroundImage:
+                    'linear-gradient(to right, rgba(255,255,255,0.14) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.14) 1px, transparent 1px)',
+                  backgroundSize: '8px 8px',
+                }}
+              />
+              <div className="relative z-10 w-3.5 h-3.5 border-2 border-white shadow-xs rounded-xs mb-3" />
+              <span className="relative z-10 px-1.5 py-0.5 rounded bg-black/80 text-white text-[10px] font-mono">
+                {eyedropper.color}
+              </span>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

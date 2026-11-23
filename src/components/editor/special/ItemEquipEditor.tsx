@@ -3,6 +3,8 @@ import { X } from 'lucide-react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 import { DocumentLinkModal } from '../../modals/DocumentLinkModal';
+import { ModalShell, OriginRect } from '../../modals/ModalShell';
+import { useLongPressSort, runFlipForSortItems } from '../../../hooks/useLongPressSort';
 
 interface GameItemRecord {
   id: string;
@@ -55,6 +57,7 @@ export const ItemEquipEditor: React.FC<{ templateOverrideId?: string | null }> =
   const [selectedRarity, setSelectedRarity] = useState('전체');
   const [search, setSearch] = useState('');
   const [detailItem, setDetailItem] = useState<GameItemRecord | null>(null);
+  const [detailOrigin, setDetailOrigin] = useState<OriginRect | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
   const [newName, setNewName] = useState('');
@@ -68,16 +71,17 @@ export const ItemEquipEditor: React.FC<{ templateOverrideId?: string | null }> =
   const [newLinked, setNewLinked] = useState<{ id: string; title: string } | null>(null);
   const [isDocLinkOpen, setIsDocLinkOpen] = useState(false);
 
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        setDetailItem(null);
-        setIsAddOpen(false);
-      }
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, []);
+  const sort = useLongPressSort({
+    onReorder: (fromId, toId) => {
+      const fromIdx = items.findIndex((x) => x.id === fromId);
+      const toIdx = items.findIndex((x) => x.id === toId);
+      if (fromIdx < 0 || toIdx < 0 || fromIdx === toIdx) return;
+      const copy = [...items];
+      const [moved] = copy.splice(fromIdx, 1);
+      copy.splice(toIdx, 0, moved);
+      persist(copy);
+    },
+  });
 
   useEffect(() => {
     if (activePage?.content) {
@@ -128,7 +132,11 @@ export const ItemEquipEditor: React.FC<{ templateOverrideId?: string | null }> =
             <button
               key={cat}
               type="button"
-              onClick={() => setSelectedCat(cat)}
+              onClick={() => {
+                const playFlip = runFlipForSortItems(240);
+                setSelectedCat(cat);
+                playFlip();
+              }}
               className={`w-full text-left px-3 py-2 rounded-xl text-xs transition-colors ${
                 selectedCat === cat
                   ? 'bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD] font-semibold'
@@ -140,7 +148,10 @@ export const ItemEquipEditor: React.FC<{ templateOverrideId?: string | null }> =
           ))}
         </aside>
 
-        <div className="flex-1 overflow-y-auto p-6 bg-[#FAF9FE] dark:bg-[#15151C]">
+        <div
+          data-export-root="true"
+          className="flex-1 overflow-y-auto p-6 bg-[#FAF9FE] dark:bg-[#15151C]"
+        >
           <div className="max-w-5xl mx-auto flex flex-col gap-5">
             <div className="flex items-center justify-between gap-4">
               <input
@@ -167,7 +178,20 @@ export const ItemEquipEditor: React.FC<{ templateOverrideId?: string | null }> =
               {filtered.map((item) => (
                 <div
                   key={item.id}
-                  onClick={() => !isEditMode && setDetailItem(item)}
+                  data-sort-id={item.id}
+                  data-sort-kind="card"
+                  onMouseDown={(e) => isEditMode && sort.startPress(e, item.id, 'card')}
+                  onClick={(e) => {
+                    if (sort.wasDraggedRef.current || isEditMode) return;
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    setDetailOrigin({
+                      left: rect.left,
+                      top: rect.top,
+                      width: rect.width,
+                      height: rect.height,
+                    });
+                    setDetailItem(item);
+                  }}
                   className="bs-card-interactive rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-4 cursor-pointer hover:border-[#B6ACEA] flex flex-col justify-between min-h-[104px]"
                 >
                   <div>
@@ -207,16 +231,16 @@ export const ItemEquipEditor: React.FC<{ templateOverrideId?: string | null }> =
         </div>
       </div>
 
-      {/* Item Detail Modal matching PDF Page 36 */}
-      {detailItem && (
-        <div
-          onClick={() => setDetailItem(null)}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-[2px] p-4"
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bs-animate-modal w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] shadow-2xl p-6 flex flex-col gap-4 text-xs"
-          >
+      {/* Item Detail Modal matching PDF Page 36 (Card -> Modal 280ms FLIP zoom §2-4) */}
+      <ModalShell
+        isOpen={Boolean(detailItem)}
+        onClose={() => setDetailItem(null)}
+        originRect={detailOrigin}
+        maxWidthClass="max-w-md"
+        className="p-6 flex flex-col gap-4 text-xs"
+      >
+        {detailItem && (
+          <>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-bold">{detailItem.name}</h3>
@@ -270,8 +294,9 @@ export const ItemEquipEditor: React.FC<{ templateOverrideId?: string | null }> =
                 <button
                   type="button"
                   onClick={() => {
+                    const id = detailItem.linkedDocId!;
                     setDetailItem(null);
-                    openDocument(detailItem.linkedDocId!);
+                    openDocument(id);
                   }}
                   className="flex items-center gap-2 font-semibold hover:text-[#6A5ACD]"
                 >
@@ -282,147 +307,143 @@ export const ItemEquipEditor: React.FC<{ templateOverrideId?: string | null }> =
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
+          </>
+        )}
+      </ModalShell>
 
       {/* Add Item Modal matching PDF Page 39 */}
-      {isAddOpen && (
-        <div
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setIsAddOpen(false);
-          }}
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/35 backdrop-blur-[2px] p-4"
-        >
-          <div className="bs-animate-modal w-full max-w-md rounded-2xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] shadow-2xl p-6 flex flex-col gap-3.5 text-xs">
-            <h3 className="text-base font-bold">아이템 추가</h3>
-            <input
-              type="text"
-              autoFocus
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="아이템 이름"
-              className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
-            />
-            <div className="grid grid-cols-2 gap-2.5">
-              <input
-                type="text"
-                value={newRarity}
-                onChange={(e) => setNewRarity(e.target.value)}
-                placeholder="등급 선택"
-                className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
-              />
-              <select
-                value={newCat}
-                onChange={(e) => setNewCat(e.target.value)}
-                className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
-              >
-                {CATEGORIES.filter((c) => c !== '전체').map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <textarea
-              rows={3}
-              value={newDesc}
-              onChange={(e) => setNewDesc(e.target.value)}
-              placeholder="설명을 입력하세요"
-              className="p-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C] resize-none"
-            />
-            <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setBuyOpen((p) => !p)}
-                  className="text-[#6A5ACD] font-semibold hover:underline"
-                >
-                  {buyOpen ? '− 구매 가격' : '+ 구매 가격'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSellOpen((p) => !p)}
-                  className="text-[#6A5ACD] font-semibold hover:underline"
-                >
-                  {sellOpen ? '− 판매 가격' : '+ 판매 가격'}
-                </button>
-              </div>
-              <div className="bs-collapse-grid" data-open={buyOpen || sellOpen ? 'true' : 'false'}>
-                <div className="bs-collapse-inner grid grid-cols-2 gap-2 pt-1">
-                  {buyOpen && (
-                    <input
-                      type="text"
-                      value={newBuyPrice}
-                      onChange={(e) => setNewBuyPrice(e.target.value)}
-                      placeholder="구매 가격 (예: 200G)"
-                      className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
-                    />
-                  )}
-                  {sellOpen && (
-                    <input
-                      type="text"
-                      value={newSellPrice}
-                      onChange={(e) => setNewSellPrice(e.target.value)}
-                      placeholder="판매 가격 (예: 80G)"
-                      className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
+      <ModalShell
+        isOpen={isAddOpen}
+        onClose={() => setIsAddOpen(false)}
+        maxWidthClass="max-w-md"
+        className="p-6 flex flex-col gap-3.5 text-xs"
+      >
+        <h3 className="text-base font-bold">아이템 추가</h3>
+        <input
+          type="text"
+          autoFocus
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="아이템 이름"
+          className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
+        />
+        <div className="grid grid-cols-2 gap-2.5">
+          <input
+            type="text"
+            value={newRarity}
+            onChange={(e) => setNewRarity(e.target.value)}
+            placeholder="등급 선택"
+            className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
+          />
+          <select
+            value={newCat}
+            onChange={(e) => setNewCat(e.target.value)}
+            className="h-9 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
+          >
+            {CATEGORIES.filter((c) => c !== '전체').map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+        <textarea
+          rows={3}
+          value={newDesc}
+          onChange={(e) => setNewDesc(e.target.value)}
+          placeholder="설명을 입력하세요"
+          className="p-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C] resize-none"
+        />
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setIsDocLinkOpen(true)}
-              className="self-start text-[#6A5ACD] font-semibold hover:underline"
+              onClick={() => setBuyOpen((p) => !p)}
+              className="text-[#6A5ACD] font-semibold hover:underline"
             >
-              {newLinked ? `연결됨: ${newLinked.title}` : '+ 문서 연결'}
+              {buyOpen ? '− 구매 가격' : '+ 구매 가격'}
             </button>
-            <div className="flex justify-end gap-2 pt-2">
-              <button
-                type="button"
-                onClick={() => setIsAddOpen(false)}
-                className="px-4 py-2 rounded-xl border border-[#E6E3F0]"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!newName.trim()) return;
-                  persist([
-                    ...items,
-                    {
-                      id: `itm-${Date.now()}`,
-                      name: newName.trim(),
-                      category: newCat,
-                      rarity: newRarity,
-                      summary: newDesc.trim() || '새 아이템',
-                      effects: [{ label: '효과 1', value: '값' }],
-                      buyPrice: newBuyPrice.trim() || '100G',
-                      sellPrice: newSellPrice.trim() || '50G',
-                      sources: [{ name: '상점', info: '구매' }],
-                      description: newDesc.trim(),
-                      linkedDocId: newLinked?.id,
-                      linkedDocTitle: newLinked?.title,
-                    },
-                  ]);
-                  setNewName('');
-                  setNewDesc('');
-                  setNewBuyPrice('');
-                  setNewSellPrice('');
-                  setBuyOpen(false);
-                  setSellOpen(false);
-                  setIsAddOpen(false);
-                }}
-                className="px-4 py-2 rounded-xl bg-[#6A5ACD] text-white font-semibold"
-              >
-                추가
-              </button>
+            <button
+              type="button"
+              onClick={() => setSellOpen((p) => !p)}
+              className="text-[#6A5ACD] font-semibold hover:underline"
+            >
+              {sellOpen ? '− 판매 가격' : '+ 판매 가격'}
+            </button>
+          </div>
+          <div className="bs-collapse-grid" data-open={buyOpen || sellOpen ? 'true' : 'false'}>
+            <div className="bs-collapse-inner grid grid-cols-2 gap-2 pt-1">
+              {buyOpen && (
+                <input
+                  type="text"
+                  value={newBuyPrice}
+                  onChange={(e) => setNewBuyPrice(e.target.value)}
+                  placeholder="구매 가격 (예: 200G)"
+                  className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
+                />
+              )}
+              {sellOpen && (
+                <input
+                  type="text"
+                  value={newSellPrice}
+                  onChange={(e) => setNewSellPrice(e.target.value)}
+                  placeholder="판매 가격 (예: 80G)"
+                  className="h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#15151C]"
+                />
+              )}
             </div>
           </div>
         </div>
-      )}
+        <button
+          type="button"
+          onClick={() => setIsDocLinkOpen(true)}
+          className="self-start text-[#6A5ACD] font-semibold hover:underline"
+        >
+          {newLinked ? `연결됨: ${newLinked.title}` : '+ 문서 연결'}
+        </button>
+        <div className="flex justify-end gap-2 pt-2">
+          <button
+            type="button"
+            onClick={() => setIsAddOpen(false)}
+            className="px-4 py-2 rounded-xl border border-[#E6E3F0]"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              if (!newName.trim()) return;
+              persist([
+                ...items,
+                {
+                  id: `itm-${Date.now()}`,
+                  name: newName.trim(),
+                  category: newCat,
+                  rarity: newRarity,
+                  summary: newDesc.trim() || '새 아이템',
+                  effects: [{ label: '효과 1', value: '값' }],
+                  buyPrice: newBuyPrice.trim() || '100G',
+                  sellPrice: newSellPrice.trim() || '50G',
+                  sources: [{ name: '상점', info: '구매' }],
+                  description: newDesc.trim(),
+                  linkedDocId: newLinked?.id,
+                  linkedDocTitle: newLinked?.title,
+                },
+              ]);
+              setNewName('');
+              setNewDesc('');
+              setNewBuyPrice('');
+              setNewSellPrice('');
+              setBuyOpen(false);
+              setSellOpen(false);
+              setIsAddOpen(false);
+            }}
+            className="px-4 py-2 rounded-xl bg-[#6A5ACD] text-white font-semibold"
+          >
+            추가
+          </button>
+        </div>
+      </ModalShell>
 
       <DocumentLinkModal
         isOpen={isDocLinkOpen}

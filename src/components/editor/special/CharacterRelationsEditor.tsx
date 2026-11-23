@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 import { DocumentLinkModal } from '../../modals/DocumentLinkModal';
+import { useToast } from '../../toast/ToastContext';
 
 interface RelNode {
   id: string;
@@ -80,6 +81,9 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
   const [newCharName, setNewCharName] = useState('');
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [autoLayoutNotice, setAutoLayoutNotice] = useState(false);
+  const [pickStep, setPickStep] = useState<'from' | 'to' | null>(null);
+  const [pickFromId, setPickFromId] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -87,6 +91,8 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
         setHighlightNodeId(null);
         setHighlightMode(null);
         setHighlightedLegendId(null);
+        setPickStep(null);
+        setPickFromId(null);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -124,6 +130,35 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
   };
 
   const handleNodeClick = (nodeId: string) => {
+    // Two-character picking mode for "+ 관계선 추가"
+    if (pickStep) {
+      if (pickStep === 'from') {
+        setPickFromId(nodeId);
+        setPickStep('to');
+        return;
+      }
+      if (nodeId === pickFromId) {
+        showToast('서로 다른 두 캐릭터를 선택해 주세요', { variant: 'error' });
+        return;
+      }
+      const newEdge: RelEdge = {
+        id: `e-${Date.now()}`,
+        fromId: pickFromId!,
+        toId: nodeId,
+        label: '새 관계',
+        legendId: state.legends[0]?.id || 'leg-1',
+        direction: 'right',
+        width: 2.5,
+      };
+      persist({ ...state, edges: [...state.edges, newEdge] });
+      setSelectedEdgeId(newEdge.id);
+      setInspectorTab('edge');
+      setPickStep(null);
+      setPickFromId(null);
+      showToast('관계선을 추가했습니다');
+      return;
+    }
+
     if (highlightNodeId !== nodeId) {
       setHighlightNodeId(nodeId);
       setHighlightMode('out');
@@ -133,6 +168,31 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
       setHighlightNodeId(null);
       setHighlightMode(null);
     }
+  };
+
+  const deleteEdgeWithUndo = (edgeId: string) => {
+    const snapshot = state;
+    persist({ ...state, edges: state.edges.filter((ed) => ed.id !== edgeId) });
+    setSelectedEdgeId(null);
+    showToast('관계선을 삭제했습니다', { onUndo: () => persist(snapshot) });
+  };
+
+  const deleteCharacterWithUndo = (nodeId: string) => {
+    const snapshot = state;
+    const name = state.nodes.find((n) => n.id === nodeId)?.name || '캐릭터';
+    const removedEdges = state.edges.filter((e) => e.fromId === nodeId || e.toId === nodeId).length;
+    persist({
+      ...state,
+      nodes: state.nodes.filter((n) => n.id !== nodeId),
+      edges: state.edges.filter((e) => e.fromId !== nodeId && e.toId !== nodeId),
+    });
+    if (highlightNodeId === nodeId) {
+      setHighlightNodeId(null);
+      setHighlightMode(null);
+    }
+    showToast(`'${name}' 삭제${removedEdges ? ` (관계선 ${removedEdges}개 포함)` : ''}`, {
+      onUndo: () => persist(snapshot),
+    });
   };
 
   const selectedEdge = state.edges.find((e) => e.id === selectedEdgeId) || null;
@@ -162,23 +222,29 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
               <button
                 type="button"
                 onClick={() => {
-                  if (state.nodes.length < 2) return;
-                  const newEdge: RelEdge = {
-                    id: `e-${Date.now()}`,
-                    fromId: state.nodes[0].id,
-                    toId: state.nodes[1].id,
-                    label: '새 관계',
-                    legendId: state.legends[0]?.id || 'leg-1',
-                    direction: 'right',
-                    width: 2.5,
-                  };
-                  persist({ ...state, edges: [...state.edges, newEdge] });
-                  setSelectedEdgeId(newEdge.id);
-                  setInspectorTab('edge');
+                  if (state.nodes.length < 2) {
+                    showToast('관계선을 만들려면 캐릭터가 2명 이상 필요합니다', { variant: 'error' });
+                    return;
+                  }
+                  setHighlightNodeId(null);
+                  setHighlightMode(null);
+                  if (pickStep) {
+                    setPickStep(null);
+                    setPickFromId(null);
+                  } else {
+                    setPickStep('from');
+                    setPickFromId(null);
+                  }
                 }}
-                className="px-3.5 py-2 rounded-xl bg-[#6A5ACD] hover:bg-[#5A49B8] text-white text-xs font-semibold"
+                className={`px-3.5 py-2 rounded-xl text-white text-xs font-semibold ${
+                  pickStep ? 'bg-[#4E3FB5]' : 'bg-[#6A5ACD] hover:bg-[#5A49B8]'
+                }`}
               >
-                + 관계선 추가
+                {pickStep === 'from'
+                  ? '① 출발 캐릭터를 선택하세요 (ESC 취소)'
+                  : pickStep === 'to'
+                    ? `② 도착 캐릭터를 선택하세요 (${state.nodes.find((n) => n.id === pickFromId)?.name} →)`
+                    : '+ 관계선 추가'}
               </button>
             ) : (
               <div />
@@ -206,6 +272,7 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
 
           {/* Circular Diagram */}
           <div
+            data-export-root="true"
             className="relative mx-auto"
             style={{
               width: 720,
@@ -501,13 +568,7 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
 
                 <button
                   type="button"
-                  onClick={() => {
-                    persist({
-                      ...state,
-                      edges: state.edges.filter((ed) => ed.id !== selectedEdge.id),
-                    });
-                    setSelectedEdgeId(null);
-                  }}
+                  onClick={() => deleteEdgeWithUndo(selectedEdge.id)}
                   className="self-start px-3.5 py-1.5 rounded-xl border border-rose-200 text-rose-600 font-semibold"
                 >
                   관계선 삭제
@@ -528,11 +589,20 @@ export const CharacterRelationsEditor: React.FC<{ templateOverrideId?: string | 
 
                 <div className="divide-y divide-[#F0EEF7] dark:divide-[#2A2938]">
                   {state.nodes.map((n) => (
-                    <div key={n.id} className="py-2 flex items-center justify-between">
-                      <span className="font-medium">{n.name}</span>
-                      <span className="px-2 py-0.5 rounded bg-[#F3F1FB] dark:bg-[#2C2845] text-[10.5px] text-[#6A5ACD]">
-                        {n.linkedDocId ? '문서 연결' : '임시'}
-                      </span>
+                    <div key={n.id} className="py-2 flex items-center justify-between gap-2">
+                      <span className="font-medium truncate">{n.name}</span>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="px-2 py-0.5 rounded bg-[#F3F1FB] dark:bg-[#2C2845] text-[10.5px] text-[#6A5ACD]">
+                          {n.linkedDocId ? '문서 연결' : '임시'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => deleteCharacterWithUndo(n.id)}
+                          className="text-[11px] text-rose-500 hover:underline"
+                        >
+                          삭제
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>

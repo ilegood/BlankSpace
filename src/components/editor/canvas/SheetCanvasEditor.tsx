@@ -34,6 +34,8 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
     resetDefaultTemplateOverride,
     saveDesignPreset,
     getBacklinksForDocument,
+    pendingSearchHighlight,
+    setPendingSearchHighlight,
   } = useWorkspace();
   const { showToast } = useToast();
 
@@ -103,6 +105,32 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
     }
     setCards(getInitialCardsForTemplate(templateType));
   }, [activePage?.id, templateOverrideId, templateType]);
+
+  // §3-6: When opened from SearchResultsView, scroll to the matching card and pulse highlight for 1.2s
+  useEffect(() => {
+    if (!pendingSearchHighlight || cards.length === 0) return;
+    const q = pendingSearchHighlight.toLowerCase();
+    const matched = cards.find(
+      (c) =>
+        c.title.toLowerCase().includes(q) ||
+        JSON.stringify(c.data || {})
+          .toLowerCase()
+          .includes(q)
+    );
+    if (matched) {
+      setFlashCardIds([matched.id]);
+      window.setTimeout(() => {
+        const cardEl = scrollContainerRef.current?.querySelector(
+          `[data-card-id="${matched.id}"]`
+        ) as HTMLElement | null;
+        if (cardEl) {
+          cardEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+        }
+      }, 90);
+      window.setTimeout(() => setFlashCardIds([]), 1250);
+    }
+    setPendingSearchHighlight(null);
+  }, [cards, pendingSearchHighlight, setPendingSearchHighlight]);
 
   const commitCardsRaw = useCallback(
     (next: CanvasCardItem[], recordHistory = true) => {
@@ -433,8 +461,14 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
           } ${isEditMode ? 'canvas-dot-grid' : 'bg-[#FAF9FE] dark:bg-[#15151C]'}`}
         >
           <div
-            style={{ transform: `scale(${zoom})`, transformOrigin: '0 0' }}
-            className="relative min-w-[1120px] min-h-[820px]"
+            data-export-root="true"
+            style={{
+              transform: `scale(${zoom})`,
+              transformOrigin: '0 0',
+              minWidth: Math.max(1120, ...cards.map((c) => c.x + c.w + 48)),
+              minHeight: Math.max(820, ...cards.map((c) => c.y + (c.collapsed ? 44 : c.h) + 48)),
+            }}
+            className="relative"
           >
             {/* Magnetic Snap Alignment Guidelines */}
             {isEditMode &&
@@ -453,6 +487,57 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
                   className="absolute left-0 right-0 h-px border-t border-dashed border-[#6A5ACD]/80 pointer-events-none z-40"
                 />
               ))}
+
+            {/* Visual Connector Lines between linked Formula Cards & Difficulty Curve Cards (§5-4) */}
+            <svg
+              className="absolute inset-0 pointer-events-none z-[15] overflow-visible"
+              width="100%"
+              height="100%"
+            >
+              <defs>
+                <marker
+                  id="bs-formula-arrow"
+                  viewBox="0 0 10 10"
+                  refX="8"
+                  refY="5"
+                  markerWidth="5"
+                  markerHeight="5"
+                  orient="auto-start-reverse"
+                >
+                  <path d="M 0 1 L 8 5 L 0 9 z" fill="#6A5ACD" />
+                </marker>
+              </defs>
+              {cards
+                .filter(
+                  (c) =>
+                    c.type === 'difficulty-curve-card' &&
+                    c.data?.actualSource !== 'manual' &&
+                    c.data?.linkedFormulaId
+                )
+                .map((curveCard) => {
+                  const formulaCard = cards.find((fc) => fc.id === curveCard.data?.linkedFormulaId);
+                  if (!formulaCard) return null;
+                  const fh = formulaCard.collapsed ? 44 : formulaCard.h;
+                  const ch = curveCard.collapsed ? 44 : curveCard.h;
+                  const x1 = formulaCard.x + formulaCard.w / 2;
+                  const y1 = formulaCard.y + fh / 2;
+                  const x2 = curveCard.x + curveCard.w / 2;
+                  const y2 = curveCard.y + ch / 2;
+                  const mx = (x1 + x2) / 2;
+                  return (
+                    <path
+                      key={`fconn-${formulaCard.id}-${curveCard.id}`}
+                      d={`M ${x1} ${y1} C ${mx} ${y1}, ${mx} ${y2}, ${x2} ${y2}`}
+                      fill="none"
+                      stroke="#6A5ACD"
+                      strokeWidth="1.75"
+                      strokeDasharray="5 4"
+                      markerEnd="url(#bs-formula-arrow)"
+                      className="bs-animate-draw opacity-70"
+                    />
+                  );
+                })}
+            </svg>
 
             {cards.map((card) => (
               <CanvasCardView
@@ -514,6 +599,7 @@ export const SheetCanvasEditor: React.FC<SheetCanvasEditorProps> = ({ templateOv
 
           {/* Floating Bottom-Left Zoom & Undo/Redo Pill */}
           <div
+            data-export-ignore="true"
             onClick={(e) => e.stopPropagation()}
             className="fixed bottom-4 left-[280px] z-30 flex items-center gap-1 rounded-full bg-white/95 dark:bg-[#1E1E29]/95 border border-[#E6E3F0] dark:border-[#2E2D3D] shadow-md px-2 py-1 text-xs"
           >

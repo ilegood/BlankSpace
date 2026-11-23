@@ -1,24 +1,33 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useWorkspace } from '../../../store/WorkspaceContext';
 import { EditorHeader } from '../EditorHeader';
 import { DocumentLinkModal } from '../../modals/DocumentLinkModal';
+import { runFlipForSortItems } from '../../../hooks/useLongPressSort';
 
 interface TimelineEvent {
   id: string;
   time: string;
   title: string;
   desc: string;
+  imageUrl?: string;
   linkedDocId?: string;
   linkedDocTitle?: string;
 }
 
 const DEFAULT_EVENTS: TimelineEvent[] = [
-  { id: 'ev1', time: '시점 1', title: '사건 1', desc: '세계 형성의 기원' },
-  { id: 'ev2', time: '시점 2', title: '사건 2', desc: '제1시대 개막' },
-  { id: 'ev3', time: '시점 3', title: '사건 3', desc: '대륙 대전쟁 발발', linkedDocId: 'doc-world-sheet', linkedDocTitle: '관련 문서' },
-  { id: 'ev4', time: '시점 4', title: '사건 4', desc: '에르젠 왕국 성립' },
-  { id: 'ev5', time: '시점 5', title: '사건 5', desc: '신규 시대 도래' },
+  { id: 'ev1', time: '100년', title: '사건 1', desc: '세계 형성의 기원' },
+  { id: 'ev2', time: '220년', title: '사건 2', desc: '제1시대 개막' },
+  { id: 'ev3', time: '340년', title: '사건 3', desc: '대륙 대전쟁 발발', linkedDocId: 'doc-world-sheet', linkedDocTitle: '관련 문서' },
+  { id: 'ev4', time: '510년', title: '사건 4', desc: '에르젠 왕국 성립' },
+  { id: 'ev5', time: '780년', title: '사건 5', desc: '신규 시대 도래' },
 ];
+
+const UNIT_SUFFIX: Record<'year' | 'month' | 'day' | 'custom', string> = {
+  year: '년',
+  month: '월',
+  day: '일',
+  custom: '',
+};
 
 export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = ({
   templateOverrideId,
@@ -28,12 +37,13 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
 
   const isTemplateMode = Boolean(templateOverrideId);
   const [isEditMode, setIsEditMode] = useState(isTemplateMode);
-  const [unit, setUnit] = useState<'year' | 'month' | 'day' | 'custom'>('month');
+  const [unit, setUnit] = useState<'year' | 'month' | 'day' | 'custom'>('year');
   const [events, setEvents] = useState<TimelineEvent[]>(DEFAULT_EVENTS);
   const [selectedId, setSelectedId] = useState<string | null>('ev3');
   const [isDocLinkOpen, setIsDocLinkOpen] = useState(false);
   const [dragEventId, setDragEventId] = useState<string | null>(null);
   const [dragHoverIdx, setDragHoverIdx] = useState<number | null>(null);
+  const titleInputRef = useRef<HTMLInputElement | null>(null);
 
   const sortChronologically = (list: TimelineEvent[]) =>
     [...list].sort((a, b) => {
@@ -85,14 +95,19 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
               <button
                 type="button"
                 onClick={() => {
+                  const suffix = UNIT_SUFFIX[unit];
+                  const nextNum = (events.length + 1) * (unit === 'year' ? 100 : 1);
                   const ev: TimelineEvent = {
                     id: `ev-${Date.now()}`,
-                    time: `시점 ${events.length + 1}`,
+                    time: suffix ? `${nextNum}${suffix}` : `시점 ${events.length + 1}`,
                     title: `사건 ${events.length + 1}`,
                     desc: '사건 설명',
                   };
-                  persist([...events, ev]);
+                  runFlipForSortItems(320, () => {
+                    persist(sortChronologically([...events, ev]));
+                  });
                   setSelectedId(ev.id);
+                  window.setTimeout(() => titleInputRef.current?.focus(), 60);
                 }}
                 className="px-3.5 py-2 rounded-xl bg-[#6A5ACD] text-white text-xs font-semibold"
               >
@@ -110,8 +125,22 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                 <button
                   key={u.id}
                   type="button"
-                  onClick={() => setUnit(u.id as any)}
-                  className={`px-3 py-1 rounded-lg font-semibold ${
+                  onClick={() => {
+                    const nextUnit = u.id as 'year' | 'month' | 'day' | 'custom';
+                    setUnit(nextUnit);
+                    const sfx = UNIT_SUFFIX[nextUnit];
+                    if (sfx) {
+                      runFlipForSortItems(320, () => {
+                        const updated = events.map((ev, i) => {
+                          const num = Number(ev.time.replace(/[^\d.-]/g, ''));
+                          const val = !Number.isNaN(num) && num > 0 ? num : i + 1;
+                          return { ...ev, time: `${val}${sfx}` };
+                        });
+                        persist(sortChronologically(updated));
+                      });
+                    }
+                  }}
+                  className={`px-3 py-1 rounded-lg font-semibold transition-colors ${
                     unit === u.id ? 'bg-[#6A5ACD] text-white' : 'text-[#6E6D7A]'
                   }`}
                 >
@@ -122,7 +151,11 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
               {isEditMode && (
                 <button
                   type="button"
-                  onClick={() => persist(sortChronologically(events))}
+                  onClick={() =>
+                    runFlipForSortItems(320, () => {
+                      persist(sortChronologically(events));
+                    })
+                  }
                   className="px-3 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] text-xs font-semibold hover:border-[#6A5ACD]"
                 >
                   시점순 정렬
@@ -130,9 +163,21 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
               )}
             </div>
 
-          {/* Alternating Timeline Cards */}
-          <div className="relative my-auto py-16 min-w-[780px]">
-            <div className="h-[3px] bg-[#D8D4EC] dark:bg-[#32304A] w-full rounded-full" />
+          {/* Alternating Timeline Cards with Time Axis Ticks (§6-5) */}
+          <div data-export-root="true" className="relative my-auto py-16 min-w-[780px]">
+            <div className="relative h-[3px] bg-[#D8D4EC] dark:bg-[#32304A] w-full rounded-full">
+              {events.map((ev, idx) => (
+                <span
+                  key={`tick-${ev.id}`}
+                  style={{
+                    left: `${((idx + 0.5) / Math.max(1, events.length)) * 100}%`,
+                  }}
+                  className="bs-animate-fade absolute -top-5 -translate-x-1/2 text-[10px] font-semibold text-[#8A8998] whitespace-nowrap pointer-events-none"
+                >
+                  {ev.time}
+                </span>
+              ))}
+            </div>
             <div className="grid grid-flow-col auto-cols-[175px] gap-4 -mt-[140px]">
               {events.map((ev, idx) => {
                 const isTop = idx % 2 === 0;
@@ -162,8 +207,17 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                       isDropTarget ? 'ring-2 ring-[#6A5ACD]' : ''
                     }`}
                   >
-                    <div className="text-[11px] text-[#8A8998]">{ev.time}</div>
+                    <div className="text-[11px] font-semibold text-[#6A5ACD] dark:text-[#9A8FE6]">
+                      {ev.time}
+                    </div>
                     <div className="text-xs font-bold mt-0.5">{ev.title}</div>
+                    {ev.imageUrl && (
+                      <img
+                        src={ev.imageUrl}
+                        alt={ev.title}
+                        className="mt-1.5 w-full h-14 object-cover rounded-lg"
+                      />
+                    )}
                     <div className="text-[11px] text-[#6E6D7A] dark:text-[#9E9CAF] mt-1 line-clamp-2">
                       {ev.desc}
                     </div>
@@ -172,6 +226,7 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                 return (
                   <div
                     key={ev.id}
+                    data-sort-id={ev.id}
                     onDragOver={(e) => {
                       if (!isEditMode || !dragEventId) return;
                       e.preventDefault();
@@ -182,10 +237,16 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                       e.preventDefault();
                       const fromIdx = events.findIndex((x) => x.id === dragEventId);
                       if (fromIdx >= 0 && fromIdx !== idx) {
+                        const targetTime = events[idx].time;
+                        const fromTime = events[fromIdx].time;
                         const copy = [...events];
+                        copy[fromIdx] = { ...copy[fromIdx], time: targetTime };
+                        copy[idx] = { ...copy[idx], time: fromTime };
                         const [moved] = copy.splice(fromIdx, 1);
                         copy.splice(idx, 0, moved);
-                        persist(copy);
+                        runFlipForSortItems(320, () => {
+                          persist(sortChronologically(copy));
+                        });
                       }
                       setDragEventId(null);
                       setDragHoverIdx(null);
@@ -228,6 +289,7 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
             <label className="flex items-center justify-between gap-2">
               <span>이름</span>
               <input
+                ref={titleInputRef}
                 type="text"
                 value={selected.title}
                 onChange={(e) =>
@@ -252,6 +314,11 @@ export const TimelineEditor: React.FC<{ templateOverrideId?: string | null }> = 
                       ev.id === selected.id ? { ...ev, time: e.target.value } : ev
                     )
                   )
+                }
+                onBlur={() =>
+                  runFlipForSortItems(320, () => {
+                    persist(sortChronologically(events));
+                  })
                 }
                 className="w-36 h-8 px-2.5 rounded-lg border border-[#E6E3F0] dark:border-[#323244]"
               />

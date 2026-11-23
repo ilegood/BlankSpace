@@ -84,7 +84,25 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
   };
 
   const selectedTask = tasks.find((t) => t.id === selectedTaskId) || null;
-  const cols = scale === 'month' ? 12 : 14;
+
+  // Compute dynamic column count when both startDate and endDate are enabled (§6-9)
+  const fullRangeDays = (() => {
+    if (!hasEndDate) return null;
+    const s = new Date(startDate).getTime();
+    const e = new Date(endDate).getTime();
+    if (Number.isNaN(s) || Number.isNaN(e) || e <= s) return 14;
+    const diff = Math.round((e - s) / 86400000) + 1;
+    return Math.max(7, Math.min(42, diff));
+  })();
+
+  const cols = fullRangeDays ?? (scale === 'month' ? 12 : 14);
+
+  const formatColDateLabel = (colIdx: number) => {
+    const base = new Date(startDate);
+    if (Number.isNaN(base.getTime())) return `${colIdx + 1}일`;
+    const d = new Date(base.getTime() + colIdx * 86400000);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  };
 
   const startBarDrag = (
     e: React.MouseEvent,
@@ -267,29 +285,39 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                 오늘
               </button>
 
-              <div className="inline-flex rounded-xl border border-[#E6E3F0] dark:border-[#323244] p-0.5">
-                {[
-                  { id: 'day', label: '일' },
-                  { id: 'week', label: '주' },
-                  { id: 'month', label: '월' },
-                ].map((s) => (
-                  <button
-                    key={s.id}
-                    type="button"
-                    onClick={() => setScale(s.id as any)}
-                    className={`px-2.5 py-1 rounded-lg font-semibold ${
-                      scale === s.id ? 'bg-[#6A5ACD] text-white' : 'text-[#6E6D7A]'
-                    }`}
-                  >
-                    {s.label}
-                  </button>
-                ))}
-              </div>
+              {/* Hide 일/주/월 toggle when both start & end dates are specified (§6-9) */}
+              {!hasEndDate ? (
+                <div className="inline-flex rounded-xl border border-[#E6E3F0] dark:border-[#323244] p-0.5 bs-animate-fade">
+                  {[
+                    { id: 'day', label: '일' },
+                    { id: 'week', label: '주' },
+                    { id: 'month', label: '월' },
+                  ].map((s) => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setScale(s.id as any)}
+                      className={`px-2.5 py-1 rounded-lg font-semibold ${
+                        scale === s.id ? 'bg-[#6A5ACD] text-white' : 'text-[#6E6D7A]'
+                      }`}
+                    >
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <span className="bs-animate-fade px-2.5 py-1 rounded-xl bg-[#F3F1FB] dark:bg-[#2C2845] text-[#6A5ACD] dark:text-[#9A8FE6] text-[11px] font-semibold">
+                  전체 기간 맞춤 ({cols}일)
+                </span>
+              )}
             </div>
           </div>
 
           {/* Gantt Table */}
-          <div className="rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] overflow-hidden relative min-w-[760px]">
+          <div
+            data-export-root="true"
+            className="rounded-2xl border border-[#E6E3F0] dark:border-[#2E2D3D] overflow-hidden relative min-w-[760px]"
+          >
             {/* Orange Today Vertical Line */}
             <div
               style={{ left: 'calc(180px + (100% - 180px) * 0.34)' }}
@@ -370,16 +398,25 @@ export const ScheduleEditor: React.FC<{ templateOverrideId?: string | null }> = 
                             }}
                             className="relative h-full flex items-center"
                           >
+                            {liveBar?.id === tk.id && (
+                              <div
+                                style={{ left: `${leftPct + widthPct / 2}%` }}
+                                className="bs-animate-fade absolute -top-5 -translate-x-1/2 z-30 px-2 py-0.5 rounded-md bg-[#1B1B1F] text-white text-[10px] font-semibold whitespace-nowrap pointer-events-none shadow"
+                              >
+                                {formatColDateLabel(startCol)} ~{' '}
+                                {formatColDateLabel(Math.max(startCol, startCol + spanCols - 1))}
+                              </div>
+                            )}
                             <div
                               onMouseDown={(e) => startBarDrag(e, tk, 'move', trackRef)}
                               style={{ left: `${leftPct}%`, width: `${widthPct}%` }}
-                              className={`group absolute h-7 rounded-lg bg-[#A598EC] overflow-hidden flex items-center ${
+                              className={`group absolute h-7 rounded-lg bg-[#A598EC] overflow-hidden flex items-center transition-[width] duration-200 ${
                                 isEditMode ? 'cursor-grab active:cursor-grabbing' : ''
                               } ${isSel ? 'ring-2 ring-[#1B1B1F] dark:ring-white' : ''}`}
                             >
                               <div
                                 style={{ width: `${tk.progress}%` }}
-                                className="h-full bg-[#6A5ACD] transition-[width] duration-150"
+                                className="h-full bg-[#6A5ACD] transition-[width] duration-240"
                               />
                               {isEditMode && (
                                 <>

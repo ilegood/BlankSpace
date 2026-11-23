@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { ChevronDown, Play, RotateCcw } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { ChevronDown, Play, RotateCcw, ImageDown } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 import { CATEGORY_LABELS, TEMPLATES } from '../../templates/templateList';
 import { DesignPresetItem } from '../../types';
 import { useToast } from '../toast/ToastContext';
+import { exportElementAsPng } from '../../utils/exportImage';
+import { ModalShell } from '../modals/ModalShell';
 
 interface EditorHeaderProps {
   title: string;
@@ -15,12 +17,14 @@ interface EditorHeaderProps {
   isTemplateMode?: boolean;
   onResetTemplate?: () => void;
   onPreviewClick?: () => void;
+  exportTargetRef?: React.RefObject<HTMLElement | null>;
   supportsDesignPreset?: boolean;
   builtinPresets?: DesignPresetItem[];
   activePresetId?: string;
   onApplyPreset?: (preset: DesignPresetItem) => void;
   onSavePreset?: (name: string) => void;
   onResetPreset?: () => void;
+  compactTitleVisible?: boolean;
 }
 
 export const EditorHeader: React.FC<EditorHeaderProps> = ({
@@ -33,12 +37,14 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   isTemplateMode = false,
   onResetTemplate,
   onPreviewClick,
+  exportTargetRef,
   supportsDesignPreset = false,
   builtinPresets = [],
   activePresetId = 'default',
   onApplyPreset,
   onSavePreset,
   onResetPreset,
+  compactTitleVisible,
 }) => {
   const {
     saveStatus,
@@ -52,10 +58,40 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   } = useWorkspace();
   const { showToast } = useToast();
 
+  const headerRootRef = useRef<HTMLDivElement>(null);
   const [localTitle, setLocalTitle] = useState(title);
   const [presetMenuOpen, setPresetMenuOpen] = useState(false);
   const [savePresetModalOpen, setSavePresetModalOpen] = useState(false);
   const [newPresetName, setNewPresetName] = useState('');
+  const [exportingImage, setExportingImage] = useState(false);
+
+  const handleExportPng = async () => {
+    if (exportingImage) return;
+    let target: HTMLElement | null = exportTargetRef?.current || null;
+    if (!target && headerRootRef.current?.parentElement) {
+      target = headerRootRef.current.parentElement.querySelector('[data-export-root="true"]');
+    }
+    if (!target) {
+      let sib = headerRootRef.current?.nextElementSibling as HTMLElement | null;
+      while (sib && sib.dataset?.exportIgnore === 'true') {
+        sib = sib.nextElementSibling as HTMLElement | null;
+      }
+      target = sib;
+    }
+    if (!target) {
+      showToast('내보낼 화면 영역을 찾지 못했습니다', { variant: 'error' });
+      return;
+    }
+    try {
+      setExportingImage(true);
+      await exportElementAsPng(target, { fileName: title || tpl?.name || 'blankspace' });
+      showToast(`'${title || '문서'}'을 이미지(PNG)로 저장했습니다`);
+    } catch {
+      showToast('이미지 저장 중 오류가 발생했습니다', { variant: 'error' });
+    } finally {
+      setExportingImage(false);
+    }
+  };
 
   useEffect(() => {
     setLocalTitle(title);
@@ -81,7 +117,7 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
   const currentPreset = allPresets.find((p) => p.id === activePresetId) || builtinPresets[0];
 
   return (
-    <div className="shrink-0 select-none">
+    <div ref={headerRootRef} className="shrink-0 select-none">
       {/* Top Bar matching PDF Pages 8, 9, 14, 33, 64 */}
       <div className="h-[54px] px-4 border-b border-[#EAE7F2] dark:border-[#2C2B3B] bg-white dark:bg-[#15151C] flex items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -117,10 +153,20 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               onKeyDown={(e) => {
                 if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
               }}
-              className="text-[15px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] bg-transparent border-b border-transparent focus:border-[#6A5ACD] focus:outline-none px-1 min-w-[120px] max-w-[300px] truncate"
+              className={`text-[15px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] bg-transparent border-b border-transparent focus:border-[#6A5ACD] focus:outline-none px-1 min-w-[120px] max-w-[300px] truncate transition-all duration-150 ${
+                compactTitleVisible === false
+                  ? 'opacity-0 -translate-y-1 pointer-events-none'
+                  : 'opacity-100 translate-y-0'
+              }`}
             />
           ) : (
-            <h1 className="text-[15px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate">
+            <h1
+              className={`text-[15px] font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate transition-all duration-150 ${
+                compactTitleVisible === false
+                  ? 'opacity-0 -translate-y-1 pointer-events-none'
+                  : 'opacity-100 translate-y-0'
+              }`}
+            >
               {title}
               {isTemplateMode && !title.includes('(템플릿)') ? ' (템플릿)' : ''}
             </h1>
@@ -142,6 +188,17 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
               미리보기
             </button>
           )}
+
+          <button
+            type="button"
+            disabled={exportingImage}
+            onClick={handleExportPng}
+            title="현재 템플릿을 PNG 이미지로 저장"
+            className="h-8 px-3 rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] hover:border-[#6A5ACD] disabled:opacity-50 text-xs font-semibold text-[#1B1B1F] dark:text-[#F1F0F6] flex items-center gap-1.5 transition-colors"
+          >
+            <ImageDown className="w-3.5 h-3.5 text-[#6A5ACD] dark:text-[#9A8FE6]" />
+            <span>{exportingImage ? '저장 중…' : '이미지 저장'}</span>
+          </button>
 
           <div className="flex items-center gap-1.5 px-1.5">
             {saveStatus === 'saving' ? (
@@ -309,14 +366,23 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             </div>
           )}
 
-          {/* View / Edit Mode Segmented Toggle */}
-          <div className="inline-flex items-center rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] p-0.5">
+          {/* View / Edit Mode Sliding Segmented Toggle (§2-9, §2-11) */}
+          <div className="relative inline-grid grid-cols-2 items-center rounded-xl border border-[#E6E3F0] dark:border-[#323244] bg-white dark:bg-[#1E1E29] p-0.5">
+            <span
+              aria-hidden="true"
+              style={{
+                transform: isEditMode ? 'translateX(100%)' : 'translateX(0%)',
+              }}
+              className={`pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-[9px] transition-all duration-200 ease-[cubic-bezier(0.2,0,0,1)] ${
+                isEditMode ? 'bg-[#6A5ACD]' : 'bg-[#3D328A]'
+              }`}
+            />
             <button
               type="button"
               onClick={() => onChangeMode(false)}
-              className={`px-3 py-1 rounded-[9px] text-xs font-semibold transition-all ${
+              className={`relative z-10 px-3 py-1 rounded-[9px] text-xs font-semibold transition-colors duration-200 ${
                 !isEditMode
-                  ? 'bg-[#3D328A] text-white'
+                  ? 'text-white'
                   : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-white'
               }`}
             >
@@ -325,9 +391,9 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
             <button
               type="button"
               onClick={() => onChangeMode(true)}
-              className={`px-3 py-1 rounded-[9px] text-xs font-semibold transition-all ${
+              className={`relative z-10 px-3 py-1 rounded-[9px] text-xs font-semibold transition-colors duration-200 ${
                 isEditMode
-                  ? 'bg-[#6A5ACD] text-white'
+                  ? 'text-white'
                   : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-white'
               }`}
             >
@@ -367,77 +433,74 @@ export const EditorHeader: React.FC<EditorHeaderProps> = ({
       )}
 
       {/* Design Preset Save Modal matching PDF Page 16 */}
-      {savePresetModalOpen && (
-        <div
-          className="fixed inset-0 z-[100] flex items-center justify-center bg-black/35 backdrop-blur-[2px] p-4"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) setSavePresetModalOpen(false);
-          }}
-        >
-          <div className="bs-animate-modal w-full max-w-sm rounded-2xl bg-white dark:bg-[#1E1E29] border border-[#E6E3F0] dark:border-[#2E2D3D] shadow-2xl p-6 flex flex-col gap-4">
-            <div>
-              <h3 className="text-base font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
-                디자인 프리셋으로 저장
-              </h3>
-              <p className="mt-1 text-xs text-[#8A8998]">
-                {tpl?.name || '템플릿'} 프리셋에 추가됩니다.
-              </p>
-            </div>
+      <ModalShell
+        isOpen={savePresetModalOpen}
+        onClose={() => setSavePresetModalOpen(false)}
+        maxWidthClass="max-w-sm"
+        zIndexClass="z-[100]"
+        className="p-6 flex flex-col gap-4"
+      >
+        <div>
+          <h3 className="text-base font-bold text-[#1B1B1F] dark:text-[#F1F0F6]">
+            디자인 프리셋으로 저장
+          </h3>
+          <p className="mt-1 text-xs text-[#8A8998]">
+            {tpl?.name || '템플릿'} 프리셋에 추가됩니다.
+          </p>
+        </div>
 
-            <div>
-              <label className="block text-xs font-medium text-[#6E6D7A] dark:text-[#9E9CAF] mb-1.5">
-                프리셋 이름
-              </label>
-              <input
-                type="text"
-                autoFocus
-                value={newPresetName}
-                onChange={(e) => setNewPresetName(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newPresetName.trim()) {
-                    onSavePreset?.(newPresetName.trim());
-                    setSavePresetModalOpen(false);
-                    showToast(`디자인 프리셋 '${newPresetName.trim()}'을 저장했습니다`);
-                  }
-                }}
-                placeholder="프리셋 이름 입력"
-                className="w-full h-10 px-3.5 rounded-xl border border-[#6A5ACD] bg-white dark:bg-[#15151C] text-xs text-[#1B1B1F] dark:text-[#F1F0F6] focus:outline-none"
-              />
-            </div>
+        <div>
+          <label className="block text-xs font-medium text-[#6E6D7A] dark:text-[#9E9CAF] mb-1.5">
+            프리셋 이름
+          </label>
+          <input
+            type="text"
+            autoFocus
+            value={newPresetName}
+            onChange={(e) => setNewPresetName(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && newPresetName.trim()) {
+                onSavePreset?.(newPresetName.trim());
+                setSavePresetModalOpen(false);
+                showToast(`디자인 프리셋 '${newPresetName.trim()}'을 저장했습니다`);
+              }
+            }}
+            placeholder="프리셋 이름 입력"
+            className="w-full h-10 px-3.5 rounded-xl border border-[#6A5ACD] bg-white dark:bg-[#15151C] text-xs text-[#1B1B1F] dark:text-[#F1F0F6] focus:outline-none"
+          />
+        </div>
 
-            <div className="rounded-xl bg-[#F8F7FC] dark:bg-[#262436] p-3 text-[11px] leading-relaxed text-[#555464] dark:text-[#B4B2C4]">
-              <div>
-                <strong className="text-[#1B1B1F] dark:text-white">저장됨</strong> 배치 · 크기 · 간격 · 색상 · 배경 · 테두리 · 글꼴 · 이미지 영역
-              </div>
-              <div className="mt-0.5">
-                <strong className="text-[#1B1B1F] dark:text-white">저장 안 됨</strong> 글, 이미지 등 문서 내용
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setSavePresetModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                disabled={!newPresetName.trim()}
-                onClick={() => {
-                  onSavePreset?.(newPresetName.trim());
-                  setSavePresetModalOpen(false);
-                  showToast(`디자인 프리셋 '${newPresetName.trim()}'을 저장했습니다`);
-                }}
-                className="px-4 py-2 rounded-xl bg-[#6A5ACD] hover:bg-[#5A49B8] disabled:opacity-40 text-white text-xs font-semibold"
-              >
-                저장
-              </button>
-            </div>
+        <div className="rounded-xl bg-[#F8F7FC] dark:bg-[#262436] p-3 text-[11px] leading-relaxed text-[#555464] dark:text-[#B4B2C4]">
+          <div>
+            <strong className="text-[#1B1B1F] dark:text-white">저장됨</strong> 배치 · 크기 · 간격 · 색상 · 배경 · 테두리 · 글꼴 · 이미지 영역
+          </div>
+          <div className="mt-0.5">
+            <strong className="text-[#1B1B1F] dark:text-white">저장 안 됨</strong> 글, 이미지 등 문서 내용
           </div>
         </div>
-      )}
+
+        <div className="flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={() => setSavePresetModalOpen(false)}
+            className="px-4 py-2 rounded-xl border border-[#E6E3F0] dark:border-[#323244] text-xs font-semibold"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            disabled={!newPresetName.trim()}
+            onClick={() => {
+              onSavePreset?.(newPresetName.trim());
+              setSavePresetModalOpen(false);
+              showToast(`디자인 프리셋 '${newPresetName.trim()}'을 저장했습니다`);
+            }}
+            className="px-4 py-2 rounded-xl bg-[#6A5ACD] hover:bg-[#5A49B8] disabled:opacity-40 text-white text-xs font-semibold"
+          >
+            저장
+          </button>
+        </div>
+      </ModalShell>
     </div>
   );
 };

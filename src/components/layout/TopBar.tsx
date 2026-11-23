@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useWorkspace } from '../../store/WorkspaceContext';
+import { runFlipForSortItems } from '../../hooks/useLongPressSort';
 
 export const TopBar: React.FC = () => {
   const {
@@ -61,13 +62,26 @@ export const TopBar: React.FC = () => {
         />
       </div>
 
-      <div className="inline-flex items-center rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-0.5 shrink-0">
+      {/* Sliding segmented control for Grid / List view (§2-9, §3-1) */}
+      <div className="relative inline-grid grid-cols-2 items-center rounded-xl border border-[#E6E3F0] dark:border-[#2E2D3D] bg-white dark:bg-[#1E1E29] p-0.5 shrink-0">
+        <span
+          aria-hidden="true"
+          style={{
+            transform: viewMode === 'grid' ? 'translateX(0%)' : 'translateX(100%)',
+          }}
+          className="pointer-events-none absolute top-0.5 bottom-0.5 left-0.5 w-[calc(50%-2px)] rounded-[10px] bg-[#1B1B1F] dark:bg-[#F1F0F6] transition-transform duration-200 ease-[cubic-bezier(0.2,0,0,1)]"
+        />
         <button
           type="button"
-          onClick={() => setViewMode('grid')}
-          className={`px-3.5 py-1.5 rounded-[10px] text-xs font-semibold transition-all duration-200 ${
+          onClick={() => {
+            if (viewMode === 'grid') return;
+            const playFlip = runFlipForSortItems(280);
+            setViewMode('grid');
+            playFlip();
+          }}
+          className={`relative z-10 px-3.5 py-1.5 rounded-[10px] text-xs font-semibold transition-colors duration-200 ${
             viewMode === 'grid'
-              ? 'bg-[#1B1B1F] text-white dark:bg-[#F1F0F6] dark:text-[#15151C]'
+              ? 'text-white dark:text-[#15151C]'
               : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-[#F1F0F6]'
           }`}
         >
@@ -75,10 +89,15 @@ export const TopBar: React.FC = () => {
         </button>
         <button
           type="button"
-          onClick={() => setViewMode('list')}
-          className={`px-3.5 py-1.5 rounded-[10px] text-xs font-semibold transition-all duration-200 ${
+          onClick={() => {
+            if (viewMode === 'list') return;
+            const playFlip = runFlipForSortItems(280);
+            setViewMode('list');
+            playFlip();
+          }}
+          className={`relative z-10 px-3.5 py-1.5 rounded-[10px] text-xs font-semibold transition-colors duration-200 ${
             viewMode === 'list'
-              ? 'bg-[#1B1B1F] text-white dark:bg-[#F1F0F6] dark:text-[#15151C]'
+              ? 'text-white dark:text-[#15151C]'
               : 'text-[#6E6D7A] dark:text-[#9E9CAF] hover:text-[#1B1B1F] dark:hover:text-[#F1F0F6]'
           }`}
         >

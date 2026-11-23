@@ -43,6 +43,8 @@ interface WorkspaceContextType {
   viewMode: ViewMode;
   sortOption: SortOption;
   globalSearchQuery: string;
+  pendingSearchHighlight: string | null;
+  setPendingSearchHighlight: (q: string | null) => void;
   recentDocumentIds: string[];
   isSidebarCollapsed: boolean;
   expandedProjectIds: string[];
@@ -168,6 +170,7 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [viewMode, setViewMode] = useState<ViewMode>('grid');
   const [sortOption, setSortOption] = useState<SortOption>('custom');
   const [globalSearchQuery, setGlobalSearchQuery] = useState('');
+  const [pendingSearchHighlight, setPendingSearchHighlight] = useState<string | null>(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [expandedProjectIds, setExpandedProjectIds] = useState<string[]>(['proj-game-dev']);
 
@@ -1206,6 +1209,8 @@ export const WorkspaceProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         viewMode,
         sortOption,
         globalSearchQuery,
+        pendingSearchHighlight,
+        setPendingSearchHighlight,
         recentDocumentIds,
         isSidebarCollapsed,
         expandedProjectIds,

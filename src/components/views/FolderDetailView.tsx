@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { MoreHorizontal, Trash2, Edit2, Copy } from 'lucide-react';
 import { useWorkspace } from '../../store/WorkspaceContext';
 import { TEMPLATES } from '../../templates/templateList';
@@ -161,9 +162,9 @@ export const FolderDetailView: React.FC = () => {
                     draggingId === folder.id
                       ? 'opacity-30 border-dashed border-[#6A5ACD]'
                       : isDropCenter
-                        ? 'border-[#6A5ACD] ring-2 ring-[#6A5ACD]/30 scale-[1.03]'
+                        ? 'border-[#6A5ACD] ring-2 ring-[#6A5ACD]/35 bg-[#F3F1FB] dark:bg-[#26233D]'
                         : hoverTargetId === folder.id
-                          ? 'border-[#6A5ACD]'
+                          ? 'border-[#6A5ACD] ring-2 ring-[#6A5ACD]/25'
                           : 'border-[#E6E3F0] dark:border-[#2E2D3D] hover:border-[#B6ACEA]'
                   } ${pressingId === folder.id ? 'scale-[0.98]' : ''}`}
                 >
@@ -420,14 +421,16 @@ export const FolderDetailView: React.FC = () => {
         </p>
       </div>
 
-      {(draggingDoc || draggingFolder) && (
-        <div
-          style={{ left: pointer.x - 80, top: pointer.y - 26 }}
-          className="fixed z-[100] pointer-events-none w-44 rounded-2xl border-2 border-[#6A5ACD] bg-white/95 dark:bg-[#1E1E29]/95 p-3 shadow-2xl scale-105 text-xs font-bold truncate"
-        >
-          {draggingDoc ? draggingDoc.title : draggingFolder?.name}
-        </div>
-      )}
+      {(draggingDoc || draggingFolder) &&
+        createPortal(
+          <div
+            style={{ left: pointer.x + 10, top: pointer.y + 10 }}
+            className="fixed z-[9999] pointer-events-none w-44 rounded-2xl border-2 border-[#6A5ACD] bg-white/95 dark:bg-[#1E1E29]/95 px-3.5 py-2.5 shadow-2xl text-xs font-bold text-[#1B1B1F] dark:text-[#F1F0F6] truncate"
+          >
+            {draggingDoc ? draggingDoc.title : draggingFolder?.name}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
